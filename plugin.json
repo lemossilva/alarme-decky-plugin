@@ -1,0 +1,20 @@
+{
+    "name": "Alar.me",
+    "author": "Guilherme Lemos",
+    "flags": [
+        "debug"
+    ],
+    "api_version": 1,
+    "publish": {
+        "tags": [
+            "alarm",
+            "timer",
+            "productivity",
+            "pomodoro",
+            "clock",
+            "snooze"
+        ],
+        "description": "Advanced alarm and timer with snooze, recurring alarms, Pomodoro mode, and persistent notifications.",
+        "image": "https://raw.githubusercontent.com/your-username/alarme-decky-plugin/main/assets/promo.png"
+    }
+}
