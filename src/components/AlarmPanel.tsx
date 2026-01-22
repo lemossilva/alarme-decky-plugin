@@ -9,11 +9,11 @@ import {
     ToggleField
 } from "@decky/ui";
 import { FaBell, FaBellSlash, FaPlus, FaTrash } from "react-icons/fa";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useAlarms } from "../hooks/useAlarms";
 import { useSettings } from "../hooks/useSettings";
 import { formatTime, getRelativeTime, getRecurringText } from "../utils/time";
-import type { Alarm, RecurringType, SoundFile } from "../types";
+import type { Alarm, RecurringType } from "../types";
 
 const RECURRING_OPTIONS: DropdownOption[] = [
     { data: 'once', label: 'Once' },
@@ -150,43 +150,24 @@ const AlarmItem = ({ alarm, use24h, onToggle, onDelete }: AlarmItemProps) => {
     );
 };
 
-export function AlarmPanel() {
-    const { alarms, createAlarm, deleteAlarm, toggleAlarm, getSounds } = useAlarms();
-    const { settings } = useSettings();
 
-    const [hour, setHour] = useState(() => {
-        const now = new Date();
-        return now.getHours();
-    });
+interface CreateAlarmFormProps {
+    onSave: (hour: number, minute: number, label: string, recurring: RecurringType) => Promise<void>;
+    onCancel: () => void;
+}
+
+const CreateAlarmForm = ({ onSave, onCancel }: CreateAlarmFormProps) => {
+    const [hour, setHour] = useState(() => new Date().getHours());
     const [minute, setMinute] = useState(0);
     const [label, setLabel] = useState('');
     const [recurring, setRecurring] = useState<RecurringType>('once');
-    const [sound, setSound] = useState('alarm.mp3');
-    const [sounds, setSounds] = useState<SoundFile[]>([{ filename: 'alarm.mp3', name: 'Alarm' }]);
-    const [showCreateForm, setShowCreateForm] = useState(false);
 
-    const use24h = settings.time_format_24h;
-
-    // Load available sounds on mount
-    useEffect(() => {
-        getSounds().then(setSounds);
-    }, [getSounds]);
-
-    const handleCreateAlarm = async () => {
-        await createAlarm(hour, minute, label, recurring, sound);
-        setLabel('');
-        setRecurring('once');
-        setSound('alarm.mp3');
-        setShowCreateForm(false);
-    };
-
-    // Repeater logic for holding buttons
+    // Repeater logic
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const startRepeating = (action: () => void) => {
         action();
-        // Initial delay before rapid repeat
         timeoutRef.current = setTimeout(() => {
             intervalRef.current = setInterval(action, 100);
         }, 300);
@@ -202,16 +183,141 @@ export function AlarmPanel() {
             setHour(h => {
                 let newHour = h + delta;
                 if (newHour > 23) newHour = 0;
+                if (newHour < 0) newHour = 23;
                 return newHour;
             });
         } else {
             setMinute(m => {
                 let newMinute = m + delta;
-                if (newMinute < 0) newMinute = 59;
                 if (newMinute > 59) newMinute = 0;
+                if (newMinute < 0) newMinute = 59;
                 return newMinute;
             });
         }
+    };
+
+    const handleSave = async () => {
+        await onSave(hour, minute, label, recurring);
+    };
+
+    return (
+        <>
+            {/* Time Picker */}
+            <PanelSectionRow>
+                <Focusable
+                    flow-children="row"
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '16px 0'
+                    }}
+                >
+                    {/* Hour selector */}
+                    <Focusable style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <ArrowButton
+                            direction="up"
+                            onActivate={() => adjustTime('hour', 1)}
+                            onStartRepeat={() => startRepeating(() => adjustTime('hour', 1))}
+                            onStopRepeat={stopRepeating}
+                        />
+                        <div style={{
+                            fontSize: 48,
+                            fontWeight: 'bold',
+                            fontFamily: 'monospace',
+                            width: 80,
+                            textAlign: 'center'
+                        }}>
+                            {hour.toString().padStart(2, '0')}
+                        </div>
+                        <ArrowButton
+                            direction="down"
+                            onActivate={() => adjustTime('hour', -1)}
+                            onStartRepeat={() => startRepeating(() => adjustTime('hour', -1))}
+                            onStopRepeat={stopRepeating}
+                        />
+                    </Focusable>
+
+                    <div style={{ fontSize: 48, fontWeight: 'bold' }}>:</div>
+
+                    {/* Minute selector */}
+                    <Focusable style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <ArrowButton
+                            direction="up"
+                            onActivate={() => adjustTime('minute', 1)}
+                            onStartRepeat={() => startRepeating(() => adjustTime('minute', 1))}
+                            onStopRepeat={stopRepeating}
+                        />
+                        <div style={{
+                            fontSize: 48,
+                            fontWeight: 'bold',
+                            fontFamily: 'monospace',
+                            width: 80,
+                            textAlign: 'center'
+                        }}>
+                            {minute.toString().padStart(2, '0')}
+                        </div>
+                        <ArrowButton
+                            direction="down"
+                            onActivate={() => adjustTime('minute', -1)}
+                            onStartRepeat={() => startRepeating(() => adjustTime('minute', -1))}
+                            onStopRepeat={stopRepeating}
+                        />
+                    </Focusable>
+                </Focusable>
+            </PanelSectionRow>
+
+            {/* Label */}
+            <PanelSectionRow>
+                <TextField
+                    label="Alarm Label (e.g., Wake up)"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                />
+            </PanelSectionRow>
+
+            {/* Recurring */}
+            <PanelSectionRow>
+                <Dropdown
+                    rgOptions={RECURRING_OPTIONS}
+                    selectedOption={recurring}
+                    onChange={(option) => setRecurring(option.data as any)}
+                    strDefaultLabel="When"
+                />
+            </PanelSectionRow>
+
+            {/* Action buttons */}
+            <PanelSectionRow>
+                <ButtonItem
+                    layout="below"
+                    onClick={onCancel}
+                >
+                    Cancel
+                </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+                <ButtonItem
+                    layout="below"
+                    onClick={handleSave}
+                >
+                    Set Alarm
+                </ButtonItem>
+            </PanelSectionRow>
+        </>
+    );
+};
+
+export function AlarmPanel() {
+    const { alarms, createAlarm, deleteAlarm, toggleAlarm } = useAlarms();
+    const { settings } = useSettings();
+
+    const [showCreateForm, setShowCreateForm] = useState(false);
+    const use24h = settings.time_format_24h;
+
+    const handleCreateAlarm = async (hour: number, minute: number, label: string, recurring: RecurringType) => {
+        await createAlarm(hour, minute, label, recurring, 'alarm.mp3'); // Sound arg is now ignored or default
+        setShowCreateForm(false);
     };
 
     return (
@@ -244,120 +350,10 @@ export function AlarmPanel() {
                         </ButtonItem>
                     </PanelSectionRow>
                 ) : (
-                    <>
-                        {/* Time Picker */}
-                        <PanelSectionRow>
-                            <Focusable
-                                flow-children="row"
-                                style={{
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    padding: '16px 0'
-                                }}
-                            >
-                                {/* Hour selector */}
-                                <Focusable style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <ArrowButton
-                                        direction="up"
-                                        onActivate={() => adjustTime('hour', 1)}
-                                        onStartRepeat={() => startRepeating(() => adjustTime('hour', 1))}
-                                        onStopRepeat={stopRepeating}
-                                    />
-                                    <div style={{
-                                        fontSize: 48,
-                                        fontWeight: 'bold',
-                                        fontFamily: 'monospace',
-                                        width: 80,
-                                        textAlign: 'center'
-                                    }}>
-                                        {hour.toString().padStart(2, '0')}
-                                    </div>
-                                    <ArrowButton
-                                        direction="down"
-                                        onActivate={() => adjustTime('hour', -1)}
-                                        onStartRepeat={() => startRepeating(() => adjustTime('hour', -1))}
-                                        onStopRepeat={stopRepeating}
-                                    />
-                                </Focusable>
-
-                                <div style={{ fontSize: 48, fontWeight: 'bold' }}>:</div>
-
-                                {/* Minute selector */}
-                                <Focusable style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <ArrowButton
-                                        direction="up"
-                                        onActivate={() => adjustTime('minute', 1)}
-                                        onStartRepeat={() => startRepeating(() => adjustTime('minute', 1))}
-                                        onStopRepeat={stopRepeating}
-                                    />
-                                    <div style={{
-                                        fontSize: 48,
-                                        fontWeight: 'bold',
-                                        fontFamily: 'monospace',
-                                        width: 80,
-                                        textAlign: 'center'
-                                    }}>
-                                        {minute.toString().padStart(2, '0')}
-                                    </div>
-                                    <ArrowButton
-                                        direction="down"
-                                        onActivate={() => adjustTime('minute', -1)}
-                                        onStartRepeat={() => startRepeating(() => adjustTime('minute', -1))}
-                                        onStopRepeat={stopRepeating}
-                                    />
-                                </Focusable>
-                            </Focusable>
-                        </PanelSectionRow>
-
-                        {/* Label */}
-                        <PanelSectionRow>
-                            <TextField
-                                label="Alarm Label (e.g., Wake up)"
-                                value={label}
-                                onChange={(e) => setLabel(e.target.value)}
-                            />
-                        </PanelSectionRow>
-
-                        {/* Recurring */}
-                        <PanelSectionRow>
-                            <Dropdown
-                                rgOptions={RECURRING_OPTIONS}
-                                selectedOption={recurring}
-                                onChange={(option) => setRecurring(option.data as any)}
-                                strDefaultLabel="When"
-                            />
-                        </PanelSectionRow>
-
-                        {/* Sound selector */}
-                        <PanelSectionRow>
-                            <Dropdown
-                                rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
-                                selectedOption={sound}
-                                onChange={(option) => setSound(option.data as string)}
-                                strDefaultLabel="Sound"
-                            />
-                        </PanelSectionRow>
-
-                        {/* Action buttons */}
-                        <PanelSectionRow>
-                            <ButtonItem
-                                layout="below"
-                                onClick={() => setShowCreateForm(false)}
-                            >
-                                Cancel
-                            </ButtonItem>
-                        </PanelSectionRow>
-                        <PanelSectionRow>
-                            <ButtonItem
-                                layout="below"
-                                onClick={handleCreateAlarm}
-                            >
-                                Set Alarm
-                            </ButtonItem>
-                        </PanelSectionRow>
-                    </>
+                    <CreateAlarmForm
+                        onSave={handleCreateAlarm}
+                        onCancel={() => setShowCreateForm(false)}
+                    />
                 )}
             </PanelSection>
         </div>

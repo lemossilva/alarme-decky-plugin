@@ -20,6 +20,7 @@ import { AlarmPanel } from "./components/AlarmPanel";
 import { PomodoroPanel } from "./components/PomodoroPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { showSnoozeModal } from "./components/SnoozeModal";
+import { playAlarmSound } from "./utils/sounds";
 
 // Types
 import type {
@@ -164,6 +165,8 @@ export default definePlugin(() => {
     };
 
     const handlePomodoroWorkEnded = (state: PomodoroState) => {
+        // Play sound
+        playAlarmSound(state.sound || 'alarm.mp3');
         toaster.toast({
             title: "🎉 Great work!",
             body: `Session ${state.current_session} complete. Time for a ${state.break_type === 'long' ? 'long ' : ''}break!`
@@ -171,6 +174,8 @@ export default definePlugin(() => {
     };
 
     const handlePomodoroBreakEnded = (state: PomodoroState) => {
+        // Play sound
+        playAlarmSound(state.sound || 'alarm.mp3');
         toaster.toast({
             title: "💪 Break's over!",
             body: `Ready for session ${state.current_session}?`

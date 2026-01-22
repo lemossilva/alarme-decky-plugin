@@ -32,6 +32,7 @@ DEFAULT_SETTINGS = {
     "alarm_volume": 100,
     "timer_sound": "alarm.mp3",  # default sound for timers
     "pomodoro_sound": "alarm.mp3",  # default sound for pomodoro
+    "alarm_sound": "alarm.mp3",  # default sound for alarms
     "pomodoro_work_duration": 25,  # minutes
     "pomodoro_break_duration": 5,  # minutes
     "pomodoro_long_break_duration": 15,  # minutes
@@ -408,7 +409,8 @@ class Plugin:
                                 decky.logger.info(f"Alar.me: >>> TRIGGERING alarm {alarm_id}! <<<")
                                 user_settings = await self._get_user_settings()
                                 subtle = user_settings.get("subtle_mode", False)
-                                alarm_sound = alarm.get("sound", "alarm.mp3")
+                                # Use global alarm sound setting
+                                alarm_sound = user_settings.get("alarm_sound", "alarm.mp3")
                                 
                                 await decky.emit("alarme_alarm_triggered", {
                                     "id": alarm_id,

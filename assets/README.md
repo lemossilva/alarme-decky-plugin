@@ -1,32 +1,34 @@
 # Sound Assets
 
-This folder should contain the following sound files:
+Place your custom sound files in this folder. They will be available for selection in the Settings panel.
 
-## Required Files
+## Supported Formats
 
-### alarm.mp3
-The main alarm sound that plays when a timer completes or alarm triggers.
+- `.mp3` - Recommended for best compatibility
+- `.wav` - Uncompressed audio
+- `.ogg` - Open format, good compression
 
-**Recommended sources for royalty-free sounds:**
-- [Mixkit](https://mixkit.co/free-sound-effects/alarm/) - Free alarm sounds
-- [Freesound](https://freesound.org/) - Creative Commons sounds
-- [ZapSplat](https://www.zapsplat.com/) - Free sound effects
+## Included Files
 
-### notification.mp3 (Optional)
-A gentler notification sound for subtle mode alerts.
+- `alarm.mp3` - Default alarm sound for all notifications
+
+## Adding Custom Sounds
+
+1. Add your sound file to this folder (e.g., `my-sound.mp3`)
+2. Rebuild the plugin: `pnpm run build`
+3. Redeploy to your Steam Deck
+4. The sound will appear in Settings under Timer/Pomodoro/Alarm Sound dropdowns
 
 ## Recommendations
 
-1. **File size**: Keep sounds under 500KB for quick loading
-2. **Duration**: Alarm sounds should be 2-5 seconds
-3. **Format**: MP3 format for best compatibility
-4. **Volume**: Normalize audio levels for consistent volume
+| Aspect | Recommendation |
+|--------|----------------|
+| File size | Under 500KB for quick loading |
+| Duration | 2-5 seconds for alarms |
+| Volume | Normalize audio levels |
 
-## Download Suggestions
+## Royalty-Free Sound Sources
 
-From Mixkit (all free, royalty-free):
-- "Classic alarm" - Traditional alarm clock sound
-- "Alarm clock beep" - Digital beep sound
-- "Morning clock alarm" - Gentle wake-up sound
-
-Simply download your preferred sound and save it as `alarm.mp3` in this folder.
+- [Mixkit](https://mixkit.co/free-sound-effects/alarm/) - Free alarm sounds
+- [Freesound](https://freesound.org/) - Creative Commons sounds
+- [ZapSplat](https://www.zapsplat.com/) - Free sound effects

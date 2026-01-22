@@ -1,25 +1,90 @@
 import {
     Dropdown,
+    Focusable,
     PanelSection,
     PanelSectionRow,
     SliderField,
     ToggleField
 } from "@decky/ui";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaMusic } from "react-icons/fa";
-import { useEffect, useState } from "react";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaMusic, FaPlay, FaPause } from "react-icons/fa";
+import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
+import { playAlarmSound, stopSound } from "../utils/sounds";
 import type { SoundFile } from "../types";
+
+// Reusable sound preview button component
+const SoundPreviewButton = ({ soundFile }: { soundFile: string }) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [focused, setFocused] = useState(false);
+
+    const handleToggle = () => {
+        if (isPlaying && audioRef.current) {
+            stopSound(audioRef.current);
+            audioRef.current = null;
+            setIsPlaying(false);
+        } else {
+            // Stop any previous sound first
+            if (audioRef.current) {
+                stopSound(audioRef.current);
+            }
+            audioRef.current = playAlarmSound(soundFile);
+            if (audioRef.current) {
+                setIsPlaying(true);
+                audioRef.current.onended = () => {
+                    setIsPlaying(false);
+                    audioRef.current = null;
+                };
+            }
+        }
+    };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                stopSound(audioRef.current);
+            }
+        };
+    }, []);
+
+    return (
+        <Focusable
+            onActivate={handleToggle}
+            onClick={handleToggle}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                minWidth: 32,
+                padding: 0,
+                backgroundColor: focused ? '#4488aa' : '#ffffff22',
+                borderRadius: 4,
+                border: focused ? '2px solid white' : '2px solid transparent',
+                cursor: 'pointer',
+                flexShrink: 0
+            }}
+        >
+            {isPlaying ? <FaPause size={12} /> : <FaPlay size={12} />}
+        </Focusable>
+    );
+};
 
 export function SettingsPanel() {
     const { settings, updateSetting } = useSettings();
     const { getSounds } = useAlarms();
     const [sounds, setSounds] = useState<SoundFile[]>([{ filename: 'alarm.mp3', name: 'Alarm' }]);
 
-    // Load available sounds on mount
+    // Load available sounds on mount only
     useEffect(() => {
         getSounds().then(setSounds);
-    }, [getSounds]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div>
@@ -73,27 +138,49 @@ export function SettingsPanel() {
 
                 <PanelSectionRow>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaMusic style={{ color: '#888' }} />
-                        <span style={{ flex: 1 }}>Timer Sound</span>
-                        <Dropdown
-                            rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
-                            selectedOption={settings.timer_sound || 'alarm.mp3'}
-                            onChange={(option) => updateSetting('timer_sound', option.data as string)}
-                            strDefaultLabel="Select Sound"
-                        />
+                        <FaMusic style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Timer Sound</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Dropdown
+                                rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
+                                selectedOption={settings.timer_sound || 'alarm.mp3'}
+                                onChange={(option) => updateSetting('timer_sound', option.data as string)}
+                                strDefaultLabel="Select Sound"
+                            />
+                        </div>
+                        <SoundPreviewButton soundFile={settings.timer_sound || 'alarm.mp3'} />
                     </div>
                 </PanelSectionRow>
 
                 <PanelSectionRow>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaMusic style={{ color: '#888' }} />
-                        <span style={{ flex: 1 }}>Pomodoro Sound</span>
-                        <Dropdown
-                            rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
-                            selectedOption={settings.pomodoro_sound || 'alarm.mp3'}
-                            onChange={(option) => updateSetting('pomodoro_sound', option.data as string)}
-                            strDefaultLabel="Select Sound"
-                        />
+                        <FaMusic style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Pomodoro Sound</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Dropdown
+                                rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
+                                selectedOption={settings.pomodoro_sound || 'alarm.mp3'}
+                                onChange={(option) => updateSetting('pomodoro_sound', option.data as string)}
+                                strDefaultLabel="Select Sound"
+                            />
+                        </div>
+                        <SoundPreviewButton soundFile={settings.pomodoro_sound || 'alarm.mp3'} />
+                    </div>
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                        <FaMusic style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Alarm Sound</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Dropdown
+                                rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
+                                selectedOption={settings.alarm_sound || 'alarm.mp3'}
+                                onChange={(option) => updateSetting('alarm_sound', option.data as string)}
+                                strDefaultLabel="Select Sound"
+                            />
+                        </div>
+                        <SoundPreviewButton soundFile={settings.alarm_sound || 'alarm.mp3'} />
                     </div>
                 </PanelSectionRow>
             </PanelSection>

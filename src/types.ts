@@ -60,6 +60,7 @@ export interface UserSettings {
     alarm_volume: number;
     timer_sound: string;      // filename of sound for timers
     pomodoro_sound: string;   // filename of sound for pomodoro
+    alarm_sound: string;      // filename of sound for alarms
     pomodoro_work_duration: number;
     pomodoro_break_duration: number;
     pomodoro_long_break_duration: number;
