@@ -23,7 +23,11 @@ export interface Alarm {
     created_at: number;
     snoozed_until: number | null;
     next_trigger?: number | null;
-    sound?: string;  // filename of the sound to play
+    sound?: string;           // filename of the sound to play
+    volume?: number;          // 0-100, per-alarm volume override
+    snooze_duration?: number; // minutes, per-alarm snooze override
+    subtle_mode?: boolean;    // per-alarm subtle mode override
+    auto_suspend?: boolean;   // per-alarm auto suspend override
 }
 
 // Sound file types
@@ -53,18 +57,26 @@ export interface PomodoroState {
 
 // Settings types
 export interface UserSettings {
-    snooze_duration: number;
-    subtle_mode: boolean;
+    snooze_duration: number;      // default snooze for alarms
     time_format_24h: boolean;
-    auto_suspend: boolean;
-    alarm_volume: number;
-    timer_sound: string;      // filename of sound for timers
-    pomodoro_sound: string;   // filename of sound for pomodoro
-    alarm_sound: string;      // filename of sound for alarms
+    // Timer settings
+    timer_sound: string;
+    timer_volume: number;
+    timer_subtle_mode: boolean;
+    timer_auto_suspend: boolean;
+    // Pomodoro settings
+    pomodoro_sound: string;
+    pomodoro_volume: number;
+    pomodoro_subtle_mode: boolean;
     pomodoro_work_duration: number;
     pomodoro_break_duration: number;
     pomodoro_long_break_duration: number;
     pomodoro_sessions_until_long_break: number;
+    // Legacy/deprecated (kept for migration)
+    subtle_mode?: boolean;
+    auto_suspend?: boolean;
+    alarm_volume?: number;
+    alarm_sound?: string;
 }
 
 // Event payload types
@@ -73,6 +85,7 @@ export interface TimerCompletedEvent {
     label: string;
     subtle: boolean;
     sound?: string;
+    auto_suspend?: boolean;
 }
 
 export interface AlarmTriggeredEvent {
@@ -80,6 +93,8 @@ export interface AlarmTriggeredEvent {
     label: string;
     subtle: boolean;
     sound?: string;
+    auto_suspend?: boolean;
+    volume?: number;
 }
 
 export interface TimerTickEvent {

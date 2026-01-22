@@ -3,7 +3,8 @@ import { addEventListener, removeEventListener, callable } from '@decky/api';
 import type { Alarm, RecurringType, SoundFile } from '../types';
 
 // Backend callables
-const createAlarmCall = callable<[hour: number, minute: number, label: string, recurring: string, sound: string], string>('create_alarm');
+const createAlarmCall = callable<[hour: number, minute: number, label: string, recurring: string, sound: string, volume: number, snooze_duration: number, subtle_mode: boolean, auto_suspend: boolean], string>('create_alarm');
+const updateAlarmCall = callable<[alarm_id: string, hour: number, minute: number, label: string, recurring: string, sound: string, volume: number, snooze_duration: number, subtle_mode: boolean, auto_suspend: boolean], boolean>('update_alarm');
 const cancelAlarmCall = callable<[alarm_id: string], boolean>('cancel_alarm');
 const toggleAlarmCall = callable<[alarm_id: string, enabled: boolean], boolean>('toggle_alarm');
 const snoozeAlarmCall = callable<[alarm_id: string, minutes: number], boolean>('snooze_alarm');
@@ -32,10 +33,14 @@ export function useAlarms() {
         minute: number,
         label: string = '',
         recurring: RecurringType = 'once',
-        sound: string = 'alarm.mp3'
+        sound: string = 'alarm.mp3',
+        volume: number = 100,
+        snoozeDuration: number = 5,
+        subtleMode: boolean = false,
+        autoSuspend: boolean = false
     ) => {
         try {
-            await createAlarmCall(hour, minute, label, recurring, sound);
+            await createAlarmCall(hour, minute, label, recurring, sound, volume, snoozeDuration, subtleMode, autoSuspend);
         } catch (e) {
             console.error('Failed to create alarm:', e);
         }
@@ -48,6 +53,26 @@ export function useAlarms() {
         } catch (e) {
             console.error('Failed to get sounds:', e);
             return [{ filename: 'alarm.mp3', name: 'Alarm' }];
+        }
+    }, []);
+
+    // Update an existing alarm
+    const updateAlarm = useCallback(async (
+        alarmId: string,
+        hour: number,
+        minute: number,
+        label: string = '',
+        recurring: RecurringType = 'once',
+        sound: string = 'alarm.mp3',
+        volume: number = 100,
+        snoozeDuration: number = 5,
+        subtleMode: boolean = false,
+        autoSuspend: boolean = false
+    ) => {
+        try {
+            await updateAlarmCall(alarmId, hour, minute, label, recurring, sound, volume, snoozeDuration, subtleMode, autoSuspend);
+        } catch (e) {
+            console.error('Failed to update alarm:', e);
         }
     }, []);
 
@@ -102,6 +127,7 @@ export function useAlarms() {
         loading,
         nextAlarm,
         createAlarm,
+        updateAlarm,
         deleteAlarm,
         toggleAlarm,
         snoozeAlarm,

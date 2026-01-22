@@ -6,7 +6,7 @@ import {
     SliderField,
     ToggleField
 } from "@decky/ui";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaMusic, FaPlay, FaPause } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -88,58 +88,12 @@ export function SettingsPanel() {
 
     return (
         <div>
-            {/* Notification Settings */}
-            <PanelSection title="Notifications">
-                <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaBell />}
-                        label="Subtle Mode"
-                        description="Show a small toast instead of fullscreen popup"
-                        checked={settings.subtle_mode}
-                        onChange={(value) => updateSetting('subtle_mode', value)}
-                    />
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaClock />}
-                        label="Auto-Suspend"
-                        description="Automatically suspend when timer/alarm triggers"
-                        checked={settings.auto_suspend}
-                        onChange={(value) => updateSetting('auto_suspend', value)}
-                    />
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                    <SliderField
-                        label="Snooze Duration"
-                        description={`${settings.snooze_duration} minutes`}
-                        value={settings.snooze_duration}
-                        min={1}
-                        max={30}
-                        step={1}
-                        onChange={(value) => updateSetting('snooze_duration', value)}
-                        icon={<FaBell />}
-                    />
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                    <SliderField
-                        label="Alarm Volume"
-                        description={`${settings.alarm_volume}%`}
-                        value={settings.alarm_volume}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={(value) => updateSetting('alarm_volume', value)}
-                        icon={<FaVolumeUp />}
-                    />
-                </PanelSectionRow>
-
+            {/* Timer Settings */}
+            <PanelSection title="Timer Settings">
                 <PanelSectionRow>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaMusic style={{ color: '#888', flexShrink: 0 }} />
-                        <span style={{ flexShrink: 0 }}>Timer Sound</span>
+                        <FaStopwatch style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Sound</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <Dropdown
                                 rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
@@ -153,9 +107,45 @@ export function SettingsPanel() {
                 </PanelSectionRow>
 
                 <PanelSectionRow>
+                    <SliderField
+                        label="Volume"
+                        description={`${settings.timer_volume ?? 100}%`}
+                        value={settings.timer_volume ?? 100}
+                        min={0}
+                        max={100}
+                        step={5}
+                        onChange={(value) => updateSetting('timer_volume', value)}
+                        icon={<FaVolumeUp />}
+                    />
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaBell />}
+                        label="Subtle Mode"
+                        description="Show a small toast instead of fullscreen popup"
+                        checked={settings.timer_subtle_mode ?? false}
+                        onChange={(value) => updateSetting('timer_subtle_mode', value)}
+                    />
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaClock />}
+                        label="Auto-Suspend"
+                        description="Suspend device when timer finishes"
+                        checked={settings.timer_auto_suspend ?? false}
+                        onChange={(value) => updateSetting('timer_auto_suspend', value)}
+                    />
+                </PanelSectionRow>
+            </PanelSection>
+
+            {/* Pomodoro Settings */}
+            <PanelSection title="Pomodoro Settings">
+                <PanelSectionRow>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaMusic style={{ color: '#888', flexShrink: 0 }} />
-                        <span style={{ flexShrink: 0 }}>Pomodoro Sound</span>
+                        <FaBrain style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Sound</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <Dropdown
                                 rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
@@ -169,37 +159,28 @@ export function SettingsPanel() {
                 </PanelSectionRow>
 
                 <PanelSectionRow>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaMusic style={{ color: '#888', flexShrink: 0 }} />
-                        <span style={{ flexShrink: 0 }}>Alarm Sound</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <Dropdown
-                                rgOptions={sounds.map(s => ({ data: s.filename, label: s.name }))}
-                                selectedOption={settings.alarm_sound || 'alarm.mp3'}
-                                onChange={(option) => updateSetting('alarm_sound', option.data as string)}
-                                strDefaultLabel="Select Sound"
-                            />
-                        </div>
-                        <SoundPreviewButton soundFile={settings.alarm_sound || 'alarm.mp3'} />
-                    </div>
-                </PanelSectionRow>
-            </PanelSection>
-
-            {/* Time Format */}
-            <PanelSection title="Display">
-                <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaClock />}
-                        label="24-Hour Format"
-                        description="Use 24-hour time format (e.g., 14:30 instead of 2:30 PM)"
-                        checked={settings.time_format_24h}
-                        onChange={(value) => updateSetting('time_format_24h', value)}
+                    <SliderField
+                        label="Volume"
+                        description={`${settings.pomodoro_volume ?? 100}%`}
+                        value={settings.pomodoro_volume ?? 100}
+                        min={0}
+                        max={100}
+                        step={5}
+                        onChange={(value) => updateSetting('pomodoro_volume', value)}
+                        icon={<FaVolumeUp />}
                     />
                 </PanelSectionRow>
-            </PanelSection>
 
-            {/* Pomodoro Settings */}
-            <PanelSection title="Pomodoro Settings">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaBell />}
+                        label="Subtle Mode"
+                        description="Show a small toast instead of fullscreen popup"
+                        checked={settings.pomodoro_subtle_mode ?? false}
+                        onChange={(value) => updateSetting('pomodoro_subtle_mode', value)}
+                    />
+                </PanelSectionRow>
+
                 <PanelSectionRow>
                     <SliderField
                         label="Work Duration"
@@ -249,6 +230,40 @@ export function SettingsPanel() {
                         step={1}
                         onChange={(value) => updateSetting('pomodoro_sessions_until_long_break', value)}
                         icon={<FaClock />}
+                    />
+                </PanelSectionRow>
+            </PanelSection>
+
+            {/* Alarm Defaults */}
+            <PanelSection title="Alarm Defaults">
+                <PanelSectionRow>
+                    <SliderField
+                        label="Default Snooze Duration"
+                        description={`${settings.snooze_duration} minutes`}
+                        value={settings.snooze_duration}
+                        min={1}
+                        max={30}
+                        step={1}
+                        onChange={(value) => updateSetting('snooze_duration', value)}
+                        icon={<FaBell />}
+                    />
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#888888', padding: '4px 0' }}>
+                        💡 Volume, sound, and other settings are configured per-alarm in the alarm editor.
+                    </div>
+                </PanelSectionRow>
+            </PanelSection>
+
+            {/* Display Settings */}
+            <PanelSection title="Display">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaClock />}
+                        label="24-Hour Format"
+                        description="Use 24-hour time format (e.g., 14:30 instead of 2:30 PM)"
+                        checked={settings.time_format_24h}
+                        onChange={(value) => updateSetting('time_format_24h', value)}
                     />
                 </PanelSectionRow>
             </PanelSection>

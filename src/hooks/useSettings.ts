@@ -11,17 +11,20 @@ const removePresetCall = callable<[preset_id: string], boolean>('remove_preset')
 
 const DEFAULT_SETTINGS: UserSettings = {
     snooze_duration: 5,
-    subtle_mode: false,
     time_format_24h: true,
-    auto_suspend: false,
-    alarm_volume: 100,
+    // Timer settings
+    timer_sound: 'alarm.mp3',
+    timer_volume: 100,
+    timer_subtle_mode: false,
+    timer_auto_suspend: false,
+    // Pomodoro settings
+    pomodoro_sound: 'alarm.mp3',
+    pomodoro_volume: 100,
+    pomodoro_subtle_mode: false,
     pomodoro_work_duration: 25,
     pomodoro_break_duration: 5,
     pomodoro_long_break_duration: 15,
-    pomodoro_sessions_until_long_break: 4,
-    timer_sound: 'alarm.mp3',
-    pomodoro_sound: 'alarm.mp3',
-    alarm_sound: 'alarm.mp3'
+    pomodoro_sessions_until_long_break: 4
 };
 
 export function useSettings() {

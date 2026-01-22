@@ -25,14 +25,17 @@ SETTINGS_KEY_POMODORO = "pomodoro_state"
 
 # Default user settings
 DEFAULT_SETTINGS = {
-    "snooze_duration": 5,  # minutes
-    "subtle_mode": False,
+    "snooze_duration": 5,  # default minutes for alarm snooze
     "time_format_24h": True,
-    "auto_suspend": False,
-    "alarm_volume": 100,
-    "timer_sound": "alarm.mp3",  # default sound for timers
-    "pomodoro_sound": "alarm.mp3",  # default sound for pomodoro
-    "alarm_sound": "alarm.mp3",  # default sound for alarms
+    # Timer settings
+    "timer_sound": "alarm.mp3",
+    "timer_volume": 100,
+    "timer_subtle_mode": False,
+    "timer_auto_suspend": False,
+    # Pomodoro settings
+    "pomodoro_sound": "alarm.mp3",
+    "pomodoro_volume": 100,
+    "pomodoro_subtle_mode": False,
     "pomodoro_work_duration": 25,  # minutes
     "pomodoro_break_duration": 5,  # minutes
     "pomodoro_long_break_duration": 15,  # minutes
@@ -164,11 +167,17 @@ class Plugin:
     # ==================== ALARM METHODS ====================
 
     async def create_alarm(self, hour: int, minute: int, label: str = "", 
-                          recurring: str = "once", sound: str = "alarm.mp3") -> str:
+                          recurring: str = "once", sound: str = "alarm.mp3",
+                          volume: int = 100, snooze_duration: int = 5,
+                          subtle_mode: bool = False, auto_suspend: bool = False) -> str:
         """
         Create a new alarm.
         recurring: 'once', 'daily', 'weekdays', 'weekends', or comma-separated days (0-6, 0=Monday)
         sound: filename of the sound to play (from assets folder)
+        volume: 0-100 alarm volume
+        snooze_duration: minutes to snooze
+        subtle_mode: if True, show only a toast notification
+        auto_suspend: if True, suspend device after alarm
         """
         alarm_id = str(uuid.uuid4())[:8]
         
@@ -181,7 +190,11 @@ class Plugin:
             "enabled": True,
             "created_at": time.time(),
             "snoozed_until": None,
-            "sound": sound
+            "sound": sound,
+            "volume": volume,
+            "snooze_duration": snooze_duration,
+            "subtle_mode": subtle_mode,
+            "auto_suspend": auto_suspend
         }
         
         alarms = await self._get_alarms()
@@ -218,14 +231,48 @@ class Plugin:
             return True
         return False
 
-    async def snooze_alarm(self, alarm_id: str, minutes: int = None) -> bool:
-        """Snooze an alarm for the specified minutes."""
-        if minutes is None:
-            user_settings = await self._get_user_settings()
-            minutes = user_settings.get("snooze_duration", 5)
-        
+    async def update_alarm(self, alarm_id: str, hour: int, minute: int, 
+                          label: str = "", recurring: str = "once", 
+                          sound: str = "alarm.mp3", volume: int = 100,
+                          snooze_duration: int = 5, subtle_mode: bool = False,
+                          auto_suspend: bool = False) -> bool:
+        """Update an existing alarm's settings."""
         alarms = await self._get_alarms()
         if alarm_id in alarms:
+            alarm = alarms[alarm_id]
+            alarm["hour"] = hour
+            alarm["minute"] = minute
+            alarm["label"] = label or f"Alarm {hour:02d}:{minute:02d}"
+            alarm["recurring"] = recurring
+            alarm["sound"] = sound
+            alarm["volume"] = volume
+            alarm["snooze_duration"] = snooze_duration
+            alarm["subtle_mode"] = subtle_mode
+            alarm["auto_suspend"] = auto_suspend
+            # Clear snooze and last_triggered when alarm time changes
+            alarm["snoozed_until"] = None
+            alarm["last_triggered"] = None
+            
+            await self._save_alarms(alarms)
+            decky.logger.info(f"Alar.me: Updated alarm {alarm_id} to {hour:02d}:{minute:02d}, recurring={recurring}, sound={sound}")
+            await decky.emit("alarme_alarm_updated", alarm)
+            await self._emit_all_alarms()
+            return True
+        decky.logger.warning(f"Alar.me: Update failed - alarm {alarm_id} not found")
+        return False
+
+    async def snooze_alarm(self, alarm_id: str, minutes: int = None) -> bool:
+        """Snooze an alarm for the specified minutes."""
+        alarms = await self._get_alarms()
+        if alarm_id in alarms:
+            alarm = alarms[alarm_id]
+            # Use provided minutes, or per-alarm snooze_duration, or fall back to global setting
+            if minutes is None:
+                minutes = alarm.get("snooze_duration")
+                if minutes is None:
+                    user_settings = await self._get_user_settings()
+                    minutes = user_settings.get("snooze_duration", 5)
+            
             snooze_time = time.time() + (minutes * 60)
             alarms[alarm_id]["snoozed_until"] = snooze_time
             # Re-enable the alarm if it was disabled (important for "once" alarms)
@@ -288,7 +335,10 @@ class Plugin:
 
     async def get_sounds(self) -> list:
         """Get list of available sound files from the plugin dist folder."""
-        sounds = []
+        # Start with special vibrate option (will trigger controller rumble)
+        sounds = [
+            {"filename": "vibrate", "name": "🔔 Vibrate (Silent)"}
+        ]
         try:
             # Get the plugin directory (parent of settings dir)
             plugin_dir = os.environ.get("DECKY_PLUGIN_DIR", "")
@@ -306,11 +356,14 @@ class Plugin:
                             "name": os.path.splitext(filename)[0].replace('_', ' ').title()
                         })
             
-            decky.logger.info(f"Alar.me: Found {len(sounds)} sound files")
+            decky.logger.info(f"Alar.me: Found {len(sounds)} sound options (including vibrate)")
         except Exception as e:
             decky.logger.error(f"Alar.me: Error listing sounds: {e}")
-            # Return default sound as fallback
-            sounds = [{"filename": "alarm.mp3", "name": "Alarm"}]
+            # Return vibrate and default sound as fallback
+            sounds = [
+                {"filename": "vibrate", "name": "🔔 Vibrate (Silent)"},
+                {"filename": "alarm.mp3", "name": "Alarm"}
+            ]
         
         return sounds
 
@@ -407,16 +460,20 @@ class Plugin:
                             if next_trigger <= current_time:
                                 # Alarm should trigger!
                                 decky.logger.info(f"Alar.me: >>> TRIGGERING alarm {alarm_id}! <<<")
-                                user_settings = await self._get_user_settings()
-                                subtle = user_settings.get("subtle_mode", False)
-                                # Use global alarm sound setting
-                                alarm_sound = user_settings.get("alarm_sound", "alarm.mp3")
+                                
+                                # Get per-alarm settings (no global fallback needed for alarms)
+                                subtle = alarm.get("subtle_mode", False)
+                                auto_suspend = alarm.get("auto_suspend", False)
+                                alarm_sound = alarm.get("sound", "alarm.mp3")
+                                alarm_volume = alarm.get("volume", 100)
                                 
                                 await decky.emit("alarme_alarm_triggered", {
                                     "id": alarm_id,
                                     "label": alarm.get("label", "Alarm"),
                                     "subtle": subtle,
-                                    "sound": alarm_sound
+                                    "sound": alarm_sound,
+                                    "volume": alarm_volume,
+                                    "auto_suspend": auto_suspend
                                 })
                                 
                                 # Handle one-time alarms - disable them
