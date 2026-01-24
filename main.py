@@ -145,12 +145,12 @@ class Plugin:
                     decky.logger.info(f"Alar.me: Timer {timer_id} completed")
                     return
                 
-                # Emit update every 5 seconds
+                # Emit update every second for real-time display
                 await decky.emit("alarme_timer_tick", {
                     "id": timer_id,
                     "remaining": remaining
                 })
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)
                 
         except asyncio.CancelledError:
             decky.logger.info(f"Alar.me: Timer {timer_id} was cancelled")
@@ -445,19 +445,18 @@ class Plugin:
                     now = datetime.now()
                     current_time = now.timestamp()
                     
-                    decky.logger.info(f"Alar.me: Check #{check_count} at {now.strftime('%H:%M:%S')} - {len(alarms)} alarms")
+                    # Only log occasionally to avoid spam (every 60 checks = 1 minute)
+                    if check_count % 60 == 1:
+                        decky.logger.info(f"Alar.me: Alarm check heartbeat - {len(alarms)} alarms")
                     
                     for alarm_id, alarm in alarms.items():
                         if not alarm.get("enabled", True):
                             continue
                         
                         next_trigger = self._calculate_next_trigger(alarm)
-                        alarm_time_str = f"{alarm.get('hour', 0):02d}:{alarm.get('minute', 0):02d}"
                         
                         if next_trigger:
-                            trigger_dt = datetime.fromtimestamp(next_trigger)
                             diff = next_trigger - current_time
-                            decky.logger.info(f"Alar.me: Alarm '{alarm_id}' ({alarm_time_str}) - next: {trigger_dt.strftime('%H:%M:%S')}, diff: {diff:.1f}s")
                             
                             if next_trigger <= current_time:
                                 # Alarm should trigger!
@@ -500,7 +499,7 @@ class Plugin:
                 except Exception as e:
                     decky.logger.error(f"Alar.me: Error in alarm check loop: {e}")
                 
-                await asyncio.sleep(15)  # Check every 15 seconds
+                await asyncio.sleep(1)  # Check every second for accuracy
                 
         except asyncio.CancelledError:
             decky.logger.info("Alar.me: Alarm checker stopped")
@@ -682,7 +681,7 @@ class Plugin:
                     "session": state.get("current_session", 1)
                 })
                 
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)  # Update every second for real-time display
                 
         except asyncio.CancelledError:
             decky.logger.info("Alar.me: Pomodoro handler stopped")
