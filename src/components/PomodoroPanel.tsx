@@ -48,7 +48,7 @@ export function PomodoroPanel() {
         return "Focus Time";
     };
 
-    const isLongBreakNext = currentSession % sessionsUntilLong === sessionsUntilLong - 1;
+    const isLongBreakNext = currentSession % sessionsUntilLong === 0;
 
     return (
         <div>
