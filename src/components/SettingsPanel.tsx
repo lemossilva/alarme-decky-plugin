@@ -6,11 +6,12 @@ import {
     SliderField,
     ToggleField
 } from "@decky/ui";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
 import { playAlarmSound, stopSound } from "../utils/sounds";
+import { showExportModal, showImportModal } from "./BackupModals";
 import type { SoundFile } from "../types";
 
 // Reusable sound preview button component
@@ -274,6 +275,51 @@ export function SettingsPanel() {
                         checked={settings.time_format_24h}
                         onChange={(value) => updateSetting('time_format_24h', value)}
                     />
+                </PanelSectionRow>
+            </PanelSection>
+
+            {/* Data Management */}
+            <PanelSection title="Data Management">
+                <PanelSectionRow>
+                    <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                        <Focusable
+                            onActivate={() => showExportModal()}
+                            style={{
+                                flex: 1,
+                                padding: '10px 12px',
+                                backgroundColor: '#ffffff11',
+                                borderRadius: 8,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                fontSize: 13
+                            }}
+                        >
+                            <FaSave /> Export Backup
+                        </Focusable>
+                        <Focusable
+                            onActivate={() => showImportModal()}
+                            style={{
+                                flex: 1,
+                                padding: '10px 12px',
+                                backgroundColor: '#ffffff11',
+                                borderRadius: 8,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                fontSize: 13
+                            }}
+                        >
+                            <FaFileImport /> Import Backup
+                        </Focusable>
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#888888', padding: '4px 0', textAlign: 'center' }}>
+                        Save your configuration before reinstalling or moving to a new device.
+                    </div>
                 </PanelSectionRow>
             </PanelSection>
 

@@ -806,6 +806,54 @@ class Plugin:
         await decky.emit("alarme_settings_updated", current)
         return current
 
+    async def export_backup(self) -> str:
+        """Export all user data (alarms, presets, settings, recent timers) to JSON string."""
+        data = {
+            "version": 1,
+            "timestamp": time.time(),
+            "alarms": await self._get_alarms(),
+            "presets": await self.get_presets(),
+            "recent_timers": await self.get_recent_timers(),
+            "user_settings": await self._get_user_settings()
+        }
+        return json.dumps(data)
+
+    async def import_backup(self, json_str: str) -> bool:
+        """Import user data from JSON string."""
+        try:
+            data = json.loads(json_str)
+            
+            # Basic validation
+            if not isinstance(data, dict):
+                return False
+                
+            # Restore components individually if present
+            if "alarms" in data:
+                await self._save_alarms(data["alarms"])
+                await self._emit_all_alarms()
+                
+            if "presets" in data:
+                await self.settings_setSetting(SETTINGS_KEY_PRESETS, data["presets"])
+                await self.settings_commit()
+                await decky.emit("alarme_presets_updated", data["presets"])
+                
+            if "recent_timers" in data:
+                await self.settings_setSetting(SETTINGS_KEY_RECENT_TIMERS, data["recent_timers"])
+                await self.settings_commit()
+                
+            if "user_settings" in data:
+                # Merge with defaults to ensure new settings exist
+                settings_to_save = {**DEFAULT_SETTINGS, **data["user_settings"]}
+                await self.settings_setSetting(SETTINGS_KEY_SETTINGS, settings_to_save)
+                await self.settings_commit()
+                await decky.emit("alarme_settings_updated", settings_to_save)
+            
+            decky.logger.info("Alar.me: Backup imported successfully")
+            return True
+        except Exception as e:
+             decky.logger.error(f"Alar.me: Import failed: {e}")
+             return False
+
     async def _get_user_settings(self) -> dict:
         saved = await self.settings_getSetting(SETTINGS_KEY_SETTINGS, {})
         return {**DEFAULT_SETTINGS, **saved}
