@@ -132,13 +132,15 @@ class Plugin:
                     # Timer completed
                     await self.cancel_timer(timer_id)
                     user_settings = await self._get_user_settings()
-                    subtle = user_settings.get("subtle_mode", False)
+                    subtle = user_settings.get("timer_subtle_mode", False)
                     timer_sound = user_settings.get("timer_sound", "alarm.mp3")
+                    timer_auto_suspend = user_settings.get("timer_auto_suspend", False)
                     await decky.emit("alarme_timer_completed", {
                         "id": timer_id,
                         "label": label,
                         "subtle": subtle,
-                        "sound": timer_sound
+                        "sound": timer_sound,
+                        "auto_suspend": timer_auto_suspend
                     })
                     decky.logger.info(f"Alar.me: Timer {timer_id} completed")
                     return
@@ -335,9 +337,9 @@ class Plugin:
 
     async def get_sounds(self) -> list:
         """Get list of available sound files from the plugin dist folder."""
-        # Start with special vibrate option (will trigger controller rumble)
+        # Start with special soundless option (no sound, no vibration)
         sounds = [
-            {"filename": "vibrate", "name": "🔔 Vibrate (Silent)"}
+            {"filename": "soundless", "name": "🔇 Soundless"}
         ]
         try:
             # Get the plugin directory (parent of settings dir)
@@ -356,12 +358,12 @@ class Plugin:
                             "name": os.path.splitext(filename)[0].replace('_', ' ').title()
                         })
             
-            decky.logger.info(f"Alar.me: Found {len(sounds)} sound options (including vibrate)")
+            decky.logger.info(f"Alar.me: Found {len(sounds)} sound options (including soundless)")
         except Exception as e:
             decky.logger.error(f"Alar.me: Error listing sounds: {e}")
-            # Return vibrate and default sound as fallback
+            # Return soundless and default sound as fallback
             sounds = [
-                {"filename": "vibrate", "name": "🔔 Vibrate (Silent)"},
+                {"filename": "soundless", "name": "🔇 Soundless"},
                 {"filename": "alarm.mp3", "name": "Alarm"}
             ]
         

@@ -123,8 +123,11 @@ export function SettingsPanel() {
                     <ToggleField
                         icon={<FaBell />}
                         label="Subtle Mode"
-                        description="Show a small toast instead of fullscreen popup"
-                        checked={settings.timer_subtle_mode ?? false}
+                        description={settings.timer_auto_suspend
+                            ? "Required when Auto-Suspend is enabled"
+                            : "Show a small toast instead of fullscreen popup"}
+                        checked={settings.timer_auto_suspend ? true : (settings.timer_subtle_mode ?? false)}
+                        disabled={settings.timer_auto_suspend}
                         onChange={(value) => updateSetting('timer_subtle_mode', value)}
                     />
                 </PanelSectionRow>
@@ -133,9 +136,15 @@ export function SettingsPanel() {
                     <ToggleField
                         icon={<FaClock />}
                         label="Auto-Suspend"
-                        description="Suspend device when timer finishes"
+                        description="Suspend device when timer finishes (enables Subtle Mode)"
                         checked={settings.timer_auto_suspend ?? false}
-                        onChange={(value) => updateSetting('timer_auto_suspend', value)}
+                        onChange={(value) => {
+                            updateSetting('timer_auto_suspend', value);
+                            // Auto-enable subtle mode when enabling auto-suspend
+                            if (value) {
+                                updateSetting('timer_subtle_mode', true);
+                            }
+                        }}
                     />
                 </PanelSectionRow>
             </PanelSection>
@@ -271,14 +280,16 @@ export function SettingsPanel() {
             {/* About */}
             <PanelSection title="About">
                 <PanelSectionRow>
-                    <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
-                        <p style={{ marginBottom: 8 }}>
-                            <strong>Alar.me</strong> v1.0.0
-                        </p>
-                        <p>
-                            By Guilherme Lemos
-                        </p>
-                    </div>
+                    <Focusable style={{ width: '100%' }}>
+                        <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
+                            <p style={{ marginBottom: 8 }}>
+                                <strong>Alar.me</strong> v1.0.0
+                            </p>
+                            <p>
+                                By Guilherme Lemos
+                            </p>
+                        </div>
+                    </Focusable>
                 </PanelSectionRow>
             </PanelSection>
         </div>

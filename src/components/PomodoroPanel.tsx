@@ -116,56 +116,54 @@ export function PomodoroPanel() {
 
                 {/* Controls */}
                 <PanelSectionRow>
-                    <Focusable flow-children="row" style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                        {!isActive ? (
-                            <div style={{ minWidth: 150 }}>
-                                <ButtonItem
-                                    layout="below"
-                                    onClick={startPomodoro}
-                                >
-                                    <FaPlay size={12} style={{ marginRight: 8 }} />
-                                    Start Focus
-                                </ButtonItem>
-                            </div>
-                        ) : (
-                            <>
-                                <ButtonItem
-                                    layout="below"
-                                    onClick={stopPomodoro}
-                                >
-                                    <FaStop size={12} style={{ marginRight: 8 }} />
-                                    Stop
-                                </ButtonItem>
-                                <ButtonItem
-                                    layout="below"
-                                    onClick={skipPhase}
-                                >
-                                    <FaForward size={12} style={{ marginRight: 8 }} />
-                                    {isBreak ? "Start Work" : "Take Break"}
-                                </ButtonItem>
-                            </>
-                        )}
-                    </Focusable>
+                    {!isActive ? (
+                        <ButtonItem
+                            layout="below"
+                            onClick={startPomodoro}
+                        >
+                            <FaPlay size={12} style={{ marginRight: 8 }} />
+                            Start Focus Session
+                        </ButtonItem>
+                    ) : (
+                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                            <ButtonItem
+                                layout="below"
+                                onClick={skipPhase}
+                            >
+                                <FaForward size={12} style={{ marginRight: 8 }} />
+                                {isBreak ? "Skip Break → Start Work" : "Skip Work → Take Break"}
+                            </ButtonItem>
+                            <ButtonItem
+                                layout="below"
+                                onClick={stopPomodoro}
+                            >
+                                <FaStop size={12} style={{ marginRight: 8 }} />
+                                Stop Session
+                            </ButtonItem>
+                        </Focusable>
+                    )}
                 </PanelSectionRow>
             </PanelSection>
 
             {/* Pomodoro Info */}
             <PanelSection title="How it works">
                 <PanelSectionRow>
-                    <div style={{ fontSize: 13, color: '#aaaaaa', lineHeight: 1.5 }}>
-                        <p style={{ marginBottom: 8 }}>
-                            <strong>1.</strong> Focus for {settings.pomodoro_work_duration} minutes
-                        </p>
-                        <p style={{ marginBottom: 8 }}>
-                            <strong>2.</strong> Take a {settings.pomodoro_break_duration} minute break
-                        </p>
-                        <p style={{ marginBottom: 8 }}>
-                            <strong>3.</strong> After {sessionsUntilLong} sessions, enjoy a {settings.pomodoro_long_break_duration} minute break
-                        </p>
-                        <p style={{ color: '#888888', fontSize: 12 }}>
-                            Customize durations in Settings.
-                        </p>
-                    </div>
+                    <Focusable style={{ width: '100%' }}>
+                        <div style={{ fontSize: 13, color: '#aaaaaa', lineHeight: 1.5 }}>
+                            <p style={{ marginBottom: 8 }}>
+                                <strong>1.</strong> Focus for {settings.pomodoro_work_duration} minutes
+                            </p>
+                            <p style={{ marginBottom: 8 }}>
+                                <strong>2.</strong> Take a {settings.pomodoro_break_duration} minute break
+                            </p>
+                            <p style={{ marginBottom: 8 }}>
+                                <strong>3.</strong> After {sessionsUntilLong} sessions, enjoy a {settings.pomodoro_long_break_duration} minute break
+                            </p>
+                            <p style={{ color: '#888888', fontSize: 12 }}>
+                                Customize durations in Settings.
+                            </p>
+                        </div>
+                    </Focusable>
                 </PanelSectionRow>
             </PanelSection>
 
