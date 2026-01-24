@@ -76,6 +76,43 @@ const SoundPreviewButton = ({ soundFile }: { soundFile: string }) => {
     );
 };
 
+const MenuButton = ({
+    children,
+    onClick,
+    icon
+}: {
+    children: React.ReactNode,
+    onClick: () => void,
+    icon?: React.ReactNode
+}) => {
+    const [focused, setFocused] = useState(false);
+
+    return (
+        <Focusable
+            onActivate={onClick}
+            onClick={onClick}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+                flex: 1,
+                padding: '10px 12px',
+                backgroundColor: focused ? '#4488aa' : '#ffffff11',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                fontSize: 13,
+                border: focused ? '2px solid white' : '2px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.1s ease-in-out'
+            }}
+        >
+            {icon} {children}
+        </Focusable>
+    );
+};
+
 export function SettingsPanel() {
     const { settings, updateSetting } = useSettings();
     const { getSounds } = useAlarms();
@@ -282,38 +319,18 @@ export function SettingsPanel() {
             <PanelSection title="Data Management">
                 <PanelSectionRow>
                     <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-                        <Focusable
-                            onActivate={() => showExportModal()}
-                            style={{
-                                flex: 1,
-                                padding: '10px 12px',
-                                backgroundColor: '#ffffff11',
-                                borderRadius: 8,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 8,
-                                fontSize: 13
-                            }}
+                        <MenuButton
+                            onClick={showExportModal}
+                            icon={<FaSave />}
                         >
-                            <FaSave /> Export Backup
-                        </Focusable>
-                        <Focusable
-                            onActivate={() => showImportModal()}
-                            style={{
-                                flex: 1,
-                                padding: '10px 12px',
-                                backgroundColor: '#ffffff11',
-                                borderRadius: 8,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 8,
-                                fontSize: 13
-                            }}
+                            Export Backup
+                        </MenuButton>
+                        <MenuButton
+                            onClick={showImportModal}
+                            icon={<FaFileImport />}
                         >
-                            <FaFileImport /> Import Backup
-                        </Focusable>
+                            Import Backup
+                        </MenuButton>
                     </div>
                 </PanelSectionRow>
                 <PanelSectionRow>
