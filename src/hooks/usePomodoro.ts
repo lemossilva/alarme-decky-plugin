@@ -110,6 +110,7 @@ export function usePomodoro() {
 
     return {
         state,
+        stats: state.stats,
         loading,
         isActive: state.active,
         isBreak: state.is_break,

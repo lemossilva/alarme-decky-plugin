@@ -56,6 +56,17 @@ export interface PomodoroState {
     sound?: string;
     volume?: number;
     subtle_mode?: boolean;
+    stats?: PomodoroStats;
+}
+
+export interface PomodoroStats {
+    daily_focus_time: number;
+    daily_break_time: number;
+    total_focus_time: number;
+    total_break_time: number;
+    total_sessions: number;
+    total_cycles: number;
+    last_active_date: string;
 }
 
 // Settings types

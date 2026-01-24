@@ -588,6 +588,7 @@ class Plugin:
             "is_break": False,
             "current_session": session,
             "current_cycle": 1,
+            "start_time": time.time(),
             "end_time": time.time() + work_duration,
             "duration": work_duration
         }
@@ -601,6 +602,10 @@ class Plugin:
         self.pomodoro_task = self.loop.create_task(self._pomodoro_handler())
         
         decky.logger.info(f"Alar.me: Started Pomodoro session {session}")
+        
+        # Inject stats for frontend update
+        state["stats"] = await self._get_pomodoro_stats()
+        
         await decky.emit("alarme_pomodoro_started", state)
         return state
 
@@ -609,7 +614,16 @@ class Plugin:
         if self.pomodoro_task:
             self.pomodoro_task.cancel()
             self.pomodoro_task = None
-        
+            
+        # Update stats for partial session
+        current_state = await self._get_pomodoro_state()
+        if current_state.get("active") and current_state.get("start_time"):
+            elapsed = time.time() - current_state.get("start_time")
+            await self._update_pomodoro_stats(
+                is_break=current_state.get("is_break", False),
+                duration=elapsed
+            )
+
         state = {
             "active": False,
             "is_break": False,
@@ -621,6 +635,10 @@ class Plugin:
         await self._save_pomodoro_state(state)
         
         decky.logger.info("Alar.me: Stopped Pomodoro")
+        
+        # Inject stats
+        state["stats"] = await self._get_pomodoro_stats()
+        
         await decky.emit("alarme_pomodoro_stopped", state)
         return True
 
@@ -630,6 +648,14 @@ class Plugin:
         
         if not pomodoro_state.get("active"):
             return pomodoro_state
+            
+        # Update stats for skipped phase
+        if pomodoro_state.get("start_time"):
+            elapsed = time.time() - pomodoro_state.get("start_time")
+            await self._update_pomodoro_stats(
+                is_break=pomodoro_state.get("is_break", False),
+                duration=elapsed
+            )
         
         user_settings = await self._get_user_settings()
         is_break = pomodoro_state.get("is_break", False)
@@ -650,11 +676,13 @@ class Plugin:
                 new_cycle = cycle
 
             work_duration = user_settings.get("pomodoro_work_duration", 25) * 60
+            work_duration = user_settings.get("pomodoro_work_duration", 25) * 60
             state = {
                 "active": True,
                 "is_break": False,
                 "current_session": new_session,
                 "current_cycle": new_cycle,
+                "start_time": time.time(),
                 "end_time": time.time() + work_duration,
                 "duration": work_duration
             }
@@ -673,6 +701,7 @@ class Plugin:
                 "is_break": True,
                 "current_session": session,
                 "current_cycle": cycle,
+                "start_time": time.time(),
                 "end_time": time.time() + break_duration,
                 "duration": break_duration,
                 "break_type": break_type
@@ -688,6 +717,56 @@ class Plugin:
         await decky.emit("alarme_pomodoro_phase_changed", state)
         return state
 
+    async def _get_pomodoro_stats(self) -> dict:
+        """Get stats from user settings, handling daily buffer reset."""
+        settings = await self._get_user_settings()
+        stats = settings.get("pomodoro_stats", {
+            "daily_focus_time": 0,
+            "daily_break_time": 0,
+            "total_focus_time": 0,
+            "total_break_time": 0,
+            "total_sessions": 0,
+            "total_cycles": 0,
+            "last_active_date": ""
+        })
+        
+        # Check daily reset
+        today = datetime.now().strftime("%Y-%m-%d")
+        if stats.get("last_active_date") != today:
+            stats["daily_focus_time"] = 0
+            stats["daily_break_time"] = 0
+            stats["last_active_date"] = today
+            # We don't save immediately here to avoid write spam on simple read,
+            # but _update_pomodoro_stats will save it.
+            
+        return stats
+
+    async def _update_pomodoro_stats(self, is_break: bool, duration: float, completed_session: bool = False, completed_cycle: bool = False):
+        """Update persistent stats."""
+        settings = await self._get_user_settings()
+        # Get fresh stats via helper which handles reset logic
+        stats = await self._get_pomodoro_stats()
+        
+        # Add duration (ensure positive)
+        duration = max(0, duration)
+        
+        if is_break:
+            stats["daily_break_time"] += duration
+            stats["total_break_time"] += duration
+        else:
+            stats["daily_focus_time"] += duration
+            stats["total_focus_time"] += duration
+            
+        if completed_session and not is_break:
+            stats["total_sessions"] = stats.get("total_sessions", 0) + 1
+            
+        if completed_cycle:
+            stats["total_cycles"] = stats.get("total_cycles", 0) + 1
+            
+        # Save back to settings
+        settings["pomodoro_stats"] = stats
+        self._save_settings(settings)
+
     async def get_pomodoro_state(self) -> dict:
         """Get current Pomodoro state with remaining time."""
         state = await self._get_pomodoro_state()
@@ -695,6 +774,8 @@ class Plugin:
             state["remaining"] = max(0, state["end_time"] - time.time())
         else:
             state["remaining"] = 0
+            
+        state["stats"] = await self._get_pomodoro_stats()
         return state
 
     async def _pomodoro_handler(self):
@@ -716,6 +797,16 @@ class Plugin:
                     
                     cycle = state.get("current_cycle", 1)
                     
+                    # Update stats for completed phase
+                    if state.get("start_time"):
+                        elapsed = time.time() - state.get("start_time")
+                        await self._update_pomodoro_stats(
+                            is_break=is_break,
+                            duration=elapsed,
+                            completed_session=not is_break,
+                            completed_cycle=is_break and state.get("break_type") == "long"
+                        )
+                    
                     if is_break:
                         # Break finished, start new work session
                         work_duration = user_settings.get("pomodoro_work_duration", 25) * 60
@@ -736,6 +827,7 @@ class Plugin:
                             "is_break": False,
                             "current_session": new_session,
                             "current_cycle": new_cycle,
+                            "start_time": time.time(),
                             "end_time": time.time() + work_duration,
                             "duration": work_duration,
                             "sound": pomodoro_sound,
@@ -757,6 +849,7 @@ class Plugin:
                             "is_break": True,
                             "current_session": session,
                             "current_cycle": cycle,
+                            "start_time": time.time(),
                             "end_time": time.time() + break_duration,
                             "duration": break_duration,
                             "break_type": break_type,

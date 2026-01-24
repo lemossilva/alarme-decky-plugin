@@ -1,4 +1,4 @@
-import { ConfirmModal, Focusable } from "@decky/ui";
+import { Focusable } from "@decky/ui";
 import { FaPlay, FaStop, FaForward, FaCoffee, FaBrain } from "react-icons/fa";
 import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
@@ -105,18 +105,14 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
     };
 
     return (
-        <ConfirmModal
-            strTitle="Pomodoro Timer"
-            strDescription="" // Using custom content
-            strOKButtonText="Dismiss"
-            onOK={handleDismiss}
-            onCancel={handleDismiss} // B button dismisses
-        >
+        <div style={{
+            padding: '24px',
+            minWidth: '400px'
+        }}>
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '16px 0',
                 gap: 20
             }}>
                 {/* Visual Status (Like Focus Screen) */}
@@ -225,6 +221,6 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
                     100% { transform: scale(1); opacity: 1; }
                 }
             `}</style>
-        </ConfirmModal>
+        </div>
     );
 };
