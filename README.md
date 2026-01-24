@@ -4,6 +4,9 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ![Alar.me](https://img.shields.io/badge/Decky-Plugin-blue)
 ![Version](https://img.shields.io/badge/version-1.0.0-green)
+![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
+
+![Alar.me Promo](assets/promo.png)
 
 ## Features
 
@@ -12,11 +15,14 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Quick presets** - Start timers with one click (5, 10, 15, 30, 60 minutes)
 - **Custom labels** - Name your timers for easy identification
 - **Persistent** - Timers survive Decky Loader restarts
+- **Auto-suspend** - Optionally suspend the device when timer completes
 
 ### 🔔 Alarms
-- **Time-based alarms** - Set alarms for specific times with an intuitive time picker
+- **Time-based alarms** - Set alarms for specific times
+- **Intuitive time picker** - Easy hour/minute selection with arrow controls
 - **Recurring patterns** - Once, Daily, Weekdays, Weekends
 - **Snooze functionality** - Configurable snooze duration (1-30 minutes)
+- **Per-alarm settings** - Individual subtle mode and auto-suspend options
 - **Persistent** - Alarms survive device reboots
 
 ### 🍅 Pomodoro Timer
@@ -24,28 +30,30 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Break intervals** - Short breaks (3-15 min) and long breaks (10-45 min)
 - **Session tracking** - Configurable sessions until long break (2-8)
 - **Visual progress** - See your focus progress at a glance
+- **Skip controls** - Skip to break or back to work anytime
 
-### 🔊 Customizable Sounds
-- **Per-feature sounds** - Set different sounds for Timers, Alarms, and Pomodoro
-- **Sound preview** - Test sounds with play/pause toggle before selecting
-- **Custom sounds** - Add your own MP3, WAV, or OGG files to the assets folder
+### 🔊 Sound Options
+- **Per-feature sounds** - Different sounds for Timers, Alarms, and Pomodoro
+- **Soundless mode** - Silent alarm option for quiet notifications
+- **Volume control** - Adjust alarm volume independently per feature
+- **Custom sounds** - Add your own MP3, WAV, or OGG files
 
 ### ⚙️ Settings
 - **Subtle mode** - Choose between fullscreen alerts or small toasts
-- **Auto-suspend** - Automatically suspend the device when timer completes
+- **Auto-suspend** - Automatically suspend the device after alert (enables subtle mode)
 - **24/12 hour format** - Choose your preferred time display
-- **Volume control** - Adjust alarm volume independently
+- **Global volume control** - Per-feature volume settings
 
 ## Installation
 
-### From Decky Store
+### From Decky Store (Recommended)
 1. Open Decky Loader on your Steam Deck
 2. Go to the Store tab
 3. Search for "Alar.me"
 4. Click Install
 
 ### Manual Installation
-1. Download the latest release from the [Releases](https://github.com/your-username/alarme-decky-plugin/releases) page
+1. Download the latest release from the [Releases](https://github.com/lemossilva/alarme-decky-plugin/releases) page
 2. Extract to `~/homebrew/plugins/alarme-decky-plugin`
 3. Restart Decky Loader
 
@@ -106,9 +114,16 @@ pnpm run watch
 3. Configure network target: `DECK_IP:8081`
 4. Select "SharedJSContext" to debug
 
+## Privacy
+
+This plugin is **completely offline** and collects no data:
+- All settings stored locally on your device
+- No network requests or analytics
+- No user tracking or telemetry
+
 ## Known Limitations
 
-- **On-Screen Keyboard**: The Steam Deck on-screen keyboard may appear behind the plugin panel. This is a known Decky Loader/SteamOS limitation. Workaround: Install "CSS Loader" plugin and enable the "Top Keyboard" snippet.
+- **On-Screen Keyboard**: The Steam Deck on-screen keyboard may appear behind the plugin panel. Workaround: Install "CSS Loader" plugin and enable the "Top Keyboard" snippet.
 
 ## License
 
@@ -118,7 +133,8 @@ BSD-3-Clause License - See [LICENSE](LICENSE) for details.
 
 - **Author**: Guilherme Lemos
 - **Framework**: [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader)
+- **Icons**: [React Icons](https://react-icons.github.io/react-icons/)
 
 ## Support
 
-If you encounter any issues, please [open an issue](https://github.com/your-username/alarme-decky-plugin/issues) on GitHub.
+If you encounter any issues, please [open an issue](https://github.com/lemossilva/alarme-decky-plugin/issues) on GitHub.

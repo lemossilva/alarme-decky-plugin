@@ -10,7 +10,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/your-username/alarme-decky-plugin.git"
+        "url": "git+https://github.com/lemossilva/alarme-decky-plugin.git"
     },
     "keywords": [
         "decky",
@@ -23,9 +23,9 @@
     "author": "Guilherme Lemos",
     "license": "BSD-3-Clause",
     "bugs": {
-        "url": "https://github.com/your-username/alarme-decky-plugin/issues"
+        "url": "https://github.com/lemossilva/alarme-decky-plugin/issues"
     },
-    "homepage": "https://github.com/your-username/alarme-decky-plugin#readme",
+    "homepage": "https://github.com/lemossilva/alarme-decky-plugin#readme",
     "devDependencies": {
         "@decky/rollup": "^1.0.1",
         "@decky/ui": "^4.9.0",
