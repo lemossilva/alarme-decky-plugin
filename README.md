@@ -47,7 +47,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ## Installation
 
-### From Decky Store (Recommended)
+### From Decky Store (Soon!)
 1. Open Decky Loader on your Steam Deck
 2. Go to the Store tab
 3. Search for "Alar.me"
@@ -55,7 +55,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ### Manual Installation
 1. Download the latest release from the [Releases](https://github.com/lemossilva/alarme-decky-plugin/releases) page
-2. Extract to `~/homebrew/plugins/alarme-decky-plugin`
+2. Open Decky Loader > Settings > General > "Install from Zip" > Select the Zip release file (not source code!).
 3. Restart Decky Loader
 
 ## Adding Custom Sounds
@@ -139,4 +139,5 @@ BSD-3-Clause License - See [LICENSE](LICENSE) for details.
 ## Support
 
 If you encounter any issues, please [open an issue](https://github.com/lemossilva/alarme-decky-plugin/issues) on GitHub.
+
 
