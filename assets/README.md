@@ -8,16 +8,20 @@ Place your custom sound files in this folder. They will be available for selecti
 - `.wav` - Uncompressed audio
 - `.ogg` - Open format, good compression
 
-## Included Files
+## Included Sounds
 
-- `alarm.mp3` - Default alarm sound for all notifications
+| File | Description |
+|------|-------------|
+| `alarm.mp3` | Classic alarm/beep sound |
+| `Digital.wav` | Modern digital alarm tone |
+| `Retro.wav` | Vintage retro-style chime |
 
 ## Adding Custom Sounds
 
 1. Add your sound file to this folder (e.g., `my-sound.mp3`)
 2. Rebuild the plugin: `pnpm run build`
 3. Redeploy to your Steam Deck
-4. The sound will appear in Settings under Timer/Pomodoro/Alarm Sound dropdowns
+4. The sound will appear in Settings under Timer/Alarm/Pomodoro Sound dropdowns
 
 ## Recommendations
 

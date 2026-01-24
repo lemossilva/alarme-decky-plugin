@@ -15,10 +15,10 @@ Our primary goal is to launch **v1.0** on the **Decky Store**, making Alar.me ea
 **Main Issue:** https://github.com/lemossilva/alarme-decky-plugin/issues/4
 
 Sub-tasks (tracked as linked issues):
-- [ ] Prepare plugin metadata and README (issue)
-- [ ] Validate manifest and plugin files (issue)
+- [x] Prepare plugin metadata and README (issue)
+- [x] Validate manifest and plugin files (issue)
 - [ ] Run compatibility tests for Steam Deck (issue)
-- [ ] Package plugin for distribution (issue)
+- [x] Package plugin for distribution (issue)
 - [ ] Submit plugin to Decky Store (issue)
 - [ ] Address review feedback (issue)
 - [ ] Finalize store listing and release (issue)

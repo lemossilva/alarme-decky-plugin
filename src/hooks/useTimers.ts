@@ -6,9 +6,17 @@ import type { Timer, TimerTickEvent } from '../types';
 const createTimerCall = callable<[seconds: number, label: string], string>('create_timer');
 const cancelTimerCall = callable<[timer_id: string], boolean>('cancel_timer');
 const getActiveTimersCall = callable<[], Timer[]>('get_active_timers');
+const getRecentTimersCall = callable<[], RecentTimer[]>('get_recent_timers');
+
+// Recent timer type (simplified timer for quick access)
+export interface RecentTimer {
+    seconds: number;
+    label: string;
+}
 
 export function useTimers() {
     const [timers, setTimers] = useState<Timer[]>([]);
+    const [recentTimers, setRecentTimers] = useState<RecentTimer[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Load initial timers
@@ -23,14 +31,26 @@ export function useTimers() {
         }
     }, []);
 
+    // Load recent timers
+    const loadRecentTimers = useCallback(async () => {
+        try {
+            const recent = await getRecentTimersCall();
+            setRecentTimers(recent);
+        } catch (e) {
+            console.error('Failed to load recent timers:', e);
+        }
+    }, []);
+
     // Create a new timer
     const createTimer = useCallback(async (seconds: number, label: string = '') => {
         try {
             await createTimerCall(seconds, label);
+            // Reload recent timers after creating
+            loadRecentTimers();
         } catch (e) {
             console.error('Failed to create timer:', e);
         }
-    }, []);
+    }, [loadRecentTimers]);
 
     // Cancel a timer
     const cancelTimer = useCallback(async (timerId: string) => {
@@ -60,18 +80,21 @@ export function useTimers() {
 
         // Load initial data
         loadTimers();
+        loadRecentTimers();
 
         return () => {
             removeEventListener('alarme_timers_updated', handleTimersUpdated);
             removeEventListener('alarme_timer_tick', handleTimerTick);
         };
-    }, [loadTimers]);
+    }, [loadTimers, loadRecentTimers]);
 
     return {
         timers,
+        recentTimers,
         loading,
         createTimer,
         cancelTimer,
-        refresh: loadTimers
+        refresh: loadTimers,
+        refreshRecent: loadRecentTimers
     };
 }

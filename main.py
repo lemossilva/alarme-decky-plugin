@@ -22,6 +22,7 @@ SETTINGS_KEY_ALARMS = "alarms"
 SETTINGS_KEY_PRESETS = "presets"
 SETTINGS_KEY_SETTINGS = "user_settings"
 SETTINGS_KEY_POMODORO = "pomodoro_state"
+SETTINGS_KEY_RECENT_TIMERS = "recent_timers"
 
 # Default user settings
 DEFAULT_SETTINGS = {
@@ -61,14 +62,32 @@ class Plugin:
 
     # ==================== TIMER METHODS ====================
 
+    def _format_timer_label(self, seconds: int) -> str:
+        """Generate a human-readable label from duration (e.g., '5 min timer', '1h 30 min timer')."""
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        
+        if hours > 0 and minutes > 0:
+            return f"{hours}h {minutes} min timer"
+        elif hours > 0:
+            return f"{hours}h timer"
+        elif minutes > 0:
+            return f"{minutes} min timer"
+        else:
+            return f"{seconds}s timer"
+
     async def create_timer(self, seconds: int, label: str = "") -> str:
         """Create a new countdown timer."""
         timer_id = str(uuid.uuid4())[:8]
         end_time = time.time() + seconds
         
+        # Generate default label from duration if not provided
+        if not label:
+            label = self._format_timer_label(seconds)
+        
         timer_data = {
             "id": timer_id,
-            "label": label or f"Timer {timer_id}",
+            "label": label,
             "seconds": seconds,
             "end_time": end_time,
             "created_at": time.time()
@@ -79,9 +98,12 @@ class Plugin:
         timers[timer_id] = timer_data
         await self._save_timers(timers)
         
+        # Save to recent timers (for quick access)
+        await self._add_to_recent_timers(seconds, label)
+        
         # Start the timer task
         self.timer_tasks[timer_id] = self.loop.create_task(
-            self._timer_handler(timer_id, end_time, label or f"Timer {timer_id}")
+            self._timer_handler(timer_id, end_time, label)
         )
         
         decky.logger.info(f"Alar.me: Created timer {timer_id} for {seconds} seconds")
@@ -167,6 +189,38 @@ class Plugin:
     async def _emit_all_timers(self):
         timers = await self.get_active_timers()
         await decky.emit("alarme_timers_updated", timers)
+
+    async def get_recent_timers(self) -> list:
+        """Get list of recently used timers for quick access."""
+        return await self.settings_getSetting(SETTINGS_KEY_RECENT_TIMERS, [])
+
+    async def clear_recent_timers(self) -> bool:
+        """Clear the recent timers list."""
+        await self.settings_setSetting(SETTINGS_KEY_RECENT_TIMERS, [])
+        await self.settings_commit()
+        return True
+
+    async def _add_to_recent_timers(self, seconds: int, label: str):
+        """Add a timer to the recent timers list (max 5, dedup by seconds+label)."""
+        recent = await self.get_recent_timers()
+        
+        # Create new entry
+        new_entry = {
+            "seconds": seconds,
+            "label": label or f"{seconds // 60} min timer"
+        }
+        
+        # Remove duplicates (same seconds and label)
+        recent = [r for r in recent if not (r["seconds"] == seconds and r["label"] == new_entry["label"])]
+        
+        # Add to front
+        recent.insert(0, new_entry)
+        
+        # Keep only last 5
+        recent = recent[:5]
+        
+        await self.settings_setSetting(SETTINGS_KEY_RECENT_TIMERS, recent)
+        await self.settings_commit()
 
     # ==================== ALARM METHODS ====================
 

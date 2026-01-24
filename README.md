@@ -14,6 +14,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Multiple concurrent timers** - Run several timers at once
 - **Quick presets** - Start timers with one click (5, 10, 15, 30, 60 minutes)
 - **Custom labels** - Name your timers for easy identification
+- **Recent timers** - Quick access to your last 5 used timers
 - **Persistent** - Timers survive Decky Loader restarts
 - **Auto-suspend** - Optionally suspend the device when timer completes
 
@@ -123,7 +124,7 @@ This plugin is **completely offline** and collects no data:
 
 ## Known Limitations
 
-- **On-Screen Keyboard**: The Steam Deck on-screen keyboard may appear behind the plugin panel.
+- **On-Screen Keyboard**: The Steam Deck keyboard may appear behind the QAM panel for some text fields. Timer labels use a modal dialog to avoid this issue.
 
 ## License
 

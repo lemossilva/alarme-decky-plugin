@@ -2,14 +2,14 @@ import {
     ButtonItem,
     Focusable,
     PanelSection,
-    PanelSectionRow,
-    TextField
+    PanelSectionRow
 } from "@decky/ui";
-import { FaPlus, FaMinus, FaTimes, FaPlay } from "react-icons/fa";
+import { FaPlus, FaMinus, FaTimes, FaPlay, FaEdit } from "react-icons/fa";
 import { useState } from "react";
-import { useTimers } from "../hooks/useTimers";
+import { useTimers, RecentTimer } from "../hooks/useTimers";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration, formatDurationLong } from "../utils/time";
+import { showTimerLabelModal } from "./TimerLabelModal";
 import type { Timer, Preset } from "../types";
 
 interface QuickButtonProps {
@@ -113,21 +113,65 @@ const PresetButton = ({ preset, onClick, disabled }: { preset: Preset; onClick: 
     </ButtonItem>
 );
 
+const RecentTimerButton = ({ recent, onClick }: { recent: RecentTimer; onClick: () => void }) => {
+    const [focused, setFocused] = useState(false);
+    const minutes = Math.floor(recent.seconds / 60);
+    const displayLabel = recent.label || `${minutes} min`;
+
+    return (
+        <Focusable
+            onActivate={onClick}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                backgroundColor: focused ? '#4488aa' : '#ffffff11',
+                borderRadius: 8,
+                border: focused ? '2px solid white' : '2px solid transparent',
+                transition: 'all 0.1s ease-in-out'
+            }}
+        >
+            <FaPlay size={10} />
+            <span style={{ flex: 1 }}>{displayLabel}</span>
+            <span style={{ color: '#888888', fontSize: 12 }}>{minutes}m</span>
+        </Focusable>
+    );
+};
+
 export function TimerPanel() {
-    const { timers, createTimer, cancelTimer } = useTimers();
+    const { timers, recentTimers, createTimer, cancelTimer } = useTimers();
     const { presets } = useSettings();
     const [timerMinutes, setTimerMinutes] = useState(5);
-    const [customLabel, setCustomLabel] = useState('');
 
     const hasActiveTimers = timers.length > 0;
+    const hasRecentTimers = recentTimers.length > 0;
 
-    const handleStartTimer = async () => {
-        await createTimer(timerMinutes * 60, customLabel || `${timerMinutes} min timer`);
-        setCustomLabel('');
+    // Quick start timer (no label)
+    const handleQuickStart = async () => {
+        await createTimer(timerMinutes * 60, '');
     };
 
+    // Open modal for labeled timer
+    const handleAddLabel = () => {
+        showTimerLabelModal({
+            seconds: timerMinutes * 60,
+            onStart: async (seconds, label) => {
+                await createTimer(seconds, label);
+            }
+        });
+    };
+
+    // Start from preset
     const handlePresetClick = async (preset: Preset) => {
         await createTimer(preset.seconds, preset.label);
+    };
+
+    // Start from recent
+    const handleRecentClick = async (recent: RecentTimer) => {
+        await createTimer(recent.seconds, recent.label);
     };
 
     return (
@@ -166,7 +210,7 @@ export function TimerPanel() {
                     </Focusable>
                 </PanelSectionRow>
 
-                {/* Timer display and start */}
+                {/* Timer display */}
                 <PanelSectionRow>
                     <div style={{
                         textAlign: 'center',
@@ -219,26 +263,44 @@ export function TimerPanel() {
                     </Focusable>
                 </PanelSectionRow>
 
-                {/* Optional label */}
-                <PanelSectionRow>
-                    <TextField
-                        label="Timer Label (e.g., Dinner ready)"
-                        value={customLabel}
-                        onChange={(e) => setCustomLabel(e.target.value)}
-                    />
-                </PanelSectionRow>
-
-                {/* Start button */}
+                {/* Action buttons - Start and Add Label */}
                 <PanelSectionRow>
                     <ButtonItem
                         layout="below"
-                        onClick={handleStartTimer}
+                        onClick={handleQuickStart}
                     >
                         <FaPlay size={12} style={{ marginRight: 8 }} />
                         Start {timerMinutes} Minute Timer
                     </ButtonItem>
                 </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ButtonItem
+                        layout="below"
+                        onClick={handleAddLabel}
+                    >
+                        <FaEdit size={12} style={{ marginRight: 8 }} />
+                        Add Label...
+                    </ButtonItem>
+                </PanelSectionRow>
             </PanelSection>
+
+            {/* Recent Timers */}
+            {hasRecentTimers && (
+                <PanelSection title="Recent">
+                    <PanelSectionRow>
+                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                            {recentTimers.slice(0, 5).map((recent, idx) => (
+                                <RecentTimerButton
+                                    key={`${recent.seconds}-${recent.label}-${idx}`}
+                                    recent={recent}
+                                    onClick={() => handleRecentClick(recent)}
+                                />
+                            ))}
+                        </Focusable>
+                    </PanelSectionRow>
+                </PanelSection>
+            )}
 
             {/* Quick Presets */}
             {presets.length > 0 && (
