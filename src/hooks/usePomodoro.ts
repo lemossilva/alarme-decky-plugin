@@ -7,6 +7,7 @@ const startPomodoroCall = callable<[], PomodoroState>('start_pomodoro');
 const stopPomodoroCall = callable<[], boolean>('stop_pomodoro');
 const skipPhaseCall = callable<[], PomodoroState>('skip_pomodoro_phase');
 const getPomodoroStateCall = callable<[], PomodoroState>('get_pomodoro_state');
+const resetStatsCall = callable<[], boolean>('reset_pomodoro_stats');
 
 export function usePomodoro() {
     const [state, setState] = useState<PomodoroState>({
@@ -108,6 +109,16 @@ export function usePomodoro() {
         };
     }, [loadState]);
 
+    // Reset Stats
+    const resetStats = useCallback(async () => {
+        try {
+            await resetStatsCall();
+            await loadState(); // Refresh stats
+        } catch (e) {
+            console.error('Failed to reset stats:', e);
+        }
+    }, [loadState]);
+
     return {
         state,
         stats: state.stats,
@@ -120,6 +131,7 @@ export function usePomodoro() {
         startPomodoro,
         stopPomodoro,
         skipPhase,
+        resetStats,
         refresh: loadState
     };
 }

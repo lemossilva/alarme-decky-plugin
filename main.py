@@ -616,13 +616,16 @@ class Plugin:
             self.pomodoro_task = None
             
         # Update stats for partial session
-        current_state = await self._get_pomodoro_state()
-        if current_state.get("active") and current_state.get("start_time"):
-            elapsed = time.time() - current_state.get("start_time")
-            await self._update_pomodoro_stats(
-                is_break=current_state.get("is_break", False),
-                duration=elapsed
-            )
+        try:
+            current_state = await self._get_pomodoro_state()
+            if current_state.get("active") and current_state.get("start_time"):
+                elapsed = time.time() - current_state.get("start_time")
+                await self._update_pomodoro_stats(
+                    is_break=current_state.get("is_break", False),
+                    duration=elapsed
+                )
+        except Exception as e:
+            decky.logger.error(f"Alar.me: Failed to update stats on stop: {e}")
 
         state = {
             "active": False,
@@ -650,12 +653,15 @@ class Plugin:
             return pomodoro_state
             
         # Update stats for skipped phase
-        if pomodoro_state.get("start_time"):
-            elapsed = time.time() - pomodoro_state.get("start_time")
-            await self._update_pomodoro_stats(
-                is_break=pomodoro_state.get("is_break", False),
-                duration=elapsed
-            )
+        try:
+            if pomodoro_state.get("start_time"):
+                elapsed = time.time() - pomodoro_state.get("start_time")
+                await self._update_pomodoro_stats(
+                    is_break=pomodoro_state.get("is_break", False),
+                    duration=elapsed
+                )
+        except Exception as e:
+            decky.logger.error(f"Alar.me: Failed to update stats on skip: {e}")
         
         user_settings = await self._get_user_settings()
         is_break = pomodoro_state.get("is_break", False)
@@ -720,7 +726,8 @@ class Plugin:
     async def _get_pomodoro_stats(self) -> dict:
         """Get stats from user settings, handling daily buffer reset."""
         settings = await self._get_user_settings()
-        stats = settings.get("pomodoro_stats", {
+        # Default structure
+        defaults = {
             "daily_focus_time": 0,
             "daily_break_time": 0,
             "total_focus_time": 0,
@@ -728,7 +735,13 @@ class Plugin:
             "total_sessions": 0,
             "total_cycles": 0,
             "last_active_date": ""
-        })
+        }
+        
+        stats = settings.get("pomodoro_stats", {})
+        # Merge defaults for missing keys
+        for k, v in defaults.items():
+            if k not in stats:
+                stats[k] = v
         
         # Check daily reset
         today = datetime.now().strftime("%Y-%m-%d")
@@ -736,8 +749,6 @@ class Plugin:
             stats["daily_focus_time"] = 0
             stats["daily_break_time"] = 0
             stats["last_active_date"] = today
-            # We don't save immediately here to avoid write spam on simple read,
-            # but _update_pomodoro_stats will save it.
             
         return stats
 
@@ -765,7 +776,26 @@ class Plugin:
             
         # Save back to settings
         settings["pomodoro_stats"] = stats
-        self._save_settings(settings)
+        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, settings)
+        await self.settings_commit()
+
+    async def reset_pomodoro_stats(self) -> bool:
+        """Reset all Pomodoro statistics."""
+        defaults = {
+            "daily_focus_time": 0,
+            "daily_break_time": 0,
+            "total_focus_time": 0,
+            "total_break_time": 0,
+            "total_sessions": 0,
+            "total_cycles": 0,
+            "last_active_date": ""
+        }
+        
+        settings = await self._get_user_settings()
+        settings["pomodoro_stats"] = defaults
+        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, settings)
+        await self.settings_commit()
+        return True
 
     async def get_pomodoro_state(self) -> dict:
         """Get current Pomodoro state with remaining time."""
@@ -798,14 +828,17 @@ class Plugin:
                     cycle = state.get("current_cycle", 1)
                     
                     # Update stats for completed phase
-                    if state.get("start_time"):
-                        elapsed = time.time() - state.get("start_time")
-                        await self._update_pomodoro_stats(
-                            is_break=is_break,
-                            duration=elapsed,
-                            completed_session=not is_break,
-                            completed_cycle=is_break and state.get("break_type") == "long"
-                        )
+                    try:
+                        if state.get("start_time"):
+                            elapsed = time.time() - state.get("start_time")
+                            await self._update_pomodoro_stats(
+                                is_break=is_break,
+                                duration=elapsed,
+                                completed_session=not is_break,
+                                completed_cycle=is_break and state.get("break_type") == "long"
+                            )
+                    except Exception as e:
+                        decky.logger.error(f"Alar.me: Failed to update stats on completion: {e}")
                     
                     if is_break:
                         # Break finished, start new work session

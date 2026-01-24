@@ -1,6 +1,8 @@
 import {
     ButtonItem,
     Focusable,
+    ConfirmModal,
+    showModal,
     PanelSection,
     PanelSectionRow,
     ProgressBarWithInfo
@@ -20,6 +22,7 @@ export function PomodoroPanel() {
         startPomodoro,
         stopPomodoro,
         skipPhase,
+        resetStats,
         stats
     } = usePomodoro();
     const { settings } = useSettings();
@@ -51,9 +54,8 @@ export function PomodoroPanel() {
 
     const isLongBreakNext = currentSession % sessionsUntilLong === 0;
 
-    const dailyFocusSeconds = stats?.daily_focus_time || 0;
-    const dailyFocusHours = Math.floor(dailyFocusSeconds / 3600);
-    const dailyFocusMinutes = Math.floor((dailyFocusSeconds % 3600) / 60);
+    // Stats calculation handled inline
+
 
     return (
         <div>
@@ -184,19 +186,79 @@ export function PomodoroPanel() {
                     }}>
                         <div>
                             <div style={{ fontSize: 32, fontWeight: 'bold', color: '#44aa88' }}>
-                                {currentSession}
+                                {isActive ? currentSession : (stats?.daily_focus_time ? "-" : 0)}
                             </div>
                             <div style={{ fontSize: 12, color: '#888888' }}>
-                                Current Session
+                                Cycle Session
                             </div>
                         </div>
                         <div>
                             <div style={{ fontSize: 32, fontWeight: 'bold', color: '#4488aa' }}>
-                                {dailyFocusHours}h {dailyFocusMinutes}m
+                                {(() => {
+                                    // Calculate live pending time
+                                    let pending = 0;
+                                    if (isActive && !isBreak) {
+                                        // Work duration - remaining
+                                        // Note: remaining decrements.
+                                        // We need accurate elapsed. 
+                                        // Use helper or calculation.
+                                        // remaining is updated by tick.
+                                        pending = Math.max(0, workDuration - remaining);
+                                    }
+
+                                    const totalDaily = (stats?.daily_focus_time || 0) + pending;
+                                    const h = Math.floor(totalDaily / 3600);
+                                    const m = Math.floor((totalDaily % 3600) / 60);
+                                    return `${h}h ${m}m`;
+                                })()}
                             </div>
                             <div style={{ fontSize: 12, color: '#888888' }}>
-                                Focus Time
+                                Today's Focus
                             </div>
+                        </div>
+                    </div>
+                </PanelSectionRow>
+            </PanelSection>
+
+            <PanelSection title="Lifetime Stats">
+                <PanelSectionRow>
+                    <div style={{ padding: '10px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 16px' }}>
+                            <span>Total Sessions</span>
+                            <span style={{ fontWeight: 'bold', color: 'white' }}>{stats?.total_sessions || 0}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 16px' }}>
+                            <span>Total Cycles</span>
+                            <span style={{ fontWeight: 'bold', color: 'white' }}>{stats?.total_cycles || 0}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 16px' }}>
+                            <span>Total Focus Time</span>
+                            <span style={{ fontWeight: 'bold', color: '#4488aa' }}>
+                                {Math.floor((stats?.total_focus_time || 0) / 3600)}h {Math.floor(((stats?.total_focus_time || 0) % 3600) / 60)}m
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 16px' }}>
+                            <span>Total Break Time</span>
+                            <span style={{ fontWeight: 'bold', color: '#44aa88' }}>
+                                {Math.floor((stats?.total_break_time || 0) / 3600)}h {Math.floor(((stats?.total_break_time || 0) % 3600) / 60)}m
+                            </span>
+                        </div>
+
+                        <div style={{ marginTop: 10, padding: '0 8px' }}>
+                            <ButtonItem
+                                layout="below"
+                                onClick={() => {
+                                    showModal(
+                                        <ConfirmModal
+                                            strTitle="Reset Lifetime Stats?"
+                                            strDescription="Are you sure you want to wipe all global Pomodoro statistics? This cannot be undone."
+                                            onOK={() => resetStats()}
+                                        />
+                                    );
+                                }}
+                            >
+                                Reset Lifetime Stats
+                            </ButtonItem>
                         </div>
                     </div>
                 </PanelSectionRow>

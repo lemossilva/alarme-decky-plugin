@@ -30,8 +30,15 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Focus mode** - Customizable work duration (15-60 minutes)
 - **Break intervals** - Short breaks (3-15 min) and long breaks (10-45 min)
 - **Session tracking** - Configurable sessions until long break (2-8)
+- **Comprehensive Statistics** - Track daily and lifetime focus time, sessions, and cycles.
 - **Visual progress** - See your focus progress at a glance
 - **Skip controls** - Skip to break or back to work anytime
+- **Background persistence** - Timer continues running even if you close the menu
+- **Reset Stats** - Option to wipe your history and start fresh
+
+### 💾 Data Management
+- **Backup & Restore** - Export your settings, alarms, timers, and stats to a file.
+- **Easy Migration** - Move your data between devices or restore after re-install.
 
 ### 🔊 Sound Options
 - **Per-feature sounds** - Different sounds for Timers, Alarms, and Pomodoro
