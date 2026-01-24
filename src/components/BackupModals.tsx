@@ -1,7 +1,7 @@
-import { ConfirmModal, showModal, TextField, Focusable } from "@decky/ui";
+import { ConfirmModal, showModal, TextField } from "@decky/ui";
 import { callable } from "@decky/api";
 import { useState } from "react";
-import { FaSave, FaFileImport } from "react-icons/fa";
+
 
 const exportBackupToFileCall = callable<[string], boolean>('export_backup_to_file');
 const importBackupFromFileCall = callable<[string], boolean>('import_backup_from_file');
