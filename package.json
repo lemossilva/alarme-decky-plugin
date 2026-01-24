@@ -1,6 +1,6 @@
 {
     "name": "alarme-decky-plugin",
-    "version": "1.0.0-beta.4",
+    "version": "1.0.0-beta.5",
     "description": "Advanced alarm and timer plugin for Decky Loader with snooze, recurring alarms, and Pomodoro mode.",
     "type": "module",
     "scripts": {
