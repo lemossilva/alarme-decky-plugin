@@ -21,6 +21,7 @@ import { PomodoroPanel } from "./components/PomodoroPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { showSnoozeModal } from "./components/SnoozeModal";
 import { playAlarmSound } from "./utils/sounds";
+import { SteamUtils } from "./utils/steam";
 
 // Types
 import type {
@@ -129,11 +130,22 @@ function Content() {
 export default definePlugin(() => {
     // Event handlers
     const handleTimerCompleted = (event: TimerCompletedEvent) => {
-        if (event.subtle) {
+        // Auto-suspend forces subtle mode (modal before suspend makes no sense)
+        const useSubtle = event.subtle || event.auto_suspend;
+
+        if (useSubtle) {
             toaster.toast({
                 title: "⏰ Timer Finished!",
                 body: event.label
             });
+            // Play sound briefly for non-subtle with auto-suspend
+            if (!event.subtle && event.auto_suspend) {
+                playAlarmSound(event.sound || 'alarm.mp3');
+            }
+            // Suspend after toast is visible
+            if (event.auto_suspend) {
+                setTimeout(() => SteamUtils.suspend(), 3000);
+            }
         } else {
             showSnoozeModal({
                 id: event.id,
@@ -147,11 +159,22 @@ export default definePlugin(() => {
     };
 
     const handleAlarmTriggered = (event: AlarmTriggeredEvent) => {
-        if (event.subtle) {
+        // Auto-suspend forces subtle mode (modal before suspend makes no sense)
+        const useSubtle = event.subtle || event.auto_suspend;
+
+        if (useSubtle) {
             toaster.toast({
                 title: "🔔 Alarm!",
                 body: event.label
             });
+            // Play sound briefly for non-subtle with auto-suspend
+            if (!event.subtle && event.auto_suspend) {
+                playAlarmSound(event.sound || 'alarm.mp3');
+            }
+            // Suspend after toast is visible
+            if (event.auto_suspend) {
+                setTimeout(() => SteamUtils.suspend(), 3000);
+            }
         } else {
             showSnoozeModal({
                 id: event.id,
