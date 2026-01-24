@@ -1,88 +1,80 @@
 import { ConfirmModal, showModal, TextField, Focusable } from "@decky/ui";
 import { callable } from "@decky/api";
-import { useState, useEffect } from "react";
-import { FaCopy, FaPaste, FaCheck } from "react-icons/fa";
+import { useState } from "react";
+import { FaSave, FaFileImport } from "react-icons/fa";
 
-const exportBackupCall = callable<[], string>('export_backup');
-const importBackupCall = callable<[string], boolean>('import_backup');
+const exportBackupToFileCall = callable<[string], boolean>('export_backup_to_file');
+const importBackupFromFileCall = callable<[string], boolean>('import_backup_from_file');
+
+// Default path for Steam Deck user
+const DEFAULT_BACKUP_PATH = "/home/deck/alarme_backup.json";
 
 const ExportModalContent = ({ closeModal }: { closeModal?: () => void }) => {
-    const [data, setData] = useState("Generating backup...");
-    const [copied, setCopied] = useState(false);
+    const [path, setPath] = useState(DEFAULT_BACKUP_PATH);
+    const [status, setStatus] = useState<string>("");
 
-    useEffect(() => {
-        exportBackupCall().then(setData).catch(e => setData(`Error: ${e}`));
-    }, []);
+    const handleExport = async () => {
+        if (!path.trim()) return;
 
-    const handleCopy = () => {
-        // Try standard clipboard API (might fail in game mode depending on focus)
+        setStatus("Exporting...");
         try {
-            navigator.clipboard.writeText(data);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            const success = await exportBackupToFileCall(path);
+            if (success) {
+                setStatus("Success! Backup saved.");
+                setTimeout(() => closeModal?.(), 1500);
+            } else {
+                setStatus("Error: Export failed. Check logs.");
+            }
         } catch (e) {
-            console.error("Clipboard copy failed", e);
+            setStatus(`Error: ${e}`);
         }
     };
 
     return (
         <ConfirmModal
             strTitle="📤 Export Configuration"
-            strDescription="Copy the text below to save your backup."
-            strOKButtonText="Close"
-            onOK={() => closeModal?.()}
+            strDescription="Enter the file path to save your backup."
+            strOKButtonText="Export"
+            strCancelButtonText="Cancel"
+            onOK={handleExport}
             onCancel={() => closeModal?.()}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <Focusable style={{ position: 'relative' }}>
-                    <TextField
-                        value={data}
-                        onChange={() => { }} // Read-only
-                        label="Backup Data (Select All & Copy)"
-                    />
-                    {/* Overlay copy button if possible, but simple instructions are safer */}
-                </Focusable>
+                <TextField
+                    value={path}
+                    onChange={(e) => setPath(e.target.value)}
+                    label="Export File Path"
+                />
 
-                <Focusable
-                    onActivate={handleCopy}
-                    style={{
-                        padding: '10px 16px',
-                        backgroundColor: copied ? '#44aa44' : '#ffffff22',
-                        borderRadius: 4,
+                {status && (
+                    <div style={{
+                        color: status.includes("Error") ? '#ff6666' : '#44aa44',
                         textAlign: 'center',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8
-                    }}
-                >
-                    {copied ? <FaCheck /> : <FaCopy />}
-                    {copied ? "Copied to Clipboard!" : "Copy to Clipboard"}
-                </Focusable>
-
-                <div style={{ fontSize: 12, color: '#888888' }}>
-                    If the button doesn't work, please verify manually if you have copied the text.
-                </div>
+                        fontWeight: 'bold'
+                    }}>
+                        {status}
+                    </div>
+                )}
             </div>
         </ConfirmModal>
     );
 };
 
 const ImportModalContent = ({ closeModal }: { closeModal?: () => void }) => {
-    const [data, setData] = useState("");
+    const [path, setPath] = useState(DEFAULT_BACKUP_PATH);
     const [status, setStatus] = useState<string>("");
 
     const handleImport = async () => {
-        if (!data.trim()) return;
+        if (!path.trim()) return;
 
         setStatus("Importing...");
         try {
-            const success = await importBackupCall(data);
+            const success = await importBackupFromFileCall(path);
             if (success) {
                 setStatus("Success! Configuration restored.");
-                setTimeout(() => closeModal?.(), 1000);
+                setTimeout(() => closeModal?.(), 1500);
             } else {
-                setStatus("Error: Invalid backup data.");
+                setStatus("Error: Import failed. File not found or invalid.");
             }
         } catch (e) {
             setStatus(`Error: ${e}`);
@@ -92,7 +84,7 @@ const ImportModalContent = ({ closeModal }: { closeModal?: () => void }) => {
     return (
         <ConfirmModal
             strTitle="📥 Import Configuration"
-            strDescription="Paste your backup string below."
+            strDescription="Enter the file path to load your backup from."
             strOKButtonText="Import"
             strCancelButtonText="Cancel"
             onOK={handleImport}
@@ -100,9 +92,9 @@ const ImportModalContent = ({ closeModal }: { closeModal?: () => void }) => {
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <TextField
-                    value={data}
-                    onChange={(e) => setData(e.target.value)}
-                    label="Paste Backup Data Here"
+                    value={path}
+                    onChange={(e) => setPath(e.target.value)}
+                    label="Import File Path"
                 />
 
                 {status && (

@@ -816,7 +816,47 @@ class Plugin:
             "recent_timers": await self.get_recent_timers(),
             "user_settings": await self._get_user_settings()
         }
-        return json.dumps(data)
+        return json.dumps(data, indent=2)
+
+    async def export_backup_to_file(self, filepath: str) -> bool:
+        """Export backup to a specific file."""
+        try:
+            # Expand ~ to user home
+            filepath = os.path.expanduser(filepath)
+            
+            # Create directory if it doesn't exist
+            directory = os.path.dirname(filepath)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory)
+                
+            json_str = await self.export_backup()
+            
+            with open(filepath, 'w') as f:
+                f.write(json_str)
+            
+            decky.logger.info(f"Alar.me: Backup exported to {filepath}")
+            return True
+        except Exception as e:
+            decky.logger.error(f"Alar.me: Export to file failed: {e}")
+            return False
+
+    async def import_backup_from_file(self, filepath: str) -> bool:
+        """Import backup from a specific file."""
+        try:
+            # Expand ~ to user home
+            filepath = os.path.expanduser(filepath)
+            
+            if not os.path.exists(filepath):
+                decky.logger.error(f"Alar.me: Import file not found: {filepath}")
+                return False
+                
+            with open(filepath, 'r') as f:
+                json_str = f.read()
+                
+            return await self.import_backup(json_str)
+        except Exception as e:
+             decky.logger.error(f"Alar.me: Import from file failed: {e}")
+             return False
 
     async def import_backup(self, json_str: str) -> bool:
         """Import user data from JSON string."""
