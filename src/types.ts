@@ -55,6 +55,7 @@ export interface PomodoroState {
     break_type?: 'short' | 'long';
     sound?: string;
     volume?: number;
+    subtle_mode?: boolean;
 }
 
 // Settings types

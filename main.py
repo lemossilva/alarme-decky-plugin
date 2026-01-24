@@ -720,6 +720,7 @@ class Plugin:
                         # Break finished, start new work session
                         work_duration = user_settings.get("pomodoro_work_duration", 25) * 60
                         pomodoro_sound = user_settings.get("pomodoro_sound", "alarm.mp3")
+                        is_subtle = user_settings.get("pomodoro_subtle_mode", False)
                         
                         # Check if we just finished a long break
                         was_long_break = state.get("break_type") == "long"
@@ -737,7 +738,8 @@ class Plugin:
                             "current_cycle": new_cycle,
                             "end_time": time.time() + work_duration,
                             "duration": work_duration,
-                            "sound": pomodoro_sound
+                            "sound": pomodoro_sound,
+                            "subtle_mode": is_subtle
                         }
                         await decky.emit("alarme_pomodoro_break_ended", new_state)
                     else:
@@ -758,7 +760,8 @@ class Plugin:
                             "end_time": time.time() + break_duration,
                             "duration": break_duration,
                             "break_type": break_type,
-                            "sound": user_settings.get("pomodoro_sound", "alarm.mp3")
+                            "sound": user_settings.get("pomodoro_sound", "alarm.mp3"),
+                            "subtle_mode": user_settings.get("pomodoro_subtle_mode", False)
                         }
                         await decky.emit("alarme_pomodoro_work_ended", new_state)
                     

@@ -11,6 +11,7 @@ import {
     toaster,
     callable
 } from "@decky/api";
+import { showModal } from "@decky/ui";
 import { FaClock, FaBell, FaCog, FaBrain, FaStopwatch } from "react-icons/fa";
 import { useState } from "react";
 
@@ -20,6 +21,7 @@ import { AlarmPanel } from "./components/AlarmPanel";
 import { PomodoroPanel } from "./components/PomodoroPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { showSnoozeModal } from "./components/SnoozeModal";
+import { PomodoroNotification } from "./components/PomodoroNotification";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 
@@ -192,15 +194,28 @@ export default definePlugin(() => {
     const handlePomodoroWorkEnded = (state: PomodoroState) => {
         // Play sound with volume
         playAlarmSound(state.sound || 'alarm.mp3', state.volume);
+
+        // Show modal with controls (Subtle mode or not, user requested modal for interaction)
+        // If "Subtle Mode" setting implies Toast vs Modal, we should technically respect it,
+        // but user specifically asked for Modal behavior for "Subtle Mode" (or generally when it wasn't working).
+        // Since previous behavior was ONLY toast, adding Modal improves it.
+        // We can keep Toast if in subtle mode? User said "It should open a modal".
+        // Let's open the modal.
+        showModal(<PomodoroNotification />);
+
+        // Optional: Keep toast for history/quick glance?
         toaster.toast({
             title: "🎉 Great work!",
-            body: `Session ${state.current_session} complete. Time for a ${state.break_type === 'long' ? 'long ' : ''}break!`
+            body: `Session ${state.current_session} complete.`
         });
     };
 
     const handlePomodoroBreakEnded = (state: PomodoroState) => {
         // Play sound
         playAlarmSound(state.sound || 'alarm.mp3');
+
+        showModal(<PomodoroNotification />);
+
         toaster.toast({
             title: "💪 Break's over!",
             body: `Ready for session ${state.current_session}?`
