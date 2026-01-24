@@ -134,12 +134,14 @@ class Plugin:
                     user_settings = await self._get_user_settings()
                     subtle = user_settings.get("timer_subtle_mode", False)
                     timer_sound = user_settings.get("timer_sound", "alarm.mp3")
+                    timer_volume = user_settings.get("timer_volume", 100)
                     timer_auto_suspend = user_settings.get("timer_auto_suspend", False)
                     await decky.emit("alarme_timer_completed", {
                         "id": timer_id,
                         "label": label,
                         "subtle": subtle,
                         "sound": timer_sound,
+                        "volume": timer_volume,
                         "auto_suspend": timer_auto_suspend
                     })
                     decky.logger.info(f"Alar.me: Timer {timer_id} completed")
@@ -251,6 +253,8 @@ class Plugin:
             alarm["snooze_duration"] = snooze_duration
             alarm["subtle_mode"] = subtle_mode
             alarm["auto_suspend"] = auto_suspend
+            # Re-enable alarm when edited (user expects it to be active)
+            alarm["enabled"] = True
             # Clear snooze and last_triggered when alarm time changes
             alarm["snoozed_until"] = None
             alarm["last_triggered"] = None

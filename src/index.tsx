@@ -140,7 +140,7 @@ export default definePlugin(() => {
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
-                playAlarmSound(event.sound || 'alarm.mp3');
+                playAlarmSound(event.sound || 'alarm.mp3', event.volume);
             }
             // Suspend after toast is visible
             if (event.auto_suspend) {
@@ -152,6 +152,7 @@ export default definePlugin(() => {
                 label: event.label,
                 type: 'timer',
                 sound: event.sound,
+                volume: event.volume,
                 onSnooze: () => { }, // Timers don't snooze
                 onDismiss: () => { }
             });
@@ -169,7 +170,7 @@ export default definePlugin(() => {
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
-                playAlarmSound(event.sound || 'alarm.mp3');
+                playAlarmSound(event.sound || 'alarm.mp3', event.volume);
             }
             // Suspend after toast is visible
             if (event.auto_suspend) {
@@ -181,6 +182,7 @@ export default definePlugin(() => {
                 label: event.label,
                 type: 'alarm',
                 sound: event.sound,
+                volume: event.volume,
                 onSnooze: (minutes) => snoozeAlarm(event.id, minutes),
                 onDismiss: () => { }
             });
@@ -188,8 +190,8 @@ export default definePlugin(() => {
     };
 
     const handlePomodoroWorkEnded = (state: PomodoroState) => {
-        // Play sound
-        playAlarmSound(state.sound || 'alarm.mp3');
+        // Play sound with volume
+        playAlarmSound(state.sound || 'alarm.mp3', state.volume);
         toaster.toast({
             title: "🎉 Great work!",
             body: `Session ${state.current_session} complete. Time for a ${state.break_type === 'long' ? 'long ' : ''}break!`

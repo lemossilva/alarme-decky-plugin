@@ -522,26 +522,32 @@ function AlarmEditorModalContent({ alarm, defaultSnooze, onSave, onDelete, getSo
                     </div>
                     <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <Focusable
-                            onActivate={() => setSubtleMode(!subtleMode)}
+                            onActivate={() => {
+                                // Only allow toggling if auto-suspend is OFF
+                                if (!autoSuspend) {
+                                    setSubtleMode(!subtleMode);
+                                }
+                            }}
                             style={{
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 padding: '8px 12px',
                                 backgroundColor: '#ffffff11',
-                                borderRadius: 6
+                                borderRadius: 6,
+                                opacity: autoSuspend ? 0.5 : 1
                             }}
                         >
                             <div>
                                 <div style={{ fontSize: 13 }}>📵 Subtle Mode</div>
                                 <div style={{ fontSize: 11, color: '#888888' }}>
-                                    Show only a toast notification
+                                    {autoSuspend ? 'Required when Auto-Suspend is enabled' : 'Show only a toast notification'}
                                 </div>
                             </div>
                             <div style={{
                                 width: 40,
                                 height: 22,
-                                backgroundColor: subtleMode ? '#44aa44' : '#ffffff33',
+                                backgroundColor: (subtleMode || autoSuspend) ? '#44aa44' : '#ffffff33',
                                 borderRadius: 11,
                                 position: 'relative',
                                 transition: 'all 0.2s'
@@ -553,13 +559,20 @@ function AlarmEditorModalContent({ alarm, defaultSnooze, onSave, onDelete, getSo
                                     borderRadius: 9,
                                     position: 'absolute',
                                     top: 2,
-                                    left: subtleMode ? 20 : 2,
+                                    left: (subtleMode || autoSuspend) ? 20 : 2,
                                     transition: 'all 0.2s'
                                 }} />
                             </div>
                         </Focusable>
                         <Focusable
-                            onActivate={() => setAutoSuspend(!autoSuspend)}
+                            onActivate={() => {
+                                const newAutoSuspend = !autoSuspend;
+                                setAutoSuspend(newAutoSuspend);
+                                // Force subtle mode ON when enabling auto-suspend
+                                if (newAutoSuspend) {
+                                    setSubtleMode(true);
+                                }
+                            }}
                             style={{
                                 display: 'flex',
                                 justifyContent: 'space-between',

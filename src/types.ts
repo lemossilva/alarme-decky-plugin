@@ -53,6 +53,7 @@ export interface PomodoroState {
     remaining?: number;
     break_type?: 'short' | 'long';
     sound?: string;
+    volume?: number;
 }
 
 // Settings types
@@ -85,6 +86,7 @@ export interface TimerCompletedEvent {
     label: string;
     subtle: boolean;
     sound?: string;
+    volume?: number;
     auto_suspend?: boolean;
 }
 
