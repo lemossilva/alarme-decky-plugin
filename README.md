@@ -123,7 +123,7 @@ This plugin is **completely offline** and collects no data:
 
 ## Known Limitations
 
-- **On-Screen Keyboard**: The Steam Deck on-screen keyboard may appear behind the plugin panel. Workaround: Install "CSS Loader" plugin and enable the "Top Keyboard" snippet.
+- **On-Screen Keyboard**: The Steam Deck on-screen keyboard may appear behind the plugin panel.
 
 ## License
 
@@ -138,3 +138,4 @@ BSD-3-Clause License - See [LICENSE](LICENSE) for details.
 ## Support
 
 If you encounter any issues, please [open an issue](https://github.com/lemossilva/alarme-decky-plugin/issues) on GitHub.
+
