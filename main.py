@@ -587,6 +587,7 @@ class Plugin:
             "active": True,
             "is_break": False,
             "current_session": session,
+            "current_cycle": 1,
             "end_time": time.time() + work_duration,
             "duration": work_duration
         }
@@ -613,6 +614,7 @@ class Plugin:
             "active": False,
             "is_break": False,
             "current_session": 0,
+            "current_cycle": 0,
             "end_time": None,
             "duration": 0
         }
@@ -633,13 +635,26 @@ class Plugin:
         is_break = pomodoro_state.get("is_break", False)
         session = pomodoro_state.get("current_session", 1)
         
+        cycle = pomodoro_state.get("current_cycle", 1)
+        
         if is_break:
-            # Starting new work session
+            # Starting new work session from break
+            # Check if we just finished a long break
+            was_long_break = pomodoro_state.get("break_type") == "long"
+            
+            if was_long_break:
+                new_session = 1
+                new_cycle = cycle + 1
+            else:
+                new_session = session + 1
+                new_cycle = cycle
+
             work_duration = user_settings.get("pomodoro_work_duration", 25) * 60
             state = {
                 "active": True,
                 "is_break": False,
-                "current_session": session + 1,
+                "current_session": new_session,
+                "current_cycle": new_cycle,
                 "end_time": time.time() + work_duration,
                 "duration": work_duration
             }
@@ -648,15 +663,19 @@ class Plugin:
             sessions_until_long = user_settings.get("pomodoro_sessions_until_long_break", 4)
             if session % sessions_until_long == 0:
                 break_duration = user_settings.get("pomodoro_long_break_duration", 15) * 60
+                break_type = "long"
             else:
                 break_duration = user_settings.get("pomodoro_break_duration", 5) * 60
+                break_type = "short"
             
             state = {
                 "active": True,
                 "is_break": True,
                 "current_session": session,
+                "current_cycle": cycle,
                 "end_time": time.time() + break_duration,
-                "duration": break_duration
+                "duration": break_duration,
+                "break_type": break_type
             }
         
         await self._save_pomodoro_state(state)
@@ -695,14 +714,27 @@ class Plugin:
                     is_break = state.get("is_break", False)
                     session = state.get("current_session", 1)
                     
+                    cycle = state.get("current_cycle", 1)
+                    
                     if is_break:
                         # Break finished, start new work session
                         work_duration = user_settings.get("pomodoro_work_duration", 25) * 60
                         pomodoro_sound = user_settings.get("pomodoro_sound", "alarm.mp3")
+                        
+                        # Check if we just finished a long break
+                        was_long_break = state.get("break_type") == "long"
+                        if was_long_break:
+                            new_session = 1
+                            new_cycle = cycle + 1
+                        else:
+                            new_session = session + 1
+                            new_cycle = cycle
+                            
                         new_state = {
                             "active": True,
                             "is_break": False,
-                            "current_session": session + 1,
+                            "current_session": new_session,
+                            "current_cycle": new_cycle,
                             "end_time": time.time() + work_duration,
                             "duration": work_duration,
                             "sound": pomodoro_sound
@@ -722,6 +754,7 @@ class Plugin:
                             "active": True,
                             "is_break": True,
                             "current_session": session,
+                            "current_cycle": cycle,
                             "end_time": time.time() + break_duration,
                             "duration": break_duration,
                             "break_type": break_type,
@@ -736,7 +769,8 @@ class Plugin:
                 await decky.emit("alarme_pomodoro_tick", {
                     "remaining": max(0, remaining),
                     "is_break": state.get("is_break", False),
-                    "session": state.get("current_session", 1)
+                    "session": state.get("current_session", 1),
+                    "cycle": state.get("current_cycle", 1)
                 })
                 
                 await asyncio.sleep(1)  # Update every second for real-time display
@@ -749,6 +783,7 @@ class Plugin:
             "active": False,
             "is_break": False,
             "current_session": 0,
+            "current_cycle": 0,
             "end_time": None,
             "duration": 0
         })

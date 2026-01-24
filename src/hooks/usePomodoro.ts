@@ -75,7 +75,8 @@ export function usePomodoro() {
                 ...prev,
                 remaining: event.remaining,
                 is_break: event.is_break,
-                current_session: event.session
+                current_session: event.session,
+                current_cycle: event.cycle
             }));
         };
 
@@ -113,6 +114,7 @@ export function usePomodoro() {
         isActive: state.active,
         isBreak: state.is_break,
         currentSession: state.current_session,
+        currentCycle: state.current_cycle || 1,
         remaining: state.remaining || 0,
         startPomodoro,
         stopPomodoro,

@@ -15,6 +15,7 @@ export function PomodoroPanel() {
         isActive,
         isBreak,
         currentSession,
+        currentCycle,
         remaining,
         startPomodoro,
         stopPomodoro,
@@ -95,7 +96,7 @@ export function PomodoroPanel() {
                                 color: '#888888',
                                 marginTop: 8
                             }}>
-                                Session {currentSession} of {sessionsUntilLong}
+                                Session {currentSession} of {sessionsUntilLong} <span style={{ opacity: 0.7 }}>(Cycle {currentCycle})</span>
                                 {isLongBreakNext && !isBreak && (
                                     <span style={{ color: '#44aa88' }}> • Long break next!</span>
                                 )}

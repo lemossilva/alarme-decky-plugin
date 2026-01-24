@@ -48,6 +48,7 @@ export interface PomodoroState {
     active: boolean;
     is_break: boolean;
     current_session: number;
+    current_cycle?: number;
     end_time: number | null;
     duration: number;
     remaining?: number;
@@ -108,6 +109,7 @@ export interface PomodoroTickEvent {
     remaining: number;
     is_break: boolean;
     session: number;
+    cycle?: number;
 }
 
 export interface SnoozeEvent {
