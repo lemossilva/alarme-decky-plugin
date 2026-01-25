@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![Alar.me](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/version-1.0.0-green)
+![Version](https://img.shields.io/badge/release-v1.0.0--beta.13-green)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
 ![Alar.me Promo](assets/promo.png)
@@ -104,16 +104,10 @@ pnpm run watch
 ### Deploying to Steam Deck
 
 1. Enable SSH on your Steam Deck (Desktop Mode)
-2. Set your Steam Deck IP:
+2. Deploy:
    ```bash
-   export DECK_IP="192.168.x.x"
+   ./deploy.sh 192.168.X.X
    ```
-3. Deploy:
-   ```bash
-   rsync -avz --delete --exclude 'node_modules' --exclude '.git' \
-     ./ deck@${DECK_IP}:/home/deck/homebrew/plugins/alarme-decky-plugin/
-   ```
-4. Restart Decky Loader from the Quick Access Menu
 
 ### CEF Debugging
 
@@ -129,9 +123,6 @@ This plugin is **completely offline** and collects no data:
 - No network requests or analytics
 - No user tracking or telemetry
 
-## Known Limitations
-
-- **On-Screen Keyboard**: The Steam Deck keyboard may appear behind the QAM panel for some text fields. Timer labels use a modal dialog to avoid this issue.
 
 ## License
 
@@ -147,5 +138,6 @@ BSD-3-Clause License - See [LICENSE](LICENSE) for details.
 ## Support
 
 If you encounter any issues, please [open an issue](https://github.com/lemossilva/alarme-decky-plugin/issues) on GitHub.
+
 
 
