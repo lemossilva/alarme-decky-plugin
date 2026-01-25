@@ -1,6 +1,8 @@
 {
     "name": "Alar.me",
     "author": "Guilherme Lemos",
+    "version": "1.0.0-beta.13",
+    "main": "main.py",
     "flags": [],
     "api_version": 1,
     "publish": {
