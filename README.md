@@ -1,12 +1,12 @@
-# Alar.me - Decky Loader Plugin
+# AlarMe - Decky Loader Plugin
 
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
-![Alar.me](https://img.shields.io/badge/Decky-Plugin-blue)
+![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
 ![Version](https://img.shields.io/badge/release-v1.0.0--beta.13-green)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
-![Alar.me Promo](assets/promo.png)
+![AlarMe Promo](assets/promo.png)
 
 ## Features
 

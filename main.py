@@ -1,4 +1,4 @@
-# Alar.me - Decky Loader Plugin
+# AlarMe - Decky Loader Plugin
 # Python Backend
 
 from settings import SettingsManager  # type: ignore
@@ -12,7 +12,7 @@ import json
 
 # Initialize settings
 settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
-decky.logger.info(f'Alar.me: Settings path = {os.path.join(settingsDir, "settings.json")}')
+decky.logger.info(f'AlarMe: Settings path = {os.path.join(settingsDir, "settings.json")}')
 settings = SettingsManager(name="settings", settings_directory=settingsDir)
 settings.read()
 

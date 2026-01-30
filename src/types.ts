@@ -1,4 +1,4 @@
-// TypeScript type definitions for Alar.me plugin
+// TypeScript type definitions for AlarMe plugin
 
 // Timer types
 export interface Timer {

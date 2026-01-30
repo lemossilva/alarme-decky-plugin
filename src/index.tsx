@@ -226,11 +226,11 @@ export default definePlugin(() => {
     addEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
 
     return {
-        name: "Alar.me",
+        name: "AlarMe",
         titleView: (
             <div className={staticClasses.Title}>
                 <FaClock style={{ marginRight: 8 }} />
-                Alar.me
+                AlarMe
             </div>
         ),
         content: <Content />,

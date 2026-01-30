@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy script for Alar.me Decky Plugin
+# Deploy script for AlarMe Decky Plugin
 # Usage: ./deploy.sh [DECK_IP]
 
 PLUGIN_NAME="alarme-decky-plugin"
@@ -8,7 +8,7 @@ DECK_IP="${1:-${DECK_IP:-192.168.1.100}}"
 PLUGIN_PATH="/home/deck/homebrew/plugins/${PLUGIN_NAME}"
 TMP_PATH="/home/deck/tmp/${PLUGIN_NAME}"
 
-echo "=== Alar.me Deployment Script ==="
+echo "=== AlarMe Deployment Script ==="
 echo "Target: ${DECK_USER}@${DECK_IP}"
 echo ""
 
