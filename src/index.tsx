@@ -193,30 +193,28 @@ export default definePlugin(() => {
     };
 
     const handlePomodoroWorkEnded = (state: PomodoroState) => {
-        // Play sound with volume
-        playAlarmSound(state.sound || 'alarm.mp3', state.volume);
-
         if (state.subtle_mode) {
+            // Play sound briefly for subtle mode
+            playAlarmSound(state.sound || 'alarm.mp3', state.volume);
             toaster.toast({
                 title: "🎉 Great work!",
                 body: `Session ${state.current_session} complete.`
             });
         } else {
-            showModal(<PomodoroNotification />);
+            showModal(<PomodoroNotification sound={state.sound} volume={state.volume} />);
         }
     };
 
     const handlePomodoroBreakEnded = (state: PomodoroState) => {
-        // Play sound
-        playAlarmSound(state.sound || 'alarm.mp3');
-
         if (state.subtle_mode) {
+            // Play sound briefly for subtle mode
+            playAlarmSound(state.sound || 'alarm.mp3', state.volume);
             toaster.toast({
                 title: "💪 Break's over!",
                 body: `Ready for session ${state.current_session}?`
             });
         } else {
-            showModal(<PomodoroNotification />);
+            showModal(<PomodoroNotification sound={state.sound} volume={state.volume} />);
         }
     };
 

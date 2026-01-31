@@ -1,9 +1,10 @@
-import { Focusable } from "@decky/ui";
-import { FaPlay, FaStop, FaForward, FaCoffee, FaBrain } from "react-icons/fa";
+import { ConfirmModal, Focusable } from "@decky/ui";
+import { FaStop, FaCoffee, FaBrain } from "react-icons/fa";
 import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration } from "../utils/time";
-import { useState } from "react";
+import { playAlarmSound, stopSound } from "../utils/sounds";
+import { useEffect, useRef, useState } from "react";
 
 // Focusable button with highlight (Consistent with SnoozeModal)
 interface PomodoroButtonProps {
@@ -45,7 +46,7 @@ const PomodoroButton = ({ label, onClick, isPrimary, icon }: PomodoroButtonProps
     );
 };
 
-export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }) => {
+export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal?: () => void, sound?: string, volume?: number }) => {
     const {
         isActive,
         isBreak,
@@ -57,6 +58,15 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
         skipPhase
     } = usePomodoro();
     const { settings } = useSettings();
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Play sound on mount, stop on unmount
+    useEffect(() => {
+        audioRef.current = playAlarmSound(sound || 'alarm.mp3', volume);
+        return () => {
+            stopSound(audioRef.current);
+        };
+    }, []);
 
     const workDuration = settings.pomodoro_work_duration * 60;
     const breakDuration = settings.pomodoro_break_duration * 60;
@@ -104,19 +114,36 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
         closeModal?.();
     };
 
+    const getOKButtonText = () => {
+        if (!isActive) return "Start Session";
+        return isBreak ? "Skip Break" : "Skip Work";
+    };
+
+    const handleOK = async () => {
+        if (isActive) {
+            await handleSkip();
+        } else {
+            await handleStart();
+        }
+    };
+
     return (
-        <div style={{
-            padding: '24px',
-            minWidth: '400px'
-        }}>
+        <ConfirmModal
+            strTitle="Pomodoro Timer"
+            strDescription=""
+            strOKButtonText={getOKButtonText()}
+            strCancelButtonText="Dismiss"
+            onOK={handleOK}
+            onCancel={handleDismiss}
+        >
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 20
+                padding: '0 0 16px 0'
             }}>
                 {/* Visual Status (Like Focus Screen) */}
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', width: '100%' }}>
                     <div style={{ marginBottom: 16, animation: isActive ? 'pulse 2s infinite' : 'none' }}>
                         {isActive && isBreak ? (
                             <FaCoffee size={56} color="#44aa88" />
@@ -144,14 +171,15 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
                     fontWeight: 'bold',
                     fontFamily: 'monospace',
                     color: isBreak ? '#44aa88' : '#ffffff',
-                    lineHeight: 1
+                    lineHeight: 1,
+                    margin: '10px 0'
                 }}>
                     {formatDuration(isActive ? remaining : workDuration)}
                 </div>
 
                 {/* Progress Indicators */}
                 {isActive && (
-                    <div style={{ width: '100%', height: 6, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: '100%', height: 6, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden', marginBottom: 16 }}>
                         <div style={{
                             width: `${progress}%`,
                             height: '100%',
@@ -163,52 +191,21 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
 
                 {/* Long Break Hint */}
                 {isActive && isLongBreakNext && !isBreak && (
-                    <div style={{ fontSize: 13, color: '#44aa88', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: 13, color: '#44aa88', fontWeight: 'bold', marginBottom: 10 }}>
                         ✨ Long break coming up next!
                     </div>
                 )}
 
-                {/* Action Buttons */}
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-                    {isActive ? (
-                        <>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <PomodoroButton
-                                    label={isBreak ? "Skip Break" : "Skip Work"}
-                                    onClick={handleSkip}
-                                    isPrimary={true}
-                                    icon={<FaForward />}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <PomodoroButton
-                                    label="Stop Session"
-                                    onClick={handleStop}
-                                    icon={<FaStop />}
-                                />
-                                <PomodoroButton
-                                    label="Dismiss"
-                                    onClick={handleDismiss}
-                                />
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <PomodoroButton
-                                    label="Start Session"
-                                    onClick={handleStart}
-                                    isPrimary={true}
-                                    icon={<FaPlay />}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <PomodoroButton
-                                    label="Dismiss"
-                                    onClick={handleDismiss}
-                                />
-                            </div>
-                        </>
+                {/* Action Buttons (Stop Only - Others are in Footer) */}
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                    {isActive && (
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                            <PomodoroButton
+                                label="Stop Session"
+                                onClick={handleStop}
+                                icon={<FaStop />}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
@@ -221,6 +218,6 @@ export const PomodoroNotification = ({ closeModal }: { closeModal?: () => void }
                     100% { transform: scale(1); opacity: 1; }
                 }
             `}</style>
-        </div>
+        </ConfirmModal>
     );
 };
