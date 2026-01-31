@@ -10,6 +10,7 @@ interface SnoozeModalProps {
     type: 'timer' | 'alarm';
     sound?: string;
     volume?: number;
+    defaultSnoozeDuration?: number;
     onSnooze: (minutes: number) => void;
     onDismiss: () => void;
     closeModal?: () => void;
@@ -54,9 +55,9 @@ const SnoozeButton = ({ label, onClick, isDefault }: SnoozeButtonProps) => {
     );
 };
 
-function SnoozeModalContent({ id: _id, label, type, sound, volume, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
+function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnoozeDuration, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const [snoozeMinutes, setSnoozeMinutes] = useState(5);
+    const [snoozeMinutes, setSnoozeMinutes] = useState(defaultSnoozeDuration ?? 5);
 
     // Play alarm sound on mount with volume
     useEffect(() => {

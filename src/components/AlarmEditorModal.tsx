@@ -27,8 +27,7 @@ const QUICK_RECURRING_OPTIONS: DropdownOption[] = [
 interface AlarmEditorModalProps {
     // If provided, we're editing an existing alarm
     alarm?: Alarm;
-    defaultSnooze?: number;
-    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, snoozeDuration: number, subtleMode?: boolean, autoSuspend?: boolean) => Promise<void>;
+    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean) => Promise<void>;
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
     closeModal?: () => void;
@@ -112,7 +111,7 @@ const DayToggle = ({ day, selected, onToggle }: DayToggleProps) => {
     );
 };
 
-function AlarmEditorModalContent({ alarm, defaultSnooze, onSave, onDelete, getSounds, closeModal }: AlarmEditorModalProps) {
+function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModal }: AlarmEditorModalProps) {
     const isEditing = !!alarm;
 
     // Form state
@@ -145,7 +144,6 @@ function AlarmEditorModalContent({ alarm, defaultSnooze, onSave, onDelete, getSo
     const [subtleMode, setSubtleMode] = useState(alarm?.subtle_mode ?? false);
     const [autoSuspend, setAutoSuspend] = useState(alarm?.auto_suspend ?? false);
     const [volume, setVolume] = useState(alarm?.volume ?? 100);
-    const [snoozeDuration, setSnoozeDuration] = useState(alarm?.snooze_duration ?? defaultSnooze ?? 5);
 
     // Sound preview
     const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -240,7 +238,7 @@ function AlarmEditorModalContent({ alarm, defaultSnooze, onSave, onDelete, getSo
             recurring = quickRecurring as RecurringType;
         }
 
-        await onSave(hour, minute, label, recurring, selectedSound, volume, snoozeDuration, subtleMode, autoSuspend);
+        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend);
         closeModal?.();
     };
 
@@ -483,30 +481,7 @@ function AlarmEditorModalContent({ alarm, defaultSnooze, onSave, onDelete, getSo
                     />
                 </div>
 
-                {/* Snooze Duration */}
-                <div>
-                    <div style={{
-                        fontSize: 13,
-                        color: '#888888',
-                        marginBottom: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                    }}>
-                        ⏰ Snooze Duration
-                    </div>
-                    <SliderField
-                        value={snoozeDuration}
-                        min={1}
-                        max={30}
-                        step={1}
-                        onChange={setSnoozeDuration}
-                        showValue
-                    />
-                    <div style={{ fontSize: 11, color: '#666666', marginTop: 4 }}>
-                        {snoozeDuration} minutes
-                    </div>
-                </div>
+
 
                 {/* Behavior Settings */}
                 <div>

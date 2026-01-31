@@ -185,6 +185,7 @@ export default definePlugin(() => {
                 type: 'alarm',
                 sound: event.sound,
                 volume: event.volume,
+                defaultSnoozeDuration: event.snooze_duration,
                 onSnooze: (minutes) => snoozeAlarm(event.id, minutes),
                 onDismiss: () => { }
             });

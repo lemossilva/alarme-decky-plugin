@@ -25,7 +25,6 @@ export interface Alarm {
     next_trigger?: number | null;
     sound?: string;           // filename of the sound to play
     volume?: number;          // 0-100, per-alarm volume override
-    snooze_duration?: number; // minutes, per-alarm snooze override
     subtle_mode?: boolean;    // per-alarm subtle mode override
     auto_suspend?: boolean;   // per-alarm auto suspend override
 }
@@ -108,8 +107,9 @@ export interface AlarmTriggeredEvent {
     label: string;
     subtle: boolean;
     sound?: string;
-    auto_suspend?: boolean;
     volume?: number;
+    snooze_duration?: number;
+    auto_suspend?: boolean;
 }
 
 export interface TimerTickEvent {

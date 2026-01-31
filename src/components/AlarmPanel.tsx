@@ -133,9 +133,8 @@ export function AlarmPanel() {
 
     const handleCreateAlarm = () => {
         showAlarmEditorModal({
-            defaultSnooze: settings.snooze_duration,
-            onSave: async (hour, minute, label, recurring, sound, volume, snoozeDuration, subtleMode, autoSuspend) => {
-                await createAlarm(hour, minute, label, recurring, sound, volume, snoozeDuration, subtleMode, autoSuspend);
+            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
+                await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend);
             },
             getSounds
         });
@@ -144,9 +143,8 @@ export function AlarmPanel() {
     const handleEditAlarm = (alarm: Alarm) => {
         showAlarmEditorModal({
             alarm,
-            defaultSnooze: settings.snooze_duration,
-            onSave: async (hour, minute, label, recurring, sound, volume, snoozeDuration, subtleMode, autoSuspend) => {
-                await updateAlarm(alarm.id, hour, minute, label, recurring, sound, volume, snoozeDuration, subtleMode, autoSuspend);
+            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
+                await updateAlarm(alarm.id, hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend);
             },
             onDelete: async () => {
                 await deleteAlarm(alarm.id);

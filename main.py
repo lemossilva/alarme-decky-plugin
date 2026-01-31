@@ -226,14 +226,13 @@ class Plugin:
 
     async def create_alarm(self, hour: int, minute: int, label: str = "", 
                           recurring: str = "once", sound: str = "alarm.mp3",
-                          volume: int = 100, snooze_duration: int = 5,
-                          subtle_mode: bool = False, auto_suspend: bool = False) -> str:
+                          volume: int = 100, subtle_mode: bool = False, 
+                          auto_suspend: bool = False) -> str:
         """
         Create a new alarm.
         recurring: 'once', 'daily', 'weekdays', 'weekends', or comma-separated days (0-6, 0=Monday)
         sound: filename of the sound to play (from assets folder)
         volume: 0-100 alarm volume
-        snooze_duration: minutes to snooze
         subtle_mode: if True, show only a toast notification
         auto_suspend: if True, suspend device after alarm
         """
@@ -250,7 +249,6 @@ class Plugin:
             "snoozed_until": None,
             "sound": sound,
             "volume": volume,
-            "snooze_duration": snooze_duration,
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend
         }
@@ -292,7 +290,7 @@ class Plugin:
     async def update_alarm(self, alarm_id: str, hour: int, minute: int, 
                           label: str = "", recurring: str = "once", 
                           sound: str = "alarm.mp3", volume: int = 100,
-                          snooze_duration: int = 5, subtle_mode: bool = False,
+                          subtle_mode: bool = False,
                           auto_suspend: bool = False) -> bool:
         """Update an existing alarm's settings."""
         alarms = await self._get_alarms()
@@ -304,7 +302,6 @@ class Plugin:
             alarm["recurring"] = recurring
             alarm["sound"] = sound
             alarm["volume"] = volume
-            alarm["snooze_duration"] = snooze_duration
             alarm["subtle_mode"] = subtle_mode
             alarm["auto_suspend"] = auto_suspend
             # Re-enable alarm when edited (user expects it to be active)
@@ -326,12 +323,10 @@ class Plugin:
         alarms = await self._get_alarms()
         if alarm_id in alarms:
             alarm = alarms[alarm_id]
-            # Use provided minutes, or per-alarm snooze_duration, or fall back to global setting
+            # Use provided minutes or fall back to global setting
             if minutes is None:
-                minutes = alarm.get("snooze_duration")
-                if minutes is None:
-                    user_settings = await self._get_user_settings()
-                    minutes = user_settings.get("snooze_duration", 5)
+                user_settings = await self._get_user_settings()
+                minutes = user_settings.get("snooze_duration", 5)
             
             snooze_time = time.time() + (minutes * 60)
             alarms[alarm_id]["snoozed_until"] = snooze_time
@@ -526,12 +521,17 @@ class Plugin:
                                 alarm_sound = alarm.get("sound", "alarm.mp3")
                                 alarm_volume = alarm.get("volume", 100)
                                 
+                                # Get global snooze duration
+                                user_settings = await self._get_user_settings()
+                                snooze_duration = user_settings.get("snooze_duration", 5)
+                                
                                 await decky.emit("alarme_alarm_triggered", {
                                     "id": alarm_id,
                                     "label": alarm.get("label", "Alarm"),
                                     "subtle": subtle,
                                     "sound": alarm_sound,
                                     "volume": alarm_volume,
+                                    "snooze_duration": snooze_duration,
                                     "auto_suspend": auto_suspend
                                 })
                                 
