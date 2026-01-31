@@ -77,7 +77,9 @@ export function usePomodoro() {
                 remaining: event.remaining,
                 is_break: event.is_break,
                 current_session: event.session,
-                current_cycle: event.cycle
+                current_cycle: event.cycle,
+                // Calculate elapsed time this phase for live stats display
+                elapsed_this_phase: prev.duration > 0 ? prev.duration - event.remaining : 0
             }));
         };
 
@@ -128,6 +130,7 @@ export function usePomodoro() {
         currentSession: state.current_session,
         currentCycle: state.current_cycle || 1,
         remaining: state.remaining || 0,
+        elapsedThisPhase: state.elapsed_this_phase || 0,
         startPomodoro,
         stopPomodoro,
         skipPhase,

@@ -724,17 +724,21 @@ class Plugin:
         return state
 
     async def _get_pomodoro_stats(self) -> dict:
-        """Get stats from user settings, handling daily buffer reset."""
+        """Get stats from user settings, handling daily buffer reset and streak tracking."""
         settings = await self._get_user_settings()
-        # Default structure
+        # Default structure with new fields
         defaults = {
             "daily_focus_time": 0,
             "daily_break_time": 0,
+            "daily_sessions": 0,
             "total_focus_time": 0,
             "total_break_time": 0,
             "total_sessions": 0,
             "total_cycles": 0,
-            "last_active_date": ""
+            "last_active_date": "",
+            "daily_history": [],  # List of {date, focus_time, sessions}
+            "current_streak": 0,
+            "longest_streak": 0
         }
         
         stats = settings.get("pomodoro_stats", {})
@@ -746,8 +750,44 @@ class Plugin:
         # Check daily reset
         today = datetime.now().strftime("%Y-%m-%d")
         if stats.get("last_active_date") != today:
+            # Archive yesterday's data if there was activity
+            last_date = stats.get("last_active_date", "")
+            if last_date and (stats.get("daily_focus_time", 0) > 0 or stats.get("daily_sessions", 0) > 0):
+                # Add to history
+                history_entry = {
+                    "date": last_date,
+                    "focus_time": stats.get("daily_focus_time", 0),
+                    "sessions": stats.get("daily_sessions", 0)
+                }
+                history = stats.get("daily_history", [])
+                history.append(history_entry)
+                # Keep only last 30 days
+                if len(history) > 30:
+                    history = history[-30:]
+                stats["daily_history"] = history
+                
+                # Update streak - check if consecutive
+                if last_date:
+                    from datetime import timedelta
+                    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                    if last_date == yesterday:
+                        # Consecutive day - increment streak
+                        stats["current_streak"] = stats.get("current_streak", 0) + 1
+                    else:
+                        # Gap detected - reset streak (but archive if there was activity today)
+                        if stats.get("daily_sessions", 0) > 0:
+                            stats["current_streak"] = 1
+                        else:
+                            stats["current_streak"] = 0
+                            
+                    # Update longest streak
+                    if stats["current_streak"] > stats.get("longest_streak", 0):
+                        stats["longest_streak"] = stats["current_streak"]
+            
+            # Reset daily counters
             stats["daily_focus_time"] = 0
             stats["daily_break_time"] = 0
+            stats["daily_sessions"] = 0
             stats["last_active_date"] = today
             
         return stats
@@ -770,6 +810,7 @@ class Plugin:
             
         if completed_session and not is_break:
             stats["total_sessions"] = stats.get("total_sessions", 0) + 1
+            stats["daily_sessions"] = stats.get("daily_sessions", 0) + 1
             
         if completed_cycle:
             stats["total_cycles"] = stats.get("total_cycles", 0) + 1
@@ -784,11 +825,15 @@ class Plugin:
         defaults = {
             "daily_focus_time": 0,
             "daily_break_time": 0,
+            "daily_sessions": 0,
             "total_focus_time": 0,
             "total_break_time": 0,
             "total_sessions": 0,
             "total_cycles": 0,
-            "last_active_date": ""
+            "last_active_date": "",
+            "daily_history": [],
+            "current_streak": 0,
+            "longest_streak": 0
         }
         
         settings = await self._get_user_settings()

@@ -24,7 +24,9 @@ const DEFAULT_SETTINGS: UserSettings = {
     pomodoro_work_duration: 25,
     pomodoro_break_duration: 5,
     pomodoro_long_break_duration: 15,
-    pomodoro_sessions_until_long_break: 4
+    pomodoro_sessions_until_long_break: 4,
+    pomodoro_daily_goal_enabled: false,
+    pomodoro_daily_goal: 4  // 4 hours default
 };
 
 export function useSettings() {

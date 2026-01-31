@@ -51,6 +51,7 @@ export interface PomodoroState {
     end_time: number | null;
     duration: number;
     remaining?: number;
+    elapsed_this_phase?: number;
     break_type?: 'short' | 'long';
     sound?: string;
     volume?: number;
@@ -61,11 +62,21 @@ export interface PomodoroState {
 export interface PomodoroStats {
     daily_focus_time: number;
     daily_break_time: number;
+    daily_sessions: number;
     total_focus_time: number;
     total_break_time: number;
     total_sessions: number;
     total_cycles: number;
     last_active_date: string;
+    daily_history: DailyHistoryEntry[];
+    current_streak: number;
+    longest_streak: number;
+}
+
+export interface DailyHistoryEntry {
+    date: string;
+    focus_time: number;
+    sessions: number;
 }
 
 // Settings types
@@ -85,6 +96,8 @@ export interface UserSettings {
     pomodoro_break_duration: number;
     pomodoro_long_break_duration: number;
     pomodoro_sessions_until_long_break: number;
+    pomodoro_daily_goal_enabled: boolean;
+    pomodoro_daily_goal: number;  // hours per day goal
     // Legacy/deprecated (kept for migration)
     subtle_mode?: boolean;
     auto_suspend?: boolean;

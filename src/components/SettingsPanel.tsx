@@ -6,7 +6,7 @@ import {
     SliderField,
     ToggleField
 } from "@decky/ui";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -279,6 +279,31 @@ export function SettingsPanel() {
                         icon={<FaClock />}
                     />
                 </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaBullseye />}
+                        label="Daily Goal"
+                        description="Track progress toward a daily focus time goal"
+                        checked={settings.pomodoro_daily_goal_enabled ?? false}
+                        onChange={(value) => updateSetting('pomodoro_daily_goal_enabled', value)}
+                    />
+                </PanelSectionRow>
+
+                {settings.pomodoro_daily_goal_enabled && (
+                    <PanelSectionRow>
+                        <SliderField
+                            label="Daily Goal Hours"
+                            description={`${settings.pomodoro_daily_goal ?? 4} hours`}
+                            value={settings.pomodoro_daily_goal ?? 4}
+                            min={1}
+                            max={8}
+                            step={1}
+                            onChange={(value) => updateSetting('pomodoro_daily_goal', value)}
+                            icon={<FaClock />}
+                        />
+                    </PanelSectionRow>
+                )}
             </PanelSection>
 
             {/* Alarm Defaults */}
