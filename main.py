@@ -1266,6 +1266,11 @@ class Plugin:
         reminders = await self.get_reminders()
         await decky.emit("alarme_reminders_updated", reminders)
 
+    async def get_game_status(self) -> bool:
+        """Get current game running status."""
+        return await self._is_game_running()
+
+
     async def _is_game_running(self) -> bool:
         """Check if a game is currently running (updated by frontend)."""
         return self._game_running
