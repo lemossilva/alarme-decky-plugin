@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Focusable, PanelSection, PanelSectionRow, ButtonItem, ConfirmModal, showModal } from "@decky/ui";
+import { Focusable, Dropdown, PanelSection, PanelSectionRow, ButtonItem, ConfirmModal, showModal } from "@decky/ui";
 import type { PomodoroStats } from "../types";
 
 interface PomodoroStatsPanelProps {
@@ -24,7 +24,6 @@ export function PomodoroStatsPanel({
     dailyGoalHours = 4
 }: PomodoroStatsPanelProps) {
     const [viewMode, setViewMode] = useState<ViewMode>('today');
-    const [focusedButton, setFocusedButton] = useState<ViewMode | null>(null);
 
     // Calculate live pending time (only for work phases)
     const pendingFocus = isActive && !isBreak ? elapsedThisPhase : 0;
@@ -158,55 +157,23 @@ export function PomodoroStatsPanel({
         );
     };
 
-    // View mode selector - inline to avoid component re-creation issues
-    const ViewSelector = () => (
-        <Focusable
-            flow-children="row"
-            style={{
-                display: 'flex',
-                gap: 4,
-                backgroundColor: '#ffffff11',
-                borderRadius: 8,
-                padding: 4,
-                marginBottom: 12
-            }}
-        >
-            {(['today', 'week', 'month', 'lifetime'] as ViewMode[]).map(mode => {
-                const isSelected = viewMode === mode;
-                const isFocused = focusedButton === mode;
-                return (
-                    <Focusable
-                        key={mode}
-                        onActivate={() => setViewMode(mode)}
-                        onClick={() => setViewMode(mode)}
-                        onFocus={() => setFocusedButton(mode)}
-                        onBlur={() => setFocusedButton(null)}
-                        style={{
-                            flex: 1,
-                            padding: '6px 8px',
-                            fontSize: 11,
-                            textAlign: 'center',
-                            backgroundColor: isSelected ? '#4488aa' : (isFocused ? '#ffffff33' : 'transparent'),
-                            color: isSelected || isFocused ? '#ffffff' : '#888888',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            textTransform: 'capitalize',
-                            border: isFocused ? '2px solid white' : '2px solid transparent',
-                            transition: 'all 0.1s ease'
-                        }}
-                    >
-                        {mode}
-                    </Focusable>
-                );
-            })}
-        </Focusable>
-    );
-
     return (
         <PanelSection title="📊 Focus Stats">
             <PanelSectionRow>
+                <Dropdown
+                    rgOptions={[
+                        { data: 'today', label: '📅 Today' },
+                        { data: 'week', label: '📊 Week' },
+                        { data: 'month', label: '📆 Month' },
+                        { data: 'lifetime', label: '🏆 Lifetime' }
+                    ]}
+                    selectedOption={viewMode}
+                    onChange={(option: { data: string; label: string }) => setViewMode(option.data as ViewMode)}
+                    strDefaultLabel="Select View"
+                />
+            </PanelSectionRow>
+            <PanelSectionRow>
                 <Focusable style={{ width: '100%' }}>
-                    <ViewSelector />
 
                     {/* Goal Progress (if enabled) */}
                     {viewMode === 'today' && <GoalProgress />}
