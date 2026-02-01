@@ -132,6 +132,7 @@ BSD-3-Clause License - See [LICENSE](LICENSE) for details.
 
 - **Author**: Guilherme Lemos
 - **Inspiration**: [simple-timer](https://github.com/decktools-xyz/simple-timer)
+- **Periodic Reminders Inspiration**: [DeckyHourNotifications](https://github.com/mpcallahan/DeckyHourNotifications) by [@mpcallahan](https://github.com/mpcallahan)
 - **Framework**: [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader)
 - **Icons**: [React Icons](https://react-icons.github.io/react-icons/)
 

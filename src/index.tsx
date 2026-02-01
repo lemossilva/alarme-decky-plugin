@@ -12,16 +12,21 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaClock, FaBell, FaCog, FaBrain, FaStopwatch } from "react-icons/fa";
+import { FaClock, FaBell, FaCog, FaBrain, FaStopwatch, FaRedo } from "react-icons/fa";
 import { useState } from "react";
+
+// Global declaration for SteamClient
+declare const SteamClient: any;
 
 // Components
 import { TimerPanel } from "./components/TimerPanel";
 import { AlarmPanel } from "./components/AlarmPanel";
 import { PomodoroPanel } from "./components/PomodoroPanel";
+import { ReminderPanel } from "./components/ReminderPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { showSnoozeModal } from "./components/SnoozeModal";
 import { PomodoroNotification } from "./components/PomodoroNotification";
+import { ReminderNotification } from "./components/ReminderNotification";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 
@@ -30,11 +35,14 @@ import type {
     TabId,
     TimerCompletedEvent,
     AlarmTriggeredEvent,
-    PomodoroState
+    PomodoroState,
+    ReminderTriggeredEvent
 } from "./types";
 
-// Backend callables for snooze
+// Backend callables
 const snoozeAlarm = callable<[alarm_id: string, minutes: number], boolean>('snooze_alarm');
+const setGameRunning = callable<[is_running: boolean], void>('set_game_running');
+const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean>('toggle_reminder');
 
 // Tab configuration
 interface Tab {
@@ -47,6 +55,7 @@ const TABS: Tab[] = [
     { id: 'timers', label: 'Timers', icon: <FaStopwatch size={16} /> },
     { id: 'alarms', label: 'Alarms', icon: <FaBell size={16} /> },
     { id: 'pomodoro', label: 'Focus', icon: <FaBrain size={16} /> },
+    { id: 'reminders', label: 'Remind', icon: <FaRedo size={16} /> },
     { id: 'settings', label: 'Settings', icon: <FaCog size={16} /> }
 ];
 
@@ -123,6 +132,7 @@ function Content() {
             {activeTab === 'timers' && <TimerPanel />}
             {activeTab === 'alarms' && <AlarmPanel />}
             {activeTab === 'pomodoro' && <PomodoroPanel />}
+            {activeTab === 'reminders' && <ReminderPanel />}
             {activeTab === 'settings' && <SettingsPanel />}
         </div>
     );
@@ -218,11 +228,60 @@ export default definePlugin(() => {
         }
     };
 
+    const handleReminderTriggered = (event: ReminderTriggeredEvent) => {
+        // Use subtle_mode from the event
+        if (event.subtle_mode) {
+            toaster.toast({
+                title: "⏰ Reminder",
+                body: event.reminder.label || "Time for a break!"
+            });
+            // Play sound briefly if configured? No, subtle implies quiet or toast only.
+            // But user might want sound + toast.
+            // Current logic in main.py sends sound in event.
+            // In handleTimerCompleted we play sound if auto_suspend is on.
+            // For periodic reminders, subtle usually means minimal intrusion.
+            // We'll stick to just toast for subtle as per original design.
+        } else {
+            // Non-subtle: Show Modal
+            // Pass sound details to modal so it plays sound
+            showModal(
+                <ReminderNotification
+                    reminder={event.reminder}
+                    onDisable={() => toggleReminder(event.reminder.id, false)}
+                    sound={event.sound || 'alarm.mp3'}
+                    volume={event.volume}
+                />
+            );
+        }
+    };
+
     // Register event listeners
     addEventListener('alarme_timer_completed', handleTimerCompleted);
     addEventListener('alarme_alarm_triggered', handleAlarmTriggered);
     addEventListener('alarme_pomodoro_work_ended', handlePomodoroWorkEnded);
     addEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
+    addEventListener('alarme_reminder_triggered', handleReminderTriggered);
+
+    // Game lifecycle listeners
+    // Using SteamGameLifetimeNotification or similar
+    // For now we use the general app lifetime notification which is reliable
+    let unregisterGameListener: any;
+
+    try {
+        if (SteamClient?.GameSessions?.RegisterForAppLifetimeNotifications) {
+            unregisterGameListener = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((update: any) => {
+                if (update.bRunning) {
+                    // Game start
+                    setGameRunning(true);
+                } else {
+                    // Game end - we could check running games but for now assume false
+                    setGameRunning(false);
+                }
+            });
+        }
+    } catch (e) {
+        console.error("AlarMe: Failed to register game listeners", e);
+    }
 
     return {
         name: "AlarMe",
@@ -239,6 +298,14 @@ export default definePlugin(() => {
             removeEventListener('alarme_alarm_triggered', handleAlarmTriggered);
             removeEventListener('alarme_pomodoro_work_ended', handlePomodoroWorkEnded);
             removeEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
+            removeEventListener('alarme_reminder_triggered', handleReminderTriggered);
+            if (unregisterGameListener) {
+                if (typeof unregisterGameListener === 'function') {
+                    unregisterGameListener();
+                } else if (unregisterGameListener.unregister) {
+                    unregisterGameListener.unregister();
+                }
+            }
         }
     };
 });

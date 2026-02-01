@@ -79,6 +79,32 @@ export interface DailyHistoryEntry {
     sessions: number;
 }
 
+// Reminder types (Periodic Reminders)
+export interface Reminder {
+    id: string;
+    label: string;
+    frequency_minutes: number;  // 15-180 minutes
+    start_time: string | null;  // ISO timestamp or null for "now"
+    recurrences: number;        // -1 = infinite, or positive integer
+    only_while_gaming: boolean; // only tick down while a game is running
+    reset_on_game_start: boolean; // if true, reset timer when game starts
+    sound: string;
+    volume: number;
+    subtle_mode: boolean;
+    enabled: boolean;
+    created_at: number;
+    // Runtime state (read-only from backend)
+    next_trigger?: string;
+    triggers_remaining?: number;
+}
+
+export interface ReminderTriggeredEvent {
+    reminder: Reminder;
+    sound: string;
+    volume: number;
+    subtle_mode: boolean;
+}
+
 // Settings types
 export interface UserSettings {
     snooze_duration: number;      // default snooze for alarms
@@ -144,7 +170,7 @@ export interface SnoozeEvent {
 }
 
 // Tab types
-export type TabId = 'timers' | 'alarms' | 'pomodoro' | 'settings';
+export type TabId = 'timers' | 'alarms' | 'pomodoro' | 'reminders' | 'settings';
 
 // Global type augmentation for Steam
 declare global {

@@ -341,7 +341,7 @@ export function PomodoroStatsPanel({
                         outline: 'none'
                     }}
                 >
-                    {/* Empty spacer for scroll */}
+                    <span></span>
                 </Focusable>
             </PanelSectionRow>
         </PanelSection>
