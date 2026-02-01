@@ -157,6 +157,36 @@ export function PomodoroStatsPanel({
         );
     };
 
+    // View mode selector button component
+    const ViewButton = ({ mode }: { mode: ViewMode }) => {
+        const [focused, setFocused] = useState(false);
+        const isSelected = viewMode === mode;
+
+        return (
+            <Focusable
+                onActivate={() => setViewMode(mode)}
+                onClick={() => setViewMode(mode)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                style={{
+                    flex: 1,
+                    padding: '6px 8px',
+                    fontSize: 11,
+                    textAlign: 'center',
+                    backgroundColor: isSelected ? '#4488aa' : (focused ? '#ffffff33' : 'transparent'),
+                    color: isSelected || focused ? '#ffffff' : '#888888',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    border: focused ? '2px solid white' : '2px solid transparent',
+                    transition: 'all 0.1s ease'
+                }}
+            >
+                {mode}
+            </Focusable>
+        );
+    };
+
     // View mode selector
     const ViewSelector = () => (
         <Focusable
@@ -171,24 +201,7 @@ export function PomodoroStatsPanel({
             }}
         >
             {(['today', 'week', 'month', 'lifetime'] as ViewMode[]).map(mode => (
-                <Focusable
-                    key={mode}
-                    onActivate={() => setViewMode(mode)}
-                    onClick={() => setViewMode(mode)}
-                    style={{
-                        flex: 1,
-                        padding: '6px 8px',
-                        fontSize: 11,
-                        textAlign: 'center',
-                        backgroundColor: viewMode === mode ? '#4488aa' : 'transparent',
-                        color: viewMode === mode ? '#ffffff' : '#888888',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        textTransform: 'capitalize'
-                    }}
-                >
-                    {mode}
-                </Focusable>
+                <ViewButton key={mode} mode={mode} />
             ))}
         </Focusable>
     );
