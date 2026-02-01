@@ -24,6 +24,7 @@ export function PomodoroStatsPanel({
     dailyGoalHours = 4
 }: PomodoroStatsPanelProps) {
     const [viewMode, setViewMode] = useState<ViewMode>('today');
+    const [focusedButton, setFocusedButton] = useState<ViewMode | null>(null);
 
     // Calculate live pending time (only for work phases)
     const pendingFocus = isActive && !isBreak ? elapsedThisPhase : 0;
@@ -157,37 +158,7 @@ export function PomodoroStatsPanel({
         );
     };
 
-    // View mode selector button component
-    const ViewButton = ({ mode }: { mode: ViewMode }) => {
-        const [focused, setFocused] = useState(false);
-        const isSelected = viewMode === mode;
-
-        return (
-            <Focusable
-                onActivate={() => setViewMode(mode)}
-                onClick={() => setViewMode(mode)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                style={{
-                    flex: 1,
-                    padding: '6px 8px',
-                    fontSize: 11,
-                    textAlign: 'center',
-                    backgroundColor: isSelected ? '#4488aa' : (focused ? '#ffffff33' : 'transparent'),
-                    color: isSelected || focused ? '#ffffff' : '#888888',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    border: focused ? '2px solid white' : '2px solid transparent',
-                    transition: 'all 0.1s ease'
-                }}
-            >
-                {mode}
-            </Focusable>
-        );
-    };
-
-    // View mode selector
+    // View mode selector - inline to avoid component re-creation issues
     const ViewSelector = () => (
         <Focusable
             flow-children="row"
@@ -200,9 +171,34 @@ export function PomodoroStatsPanel({
                 marginBottom: 12
             }}
         >
-            {(['today', 'week', 'month', 'lifetime'] as ViewMode[]).map(mode => (
-                <ViewButton key={mode} mode={mode} />
-            ))}
+            {(['today', 'week', 'month', 'lifetime'] as ViewMode[]).map(mode => {
+                const isSelected = viewMode === mode;
+                const isFocused = focusedButton === mode;
+                return (
+                    <Focusable
+                        key={mode}
+                        onActivate={() => setViewMode(mode)}
+                        onClick={() => setViewMode(mode)}
+                        onFocus={() => setFocusedButton(mode)}
+                        onBlur={() => setFocusedButton(null)}
+                        style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            fontSize: 11,
+                            textAlign: 'center',
+                            backgroundColor: isSelected ? '#4488aa' : (isFocused ? '#ffffff33' : 'transparent'),
+                            color: isSelected || isFocused ? '#ffffff' : '#888888',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize',
+                            border: isFocused ? '2px solid white' : '2px solid transparent',
+                            transition: 'all 0.1s ease'
+                        }}
+                    >
+                        {mode}
+                    </Focusable>
+                );
+            })}
         </Focusable>
     );
 
