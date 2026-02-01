@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Focusable, Dropdown, PanelSection, PanelSectionRow, ButtonItem, ConfirmModal, showModal } from "@decky/ui";
+import { Focusable, PanelSection, PanelSectionRow, ButtonItem, ConfirmModal, showModal } from "@decky/ui";
 import type { PomodoroStats } from "../types";
 
 interface PomodoroStatsPanelProps {
@@ -13,6 +13,47 @@ interface PomodoroStatsPanelProps {
 }
 
 type ViewMode = 'today' | 'week' | 'month' | 'lifetime';
+
+// View mode button - defined outside to prevent re-creation
+interface ViewModeButtonProps {
+    label: string;
+    active: boolean;
+    onClick: () => void;
+}
+
+const ViewModeButton = ({ label, active, onClick }: ViewModeButtonProps) => {
+    const [focused, setFocused] = useState(false);
+
+    return (
+        <Focusable
+            onActivate={onClick}
+            onClick={onClick}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+                flex: 1,
+                padding: '6px 8px',
+                fontSize: 11,
+                textAlign: 'center',
+                backgroundColor: active ? '#4488aa' : (focused ? '#ffffff33' : 'transparent'),
+                color: active || focused ? '#ffffff' : '#888888',
+                borderRadius: 6,
+                cursor: 'pointer',
+                border: focused ? '2px solid white' : '2px solid transparent',
+                transition: 'all 0.1s ease'
+            }}
+        >
+            {label}
+        </Focusable>
+    );
+};
+
+const VIEW_MODES: { mode: ViewMode; label: string }[] = [
+    { mode: 'today', label: 'Today' },
+    { mode: 'week', label: 'Week' },
+    { mode: 'month', label: 'Month' },
+    { mode: 'lifetime', label: 'Lifetime' }
+];
 
 export function PomodoroStatsPanel({
     stats,
@@ -159,18 +200,27 @@ export function PomodoroStatsPanel({
 
     return (
         <PanelSection title="📊 Focus Stats">
+            {/* View Mode Selector - using same pattern as main tabs */}
             <PanelSectionRow>
-                <Dropdown
-                    rgOptions={[
-                        { data: 'today', label: '📅 Today' },
-                        { data: 'week', label: '📊 Week' },
-                        { data: 'month', label: '📆 Month' },
-                        { data: 'lifetime', label: '🏆 Lifetime' }
-                    ]}
-                    selectedOption={viewMode}
-                    onChange={(option: { data: string; label: string }) => setViewMode(option.data as ViewMode)}
-                    strDefaultLabel="Select View"
-                />
+                <Focusable
+                    flow-children="row"
+                    style={{
+                        display: 'flex',
+                        gap: 4,
+                        backgroundColor: '#ffffff11',
+                        borderRadius: 8,
+                        padding: 4
+                    }}
+                >
+                    {VIEW_MODES.map(({ mode, label }) => (
+                        <ViewModeButton
+                            key={mode}
+                            label={label}
+                            active={viewMode === mode}
+                            onClick={() => setViewMode(mode)}
+                        />
+                    ))}
+                </Focusable>
             </PanelSectionRow>
             <PanelSectionRow>
                 <Focusable style={{ width: '100%' }}>
@@ -278,6 +328,20 @@ export function PomodoroStatsPanel({
                             </div>
                         </div>
                     )}
+                </Focusable>
+            </PanelSectionRow>
+
+            {/* Invisible focusable spacer for controller scrolling */}
+            <PanelSectionRow>
+                <Focusable
+                    onActivate={() => { }}
+                    style={{
+                        height: 1,
+                        opacity: 0,
+                        outline: 'none'
+                    }}
+                >
+                    {/* Empty spacer for scroll */}
                 </Focusable>
             </PanelSectionRow>
         </PanelSection>
