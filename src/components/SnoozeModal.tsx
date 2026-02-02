@@ -66,6 +66,7 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
 
     // Play alarm sound on mount with volume, supporting custom sounds via base64
     useEffect(() => {
+        let mounted = true;
         const soundFile = sound || 'alarm.mp3';
 
         const playCustomSound = async () => {
@@ -103,13 +104,20 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
             playCustomSound();
         } else {
             // Built-in sounds
-            audioRef.current = playAlarmSound(soundFile, volume);
-            if (audioRef.current) {
-                audioRef.current.loop = true;
-            }
+            playAlarmSound(soundFile, volume).then(audio => {
+                if (mounted) {
+                    audioRef.current = audio;
+                    if (audioRef.current) {
+                        audioRef.current.loop = true;
+                    }
+                } else if (audio) {
+                    stopSound(audio);
+                }
+            });
         }
 
         return () => {
+            mounted = false;
             stopSound(audioRef.current);
             if (blobUrlRef.current) {
                 URL.revokeObjectURL(blobUrlRef.current);

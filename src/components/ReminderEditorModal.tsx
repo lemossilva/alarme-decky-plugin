@@ -105,6 +105,9 @@ function ReminderEditorModalContent({
     const [startHour, setStartHour] = useState(initialTime.h);
     const [startMinute, setStartMinute] = useState(initialTime.m);
 
+    // If no start time was saved, it means "Start Now"
+    const [startNow, setStartNow] = useState(!reminder?.start_time);
+
     // Custom input states
     const [customFrequency, setCustomFrequency] = useState(false);
     const [customRecurrence, setCustomRecurrence] = useState(false);
@@ -116,6 +119,13 @@ function ReminderEditorModalContent({
     // Available sounds
     const [sounds, setSounds] = useState<SoundFile[]>([]);
     const [showLabelPresets, setShowLabelPresets] = useState(false);
+
+    // Input delay state
+    const [inputEnabled, setInputEnabled] = useState(false);
+    useEffect(() => {
+        const timer = setTimeout(() => setInputEnabled(true), 1000);
+        return () => clearTimeout(timer);
+    }, []);
 
     // Load sounds and check for custom initial values
     useEffect(() => {
@@ -142,7 +152,7 @@ function ReminderEditorModalContent({
         };
     }, []);
 
-    const toggleSoundPreview = () => {
+    const toggleSoundPreview = async () => {
         if (isPlaying && audioRef.current) {
             stopSound(audioRef.current);
             audioRef.current = null;
@@ -152,10 +162,13 @@ function ReminderEditorModalContent({
             if (audioRef.current) {
                 stopSound(audioRef.current);
             }
-            audioRef.current = playAlarmSound(sound, volume);
-            if (audioRef.current) {
+
+            // Play new sound (async)
+            const audio = await playAlarmSound(sound, volume);
+            if (audio) {
+                audioRef.current = audio;
                 setIsPlaying(true);
-                audioRef.current.onended = () => {
+                audio.onended = () => {
                     setIsPlaying(false);
                     audioRef.current = null;
                 };
@@ -164,9 +177,11 @@ function ReminderEditorModalContent({
     };
 
     const handleSave = async () => {
+        if (!inputEnabled) return; // Block input until enabled
+
         // Prepare start time
         let finalStartTime = null;
-        if (!onlyWhileGaming) {
+        if (!onlyWhileGaming && !startNow) {
             // Logic to determine if chosen time is today or tomorrow
             const now = new Date();
             const target = new Date();
@@ -176,14 +191,7 @@ function ReminderEditorModalContent({
             if (target.getTime() < now.getTime() - 60000) {
                 target.setDate(target.getDate() + 1);
             }
-            // Use ISO string but correct local time zone issue if needed?
-            // Actually implementation in main.py uses local time (datetime.now) usually.
-            // But ISO string from JS Date is UTC? No, .toISOString() is UTC.
-            // main.py uses datetime.fromisoformat which handles offset if present, else assumes naive local?
-            // Wait, main.py uses datetime.now() -> local naive.
-            // JS toISOString() -> UTC. 
-            // We should send a string that main.py understands as local time or handle conversion.
-            // Better: send "YYYY-MM-DDTHH:MM:SS" in local time.
+
             const offsetMs = target.getTimezoneOffset() * 60000;
             const localISOTime = (new Date(target.getTime() - offsetMs)).toISOString().slice(0, -1);
             finalStartTime = localISOTime;
@@ -436,65 +444,77 @@ function ReminderEditorModalContent({
                             <span style={{ fontSize: 14, fontWeight: 'bold', color: '#ccc' }}>
                                 Start Time
                             </span>
-                        </div>
-
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 16,
-                            padding: 12,
-                            backgroundColor: '#00000033',
-                            borderRadius: 8
-                        }}>
-                            {/* Hour Picker */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <Focusable
-                                    onActivate={() => setStartHour(h => (h + 1) % 24)}
-                                    style={{ padding: 8, cursor: 'pointer' }}
-                                >
-                                    <FaChevronUp />
-                                </Focusable>
-                                <div style={{ fontSize: 24, fontWeight: 'bold', margin: '4px 0' }}>
-                                    {startHour.toString().padStart(2, '0')}
-                                </div>
-                                <Focusable
-                                    onActivate={() => setStartHour(h => (h - 1 + 24) % 24)}
-                                    style={{ padding: 8, cursor: 'pointer' }}
-                                >
-                                    <FaChevronDown />
-                                </Focusable>
-                            </div>
-
-                            <div style={{ fontSize: 24, fontWeight: 'bold', paddingBottom: 8 }}>:</div>
-
-                            {/* Minute Picker */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <Focusable
-                                    onActivate={() => setStartMinute(m => (m + 1) % 60)}
-                                    style={{ padding: 8, cursor: 'pointer' }}
-                                >
-                                    <FaChevronUp />
-                                </Focusable>
-                                <div style={{ fontSize: 24, fontWeight: 'bold', margin: '4px 0' }}>
-                                    {startMinute.toString().padStart(2, '0')}
-                                </div>
-                                <Focusable
-                                    onActivate={() => setStartMinute(m => (m - 1 + 60) % 60)}
-                                    style={{ padding: 8, cursor: 'pointer' }}
-                                >
-                                    <FaChevronDown />
-                                </Focusable>
+                            <div style={{ marginLeft: 'auto' }}>
+                                <ToggleField
+                                    checked={startNow}
+                                    onChange={setStartNow}
+                                    label="Now"
+                                />
                             </div>
                         </div>
-                        <div style={{ textAlign: 'center', marginTop: 4, fontSize: 12, color: '#888' }}>
-                            {(() => {
-                                const now = new Date();
-                                const target = new Date();
-                                target.setHours(startHour, startMinute, 0, 0);
-                                return target < now ? "Will start tomorrow" : "Will start today";
-                            })()}
-                        </div>
+
+                        {!startNow && (
+                            <>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    gap: 16,
+                                    padding: 12,
+                                    backgroundColor: '#00000033',
+                                    borderRadius: 8
+                                }}>
+                                    {/* Hour Picker */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                        <Focusable
+                                            onActivate={() => setStartHour(h => (h + 1) % 24)}
+                                            style={{ padding: 8, cursor: 'pointer' }}
+                                        >
+                                            <FaChevronUp />
+                                        </Focusable>
+                                        <div style={{ fontSize: 24, fontWeight: 'bold', margin: '4px 0' }}>
+                                            {startHour.toString().padStart(2, '0')}
+                                        </div>
+                                        <Focusable
+                                            onActivate={() => setStartHour(h => (h - 1 + 24) % 24)}
+                                            style={{ padding: 8, cursor: 'pointer' }}
+                                        >
+                                            <FaChevronDown />
+                                        </Focusable>
+                                    </div>
+
+                                    <div style={{ fontSize: 24, fontWeight: 'bold', paddingBottom: 8 }}>:</div>
+
+                                    {/* Minute Picker */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                        <Focusable
+                                            onActivate={() => setStartMinute(m => (m + 1) % 60)}
+                                            style={{ padding: 8, cursor: 'pointer' }}
+                                        >
+                                            <FaChevronUp />
+                                        </Focusable>
+                                        <div style={{ fontSize: 24, fontWeight: 'bold', margin: '4px 0' }}>
+                                            {startMinute.toString().padStart(2, '0')}
+                                        </div>
+                                        <Focusable
+                                            onActivate={() => setStartMinute(m => (m - 1 + 60) % 60)}
+                                            style={{ padding: 8, cursor: 'pointer' }}
+                                        >
+                                            <FaChevronDown />
+                                        </Focusable>
+                                    </div>
+                                </div>
+
+                                <div style={{ textAlign: 'center', marginTop: 4, fontSize: 12, color: '#888' }}>
+                                    {(() => {
+                                        const now = new Date();
+                                        const target = new Date();
+                                        target.setHours(startHour, startMinute, 0, 0);
+                                        return target.getTime() < now.getTime() - 60000 ? "Will start tomorrow" : "Will start today";
+                                    })()}
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -600,7 +620,7 @@ function ReminderEditorModalContent({
                     </Focusable>
                 )}
             </Focusable>
-        </ConfirmModal >
+        </ConfirmModal>
     );
 }
 

@@ -210,11 +210,12 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
         // 'custom' keeps current selection
     };
 
-    const previewSound = (filename: string) => {
+    const previewSound = async (filename: string) => {
         stopSound(previewAudioRef.current);
-        previewAudioRef.current = playAlarmSound(filename);
+        const audio = await playAlarmSound(filename);
+        previewAudioRef.current = audio;
         // Stop after 2 seconds
-        setTimeout(() => stopSound(previewAudioRef.current), 2000);
+        setTimeout(() => stopSound(audio), 2000);
     };
 
     const handleSave = async () => {

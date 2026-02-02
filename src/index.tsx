@@ -43,54 +43,6 @@ import type {
 const snoozeAlarm = callable<[alarm_id: string, minutes: number], boolean>('snooze_alarm');
 const setGameRunning = callable<[is_running: boolean], void>('set_game_running');
 const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean>('toggle_reminder');
-const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
-
-// Smart sound player: uses base64 data for custom sounds, frontend for built-in
-async function playSound(soundFile: string, volume: number = 100): Promise<void> {
-    console.log('[Alarme] playSound called:', soundFile, 'volume:', volume);
-    if (!soundFile || soundFile === 'soundless') return;
-
-    if (soundFile.startsWith('custom:')) {
-        // Custom sounds: fetch base64 from backend and play via HTML5 Audio
-        console.log('[Alarme] Playing custom sound via base64...');
-        try {
-            const result = await getSoundDataCall(soundFile);
-            console.log('[Alarme] Got sound data:', result.success, 'mime:', result.mime_type);
-            if (!result.success || !result.data || !result.mime_type) {
-                console.error('[Alarme] Failed to load custom sound:', result.error);
-                return;
-            }
-
-            // Convert base64 to blob URL
-            const byteCharacters = atob(result.data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: result.mime_type });
-            const blobUrl = URL.createObjectURL(blob);
-            console.log('[Alarme] Created blob URL, playing audio...');
-
-            // Play via HTML5 Audio
-            const audio = new Audio(blobUrl);
-            audio.volume = Math.min(1, Math.max(0, volume / 100));
-            audio.onended = () => URL.revokeObjectURL(blobUrl);
-            audio.onerror = (e) => {
-                console.error('[Alarme] Audio error:', e);
-                URL.revokeObjectURL(blobUrl);
-            };
-            await audio.play();
-            console.log('[Alarme] Custom sound playing successfully');
-        } catch (e) {
-            console.error('[Alarme] Failed to play custom sound:', e);
-        }
-    } else {
-        // Built-in sounds can use frontend audio
-        console.log('[Alarme] Playing built-in sound...');
-        playAlarmSound(soundFile, volume);
-    }
-}
 
 // Tab configuration
 interface Tab {
@@ -200,7 +152,7 @@ export default definePlugin(() => {
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
-                playSound(event.sound || 'alarm.mp3', event.volume);
+                playAlarmSound(event.sound || 'alarm.mp3', event.volume);
             }
             // Suspend after toast is visible
             if (event.auto_suspend) {
@@ -230,7 +182,7 @@ export default definePlugin(() => {
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
-                playSound(event.sound || 'alarm.mp3', event.volume);
+                playAlarmSound(event.sound || 'alarm.mp3', event.volume);
             }
             // Suspend after toast is visible
             if (event.auto_suspend) {
@@ -253,7 +205,7 @@ export default definePlugin(() => {
     const handlePomodoroWorkEnded = (state: PomodoroState) => {
         if (state.subtle_mode) {
             // Play sound briefly for subtle mode
-            playSound(state.sound || 'alarm.mp3', state.volume);
+            playAlarmSound(state.sound || 'alarm.mp3', state.volume);
             toaster.toast({
                 title: "🎉 Great work!",
                 body: `Session ${state.current_session} complete.`
@@ -266,7 +218,7 @@ export default definePlugin(() => {
     const handlePomodoroBreakEnded = (state: PomodoroState) => {
         if (state.subtle_mode) {
             // Play sound briefly for subtle mode
-            playSound(state.sound || 'alarm.mp3', state.volume);
+            playAlarmSound(state.sound || 'alarm.mp3', state.volume);
             toaster.toast({
                 title: "💪 Break's over!",
                 body: `Ready for session ${state.current_session}?`
@@ -315,15 +267,28 @@ export default definePlugin(() => {
     // For now we use the general app lifetime notification which is reliable
     let unregisterGameListener: any;
 
+    // Track running app IDs to handle multiple concurrent games/apps
+    const runningAppIds = new Set<string>();
+
     try {
         if (SteamClient?.GameSessions?.RegisterForAppLifetimeNotifications) {
             unregisterGameListener = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((update: any) => {
+                // Ensure we have an AppID to track
+                if (!update.unAppID) return;
+
+                const appId = String(update.unAppID);
+
                 if (update.bRunning) {
                     // Game start
+                    runningAppIds.add(appId);
                     setGameRunning(true);
+                    console.log(`[AlarMe] App ${appId} started. Running apps: ${runningAppIds.size}`);
                 } else {
-                    // Game end - we could check running games but for now assume false
-                    setGameRunning(false);
+                    // Game end
+                    runningAppIds.delete(appId);
+                    const isAnyGameRunning = runningAppIds.size > 0;
+                    setGameRunning(isAnyGameRunning);
+                    console.log(`[AlarMe] App ${appId} ended. Running apps: ${runningAppIds.size}`);
                 }
             });
         }

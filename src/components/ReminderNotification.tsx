@@ -16,8 +16,18 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        audioRef.current = playAlarmSound(sound || 'alarm.mp3', volume);
+        let mounted = true;
+        playAlarmSound(sound || 'alarm.mp3', volume).then(audio => {
+            if (mounted) {
+                audioRef.current = audio;
+            } else if (audio) {
+                // If unmounted before promise resolved, stop the sound immediately
+                stopSound(audio);
+            }
+        });
+
         return () => {
+            mounted = false;
             if (audioRef.current) {
                 stopSound(audioRef.current);
             }

@@ -45,7 +45,7 @@ const SoundPreviewButton = ({
                     audioRef.current = await onPlayCustom(soundFile, 100);
                 } else {
                     // Play built-in sound directly
-                    audioRef.current = playAlarmSound(soundFile);
+                    audioRef.current = await playAlarmSound(soundFile);
                 }
 
                 if (audioRef.current) {
@@ -440,7 +440,7 @@ export function SettingsPanel() {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.1.1
+                                <strong>AlarMe</strong> v1.2.0-beta-1
 
                             </p>
                             <p>

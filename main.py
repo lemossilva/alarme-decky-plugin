@@ -1400,7 +1400,13 @@ class Plugin:
         
         # Calculate first trigger time
         if start_time:
-            next_trigger = start_time
+            # Start time is reference point; first trigger is freq minutes after
+            try:
+                start_dt = datetime.fromisoformat(start_time)
+                next_trigger = (start_dt + timedelta(minutes=frequency_minutes)).isoformat()
+            except ValueError:
+                # Fallback if format error
+                next_trigger = (datetime.now() + timedelta(minutes=frequency_minutes)).isoformat()
         else:
             # "Now" means start counting from now
             next_trigger = (datetime.now() + timedelta(minutes=frequency_minutes)).isoformat()
@@ -1456,10 +1462,18 @@ class Plugin:
         
         # Recalculate next trigger if frequency changed
         if start_time:
-            reminder["next_trigger"] = start_time
+            # Start time is reference point
+            try:
+                start_dt = datetime.fromisoformat(start_time)
+                reminder["next_trigger"] = (start_dt + timedelta(minutes=frequency_minutes)).isoformat()
+            except ValueError:
+                reminder["next_trigger"] = (datetime.now() + timedelta(minutes=frequency_minutes)).isoformat()
         else:
             reminder["next_trigger"] = (datetime.now() + timedelta(minutes=frequency_minutes)).isoformat()
+        
+        # Reset counters and enable on update
         reminder["triggers_remaining"] = recurrences
+        reminder["enabled"] = True
         
         await self._save_reminders(reminders)
         await decky.emit("alarme_reminder_updated", reminder)
@@ -1572,7 +1586,7 @@ class Plugin:
         
         while True:
             try:
-                await asyncio.sleep(30)  # Check every 30 seconds
+                await asyncio.sleep(1)  # Check every second
                 
                 reminders = await self._get_reminders()
                 now = datetime.now()

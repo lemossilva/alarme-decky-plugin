@@ -41,6 +41,7 @@ function formatNextTrigger(isoString: string | undefined, onlyWhileGaming: boole
         if (diffMs < 0) return 'Due now';
 
         const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins === 0) return 'In less than 1 minute';
         if (diffMins < 60) return `in ${diffMins} min`;
 
         const diffHours = Math.floor(diffMins / 60);

@@ -67,6 +67,7 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
 
     // Play sound on mount (supporting custom sounds via base64), stop on unmount
     useEffect(() => {
+        let mounted = true;
         const soundFile = sound || 'alarm.mp3';
 
         const playCustomSound = async () => {
@@ -104,13 +105,20 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
             playCustomSound();
         } else {
             // Built-in sounds
-            audioRef.current = playAlarmSound(soundFile, volume);
-            if (audioRef.current) {
-                audioRef.current.loop = true;
-            }
+            playAlarmSound(soundFile, volume).then(audio => {
+                if (mounted) {
+                    audioRef.current = audio;
+                    if (audioRef.current) {
+                        audioRef.current.loop = true;
+                    }
+                } else if (audio) {
+                    stopSound(audio);
+                }
+            });
         }
 
         return () => {
+            mounted = false;
             stopSound(audioRef.current);
             if (blobUrlRef.current) {
                 URL.revokeObjectURL(blobUrlRef.current);
@@ -146,21 +154,32 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
 
     const isLongBreakNext = currentSession % sessionsUntilLong === 0;
 
+    const stopPlayingSound = () => {
+        if (audioRef.current) {
+            stopSound(audioRef.current);
+            audioRef.current = null;
+        }
+    };
+
     const handleSkip = async () => {
+        stopPlayingSound();
         await skipPhase();
         // Keep modal open to show next phase
     };
 
     const handleStop = async () => {
+        stopPlayingSound();
         await stopPomodoro();
         closeModal?.();
     };
 
     const handleDismiss = () => {
+        stopPlayingSound();
         closeModal?.();
     };
 
     const handleStart = async () => {
+        stopPlayingSound();
         await startPomodoro();
         closeModal?.();
     };
@@ -171,6 +190,7 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
     };
 
     const handleOK = async () => {
+        // Sound handling is delegated to the specific action handlers
         if (isActive) {
             await handleSkip();
         } else {
