@@ -39,13 +39,14 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
 
     // Delay to prevent accidental button presses ONLY if game is running
     useEffect(() => {
-        if (isGameRunning) {
-            setCanInteract(false);
-            const timer = setTimeout(() => setCanInteract(true), 2000);
-            return () => clearTimeout(timer);
-        } else {
+        if (!isGameRunning) {
             setCanInteract(true);
+            return;
         }
+
+        setCanInteract(false);
+        const timer = setTimeout(() => setCanInteract(true), 2000);
+        return () => clearTimeout(timer);
     }, [isGameRunning]);
 
     const handleDismiss = () => {

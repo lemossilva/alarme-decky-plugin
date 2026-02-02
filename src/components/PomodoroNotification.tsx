@@ -132,13 +132,14 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
 
     // Delay to prevent accidental button presses ONLY if game is running
     useEffect(() => {
-        if (isGameRunning) {
-            setCanInteract(false);
-            const timer = setTimeout(() => setCanInteract(true), 2000);
-            return () => clearTimeout(timer);
-        } else {
+        if (!isGameRunning) {
             setCanInteract(true);
+            return;
         }
+
+        setCanInteract(false);
+        const timer = setTimeout(() => setCanInteract(true), 2000);
+        return () => clearTimeout(timer);
     }, [isGameRunning]);
 
     const workDuration = settings.pomodoro_work_duration * 60;

@@ -131,13 +131,14 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
 
     // Delay to prevent accidental button presses ONLY if game is running
     useEffect(() => {
-        if (isGameRunning) {
-            setCanInteract(false);
-            const timer = setTimeout(() => setCanInteract(true), 2000);
-            return () => clearTimeout(timer);
-        } else {
+        if (!isGameRunning) {
             setCanInteract(true);
+            return;
         }
+
+        setCanInteract(false);
+        const timer = setTimeout(() => setCanInteract(true), 2000);
+        return () => clearTimeout(timer);
     }, [isGameRunning]);
 
     const handleSnooze = () => {
