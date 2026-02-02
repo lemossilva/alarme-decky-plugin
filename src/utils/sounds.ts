@@ -23,6 +23,13 @@ export function playAlarmSound(soundFile: string = 'alarm.mp3', volume?: number)
         return null;
     }
 
+    // Custom sounds cannot be previewed from frontend
+    // (they live in settingsDir, not in the bundled dist/)
+    if (soundFile.startsWith('custom:')) {
+        console.log('Custom sound preview not available from frontend');
+        return null;
+    }
+
     try {
         const audio = new Audio(directoryPath + soundFile);
         if (volume !== undefined) {

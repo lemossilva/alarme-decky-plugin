@@ -1,10 +1,14 @@
 import { ConfirmModal, Focusable } from "@decky/ui";
+import { callable } from "@decky/api";
 import { FaStop, FaCoffee, FaBrain } from "react-icons/fa";
 import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration } from "../utils/time";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { useEffect, useRef, useState } from "react";
+
+// Backend callable for base64 sound data
+const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
 
 // Focusable button with highlight (Consistent with SnoozeModal)
 interface PomodoroButtonProps {
@@ -59,12 +63,59 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
     } = usePomodoro();
     const { settings } = useSettings();
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const blobUrlRef = useRef<string | null>(null);
 
-    // Play sound on mount, stop on unmount
+    // Play sound on mount (supporting custom sounds via base64), stop on unmount
     useEffect(() => {
-        audioRef.current = playAlarmSound(sound || 'alarm.mp3', volume);
+        const soundFile = sound || 'alarm.mp3';
+
+        const playCustomSound = async () => {
+            try {
+                const result = await getSoundDataCall(soundFile);
+                if (!result.success || !result.data || !result.mime_type) {
+                    console.error('[Alarme] PomodoroNotification: Failed to load custom sound:', result.error);
+                    return;
+                }
+
+                // Convert base64 to blob URL
+                const byteCharacters = atob(result.data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: result.mime_type });
+                blobUrlRef.current = URL.createObjectURL(blob);
+
+                // Play via HTML5 Audio
+                const audio = new Audio(blobUrlRef.current);
+                audio.volume = Math.min(1, Math.max(0, (volume ?? 100) / 100));
+                audio.loop = true; // Keep playing until dismissed
+                await audio.play();
+                audioRef.current = audio;
+                console.log('[Alarme] PomodoroNotification: Custom sound playing');
+            } catch (e) {
+                console.error('[Alarme] PomodoroNotification: Failed to play custom sound:', e);
+            }
+        };
+
+        if (soundFile.startsWith('custom:')) {
+            // Custom sounds via base64
+            playCustomSound();
+        } else {
+            // Built-in sounds
+            audioRef.current = playAlarmSound(soundFile, volume);
+            if (audioRef.current) {
+                audioRef.current.loop = true;
+            }
+        }
+
         return () => {
             stopSound(audioRef.current);
+            if (blobUrlRef.current) {
+                URL.revokeObjectURL(blobUrlRef.current);
+                blobUrlRef.current = null;
+            }
         };
     }, []);
 
