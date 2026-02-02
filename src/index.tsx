@@ -12,7 +12,8 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaClock, FaBell, FaCog, FaBrain, FaStopwatch } from "react-icons/fa";
+import { FaClock, FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf } from "react-icons/fa";
+
 import { useState } from "react";
 
 // Components
@@ -233,7 +234,8 @@ export default definePlugin(() => {
             </div>
         ),
         content: <Content />,
-        icon: <FaClock />,
+        icon: <FaHourglassHalf />,
+
         onDismount: () => {
             removeEventListener('alarme_timer_completed', handleTimerCompleted);
             removeEventListener('alarme_alarm_triggered', handleAlarmTriggered);

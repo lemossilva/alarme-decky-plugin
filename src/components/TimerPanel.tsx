@@ -5,7 +5,8 @@ import {
     PanelSectionRow
 } from "@decky/ui";
 import { FaPlus, FaMinus, FaTimes, FaPlay, FaEdit } from "react-icons/fa";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
 import { useTimers, RecentTimer } from "../hooks/useTimers";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration, formatDurationLong } from "../utils/time";
@@ -57,10 +58,14 @@ const QuickButton = ({ minutes, onClick, variant, disabled }: QuickButtonProps) 
     );
 };
 
-const TimerItem = ({ timer, onCancel }: { timer: Timer; onCancel: () => void }) => {
+const TimerItem = ({ timer, onCancel }: { timer: Timer; onCancel: (id: string) => void }) => {
     const [focused, setFocused] = useState(false);
     const remaining = timer.remaining ?? 0;
     const isUrgent = remaining < 60;
+
+    const handleCancel = useCallback(() => {
+        onCancel(timer.id);
+    }, [onCancel, timer.id]);
 
     return (
         <div style={{
@@ -83,7 +88,7 @@ const TimerItem = ({ timer, onCancel }: { timer: Timer; onCancel: () => void }) 
                 </div>
             </div>
             <Focusable
-                onActivate={onCancel}
+                onActivate={handleCancel}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
                 style={{
@@ -101,6 +106,7 @@ const TimerItem = ({ timer, onCancel }: { timer: Timer; onCancel: () => void }) 
         </div>
     );
 };
+
 
 const PresetButton = ({ preset, onClick, disabled }: { preset: Preset; onClick: () => void; disabled: boolean }) => (
     <ButtonItem
@@ -183,7 +189,8 @@ export function TimerPanel() {
                         <TimerItem
                             key={timer.id}
                             timer={timer}
-                            onCancel={() => cancelTimer(timer.id)}
+                            onCancel={cancelTimer}
+
                         />
                     ))}
                 </PanelSection>

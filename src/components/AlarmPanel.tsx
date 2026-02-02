@@ -6,7 +6,8 @@ import {
     ToggleField
 } from "@decky/ui";
 import { FaBell, FaBellSlash, FaPlus, FaChevronRight } from "react-icons/fa";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
 import { useAlarms } from "../hooks/useAlarms";
 import { useSettings } from "../hooks/useSettings";
 import { showAlarmEditorModal } from "./AlarmEditorModal";
@@ -16,14 +17,22 @@ import type { Alarm } from "../types";
 interface AlarmItemProps {
     alarm: Alarm;
     use24h: boolean;
-    onToggle: (enabled: boolean) => void;
-    onEdit: () => void;
+    onToggle: (id: string, enabled: boolean) => void;
+    onEdit: (alarm: Alarm) => void;
 }
 
 const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
     const [cardFocused, setCardFocused] = useState(false);
     const isActive = alarm.enabled;
     const isSnoozed = alarm.snoozed_until && alarm.snoozed_until > Date.now() / 1000;
+
+    const handleToggle = useCallback((enabled: boolean) => {
+        onToggle(alarm.id, enabled);
+    }, [onToggle, alarm.id]);
+
+    const handleEdit = useCallback(() => {
+        onEdit(alarm);
+    }, [onEdit, alarm]);
 
     // Handle toggle without triggering edit
     const handleToggleClick = (e: React.MouseEvent) => {
@@ -44,14 +53,15 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
             >
                 <ToggleField
                     checked={alarm.enabled}
-                    onChange={onToggle}
+                    onChange={handleToggle}
                     label=""
                 />
             </div>
 
             {/* Clickable alarm card */}
             <Focusable
-                onActivate={onEdit}
+                onActivate={handleEdit}
+
                 onFocus={() => setCardFocused(true)}
                 onBlur={() => setCardFocused(false)}
                 style={{
@@ -131,16 +141,16 @@ export function AlarmPanel() {
 
     const use24h = settings.time_format_24h;
 
-    const handleCreateAlarm = () => {
+    const handleCreateAlarm = useCallback(() => {
         showAlarmEditorModal({
             onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
                 await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend);
             },
             getSounds
         });
-    };
+    }, [createAlarm, getSounds]);
 
-    const handleEditAlarm = (alarm: Alarm) => {
+    const handleEditAlarm = useCallback((alarm: Alarm) => {
         showAlarmEditorModal({
             alarm,
             onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
@@ -151,7 +161,7 @@ export function AlarmPanel() {
             },
             getSounds
         });
-    };
+    }, [updateAlarm, deleteAlarm, getSounds]);
 
     return (
         <div>
@@ -163,8 +173,8 @@ export function AlarmPanel() {
                             key={alarm.id}
                             alarm={alarm}
                             use24h={use24h}
-                            onToggle={(enabled) => toggleAlarm(alarm.id, enabled)}
-                            onEdit={() => handleEditAlarm(alarm)}
+                            onToggle={toggleAlarm}
+                            onEdit={handleEditAlarm}
                         />
                     ))}
                 </PanelSection>

@@ -371,7 +371,8 @@ export function SettingsPanel() {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.0.0
+                                <strong>AlarMe</strong> v1.1.0
+
                             </p>
                             <p>
                                 By Guilherme Lemos
@@ -380,6 +381,22 @@ export function SettingsPanel() {
                     </Focusable>
                 </PanelSectionRow>
             </PanelSection>
+
+            {/* Invisible focusable spacer for controller scrolling */}
+            <PanelSectionRow>
+                <Focusable
+                    onActivate={() => { }}
+                    style={{
+                        height: 1,
+                        opacity: 0,
+                        outline: 'none'
+                    }}
+                >
+                    {null}
+                </Focusable>
+
+            </PanelSectionRow>
+
         </div>
     );
 }
