@@ -36,6 +36,13 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Background persistence** - Timer continues running even if you close the menu
 - **Reset Stats** - Option to wipe your history and start fresh
 
+### 🔁 Periodic Reminders
+- **Recurring Alerts** - Set reminders that repeat every X minutes (e.g., "Drink Water" every 30 mins)
+- **Gaming Mode** - Smart reminders that only tick while a game is running
+- **App Detection** - Automatically detects active games
+- **Start Delay** - Option to delay the first reminder
+- **Limit Recurrence** - Stop after a set number of repeats
+
 ### 💾 Data Management
 - **Backup & Restore** - Export your settings, alarms, timers, and stats to a file.
 - **Easy Migration** - Move your data between devices or restore after re-install.
@@ -44,7 +51,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Per-feature sounds** - Different sounds for Timers, Alarms, and Pomodoro
 - **Soundless mode** - Silent alarm option for quiet notifications
 - **Volume control** - Adjust alarm volume independently per feature
-- **Custom sounds** - Add your own MP3, WAV, or OGG files from `~/Music/AlarMe_Sounds`
+- **Custom sounds** - Import your own MP3, WAV, or OGG files from `~/Music/AlarMe_Sounds`
 - **Folder sync** - Rescan to add new sounds or remove deleted ones
 
 ### ⚙️ Settings
@@ -68,9 +75,12 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ## Adding Custom Sounds
 
-1. Place your sound files (`.mp3`, `.wav`, or `.ogg`) in the `assets/` folder
-2. Rebuild and redeploy the plugin
-3. The sounds will appear in the Settings panel dropdowns
+1. Go to Desktop Mode.
+2. Create a folder named `AlarMe_Sounds` in your Music folder (`~/Music/AlarMe_Sounds`).
+3. Place your sound files (`.mp3`, `.wav`, or `.ogg`, max 2MB) in this folder.
+4. Return to Gaming Mode > AlarMe > Settings.
+5. Scroll down to "**Custom Sounds**" and click "**Import Sounds**".
+6. Your sounds will now appear in the sound picker lists!
 
 ## Development
 
