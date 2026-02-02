@@ -6,37 +6,59 @@ import {
     SliderField,
     ToggleField
 } from "@decky/ui";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
-import { playAlarmSound, stopSound } from "../utils/sounds";
+import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import type { SoundFile } from "../types";
 
 // Reusable sound preview button component
-const SoundPreviewButton = ({ soundFile }: { soundFile: string }) => {
+const SoundPreviewButton = ({
+    soundFile,
+    onPlayCustom
+}: {
+    soundFile: string;
+    onPlayCustom: (filename: string, volume: number) => Promise<HTMLAudioElement | null>;
+}) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [focused, setFocused] = useState(false);
+    const isCustom = soundFile.startsWith('custom:');
 
-    const handleToggle = () => {
-        if (isPlaying && audioRef.current) {
-            stopSound(audioRef.current);
-            audioRef.current = null;
+    const handleToggle = async () => {
+        if (isPlaying) {
+            // Stop playing
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+                audioRef.current = null;
+            }
             setIsPlaying(false);
         } else {
-            // Stop any previous sound first
-            if (audioRef.current) {
-                stopSound(audioRef.current);
-            }
-            audioRef.current = playAlarmSound(soundFile);
-            if (audioRef.current) {
-                setIsPlaying(true);
-                audioRef.current.onended = () => {
+            // Start playing
+            setIsPlaying(true);
+            try {
+                if (isCustom) {
+                    // Play custom sound via base64 -> HTML5 Audio
+                    audioRef.current = await onPlayCustom(soundFile, 100);
+                } else {
+                    // Play built-in sound directly
+                    audioRef.current = playAlarmSound(soundFile);
+                }
+
+                if (audioRef.current) {
+                    audioRef.current.onended = () => {
+                        setIsPlaying(false);
+                        audioRef.current = null;
+                    };
+                } else {
                     setIsPlaying(false);
-                    audioRef.current = null;
-                };
+                }
+            } catch (e) {
+                console.error('Failed to play sound:', e);
+                setIsPlaying(false);
             }
         }
     };
@@ -45,7 +67,8 @@ const SoundPreviewButton = ({ soundFile }: { soundFile: string }) => {
     useEffect(() => {
         return () => {
             if (audioRef.current) {
-                stopSound(audioRef.current);
+                audioRef.current.pause();
+                audioRef.current = null;
             }
         };
     }, []);
@@ -115,8 +138,9 @@ const MenuButton = ({
 
 export function SettingsPanel() {
     const { settings, updateSetting } = useSettings();
-    const { getSounds } = useAlarms();
+    const { getSounds, importCustomSounds, playCustomSound } = useAlarms();
     const [sounds, setSounds] = useState<SoundFile[]>([{ filename: 'alarm.mp3', name: 'Alarm' }]);
+    const [importStatus, setImportStatus] = useState<{ message: string; success: boolean } | null>(null);
 
     // Load available sounds on mount only
     useEffect(() => {
@@ -140,7 +164,7 @@ export function SettingsPanel() {
                                 strDefaultLabel="Select Sound"
                             />
                         </div>
-                        <SoundPreviewButton soundFile={settings.timer_sound || 'alarm.mp3'} />
+                        <SoundPreviewButton soundFile={settings.timer_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
                     </div>
                 </PanelSectionRow>
 
@@ -201,7 +225,7 @@ export function SettingsPanel() {
                                 strDefaultLabel="Select Sound"
                             />
                         </div>
-                        <SoundPreviewButton soundFile={settings.pomodoro_sound || 'alarm.mp3'} />
+                        <SoundPreviewButton soundFile={settings.pomodoro_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
                     </div>
                 </PanelSectionRow>
 
@@ -365,13 +389,58 @@ export function SettingsPanel() {
                 </PanelSectionRow>
             </PanelSection>
 
+            {/* Custom Sounds */}
+            <PanelSection title="Custom Sounds">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 13, color: '#dddddd', padding: '4px 0' }}>
+                        Add your own sounds by placing files in <span style={{ fontFamily: 'monospace', backgroundColor: '#ffffff22', padding: '2px 4px', borderRadius: 4 }}>~/Music/AlarMe_Sounds</span>
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#888888', paddingBottom: 12 }}>
+                        Supported formats: .mp3, .wav, .ogg (Max 2MB per file)
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <MenuButton
+                        onClick={async () => {
+                            setImportStatus(null);
+                            const result = await importCustomSounds();
+                            if (result.success) {
+                                // Refresh sounds
+                                getSounds().then(setSounds);
+                                setImportStatus({ message: result.message, success: true });
+                            } else {
+                                setImportStatus({ message: result.message, success: false });
+                            }
+                        }}
+                        icon={<FaMusic />}
+                    >
+                        Import / Rescan Sounds
+                    </MenuButton>
+                </PanelSectionRow>
+                {importStatus && (
+                    <PanelSectionRow>
+                        <div style={{
+                            fontSize: 13,
+                            color: importStatus.success ? '#88ff88' : '#ff8888',
+                            textAlign: 'center',
+                            marginTop: 4,
+                            width: '100%'
+                        }}>
+                            {importStatus.message}
+                        </div>
+                    </PanelSectionRow>
+                )}
+            </PanelSection>
+
             {/* About */}
             <PanelSection title="About">
                 <PanelSectionRow>
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.1.0
+                                <strong>AlarMe</strong> v1.1.1
 
                             </p>
                             <p>

@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.0.0--beta.13-green)
+![Version](https://img.shields.io/badge/release-v1.1.1-green)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
 ![AlarMe Promo](assets/promo.png)
@@ -44,7 +44,8 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Per-feature sounds** - Different sounds for Timers, Alarms, and Pomodoro
 - **Soundless mode** - Silent alarm option for quiet notifications
 - **Volume control** - Adjust alarm volume independently per feature
-- **Custom sounds** - Add your own MP3, WAV, or OGG files
+- **Custom sounds** - Add your own MP3, WAV, or OGG files from `~/Music/AlarMe_Sounds`
+- **Folder sync** - Rescan to add new sounds or remove deleted ones
 
 ### ⚙️ Settings
 - **Subtle mode** - Choose between fullscreen alerts or small toasts
@@ -57,7 +58,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 ### From Decky Store (Soon!)
 1. Open Decky Loader on your Steam Deck
 2. Go to the Store tab
-3. Search for "Alar.me"
+3. Search for "AlarMe"
 4. Click Install
 
 ### Manual Installation

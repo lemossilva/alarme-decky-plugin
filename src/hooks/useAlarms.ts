@@ -11,6 +11,12 @@ const snoozeAlarmCall = callable<[alarm_id: string, minutes: number], boolean>('
 const getAlarmsCall = callable<[], Alarm[]>('get_alarms');
 const getSoundsCall = callable<[], SoundFile[]>('get_sounds');
 
+const importCustomSoundsCall = callable<[], { success: boolean; message: string; imported: number; errors: string[] }>('import_custom_sounds');
+const playSoundCall = callable<[filename: string, volume: number, loop: boolean], boolean>('play_sound');
+const stopSoundCall = callable<[], boolean>('stop_sound');
+const debugSoundCall = callable<[filename: string], { filename: string; is_custom: boolean; resolved_path: string | null; file_exists: boolean; settings_dir: string; custom_sounds_dir: string; custom_sounds_files: string[] }>('debug_sound');
+const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
+
 export function useAlarms() {
     const [alarms, setAlarms] = useState<Alarm[]>([]);
     const [loading, setLoading] = useState(true);
@@ -52,6 +58,16 @@ export function useAlarms() {
         } catch (e) {
             console.error('Failed to get sounds:', e);
             return [{ filename: 'alarm.mp3', name: 'Alarm' }];
+        }
+    }, []);
+
+    // Import custom sounds
+    const importCustomSounds = useCallback(async () => {
+        try {
+            return await importCustomSoundsCall();
+        } catch (e) {
+            console.error('Failed to import sounds:', e);
+            return { success: false, message: 'Failed to call backend', imported: 0, errors: [String(e)] };
         }
     }, []);
 
@@ -102,6 +118,79 @@ export function useAlarms() {
         }
     }, []);
 
+    // Play sound via backend (for custom sounds)
+    const playSound = useCallback(async (filename: string, volume: number = 100) => {
+        try {
+            await playSoundCall(filename, volume, false);
+        } catch (e) {
+            console.error('Failed to play sound:', e);
+        }
+    }, []);
+
+    // Stop sound via backend
+    const stopSound = useCallback(async () => {
+        try {
+            await stopSoundCall();
+        } catch (e) {
+            console.error('Failed to stop sound:', e);
+        }
+    }, []);
+
+    // Debug sound (for troubleshooting)
+    const debugSound = useCallback(async (filename: string) => {
+        try {
+            const result = await debugSoundCall(filename);
+            console.log('AlarMe Debug Sound:', result);
+            return result;
+        } catch (e) {
+            console.error('Failed to debug sound:', e);
+            return null;
+        }
+    }, []);
+
+    // Get base64-encoded sound data for custom sounds
+    const getSoundData = useCallback(async (filename: string) => {
+        try {
+            const result = await getSoundDataCall(filename);
+            return result;
+        } catch (e) {
+            console.error('Failed to get sound data:', e);
+            return { success: false, data: null, mime_type: null, error: String(e) };
+        }
+    }, []);
+
+    // Play custom sound via base64 -> HTML5 Audio (proper Steam audio routing)
+    const playCustomSound = useCallback(async (filename: string, volume: number = 100): Promise<HTMLAudioElement | null> => {
+        try {
+            const result = await getSoundDataCall(filename);
+            if (!result.success || !result.data || !result.mime_type) {
+                console.error('Failed to load custom sound:', result.error);
+                return null;
+            }
+
+            // Convert base64 to blob URL
+            const byteCharacters = atob(result.data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: result.mime_type });
+            const blobUrl = URL.createObjectURL(blob);
+
+            // Play via HTML5 Audio
+            const audio = new Audio(blobUrl);
+            audio.volume = Math.min(1, Math.max(0, volume / 100));
+            audio.onended = () => URL.revokeObjectURL(blobUrl);
+            audio.onerror = () => URL.revokeObjectURL(blobUrl);
+            await audio.play();
+            return audio;
+        } catch (e) {
+            console.error('Failed to play custom sound:', e);
+            return null;
+        }
+    }, []);
+
     // Event handlers
     useEffect(() => {
         const handleAlarmsUpdated = (updatedAlarms: Alarm[]) => {
@@ -131,6 +220,12 @@ export function useAlarms() {
         toggleAlarm,
         snoozeAlarm,
         getSounds,
+        importCustomSounds,
+        playSound,
+        stopSound,
+        debugSound,
+        getSoundData,
+        playCustomSound,
         refresh: loadAlarms
     };
 }

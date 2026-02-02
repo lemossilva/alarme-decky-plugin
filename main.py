@@ -106,7 +106,7 @@ class Plugin:
             self._timer_handler(timer_id, end_time, label)
         )
         
-        decky.logger.info(f"Alar.me: Created timer {timer_id} for {seconds} seconds")
+        decky.logger.info(f"AlarMe: Created timer {timer_id} for {seconds} seconds")
         await decky.emit("alarme_timer_created", timer_data)
         await self._emit_all_timers()
         
@@ -122,7 +122,7 @@ class Plugin:
         if timer_id in timers:
             del timers[timer_id]
             await self._save_timers(timers)
-            decky.logger.info(f"Alar.me: Cancelled timer {timer_id}")
+            decky.logger.info(f"AlarMe: Cancelled timer {timer_id}")
             await decky.emit("alarme_timer_cancelled", timer_id)
             await self._emit_all_timers()
             return True
@@ -166,7 +166,7 @@ class Plugin:
                         "volume": timer_volume,
                         "auto_suspend": timer_auto_suspend
                     })
-                    decky.logger.info(f"Alar.me: Timer {timer_id} completed")
+                    decky.logger.info(f"AlarMe: Timer {timer_id} completed")
                     return
                 
                 # Emit update every second for real-time display
@@ -177,7 +177,7 @@ class Plugin:
                 await asyncio.sleep(1)
                 
         except asyncio.CancelledError:
-            decky.logger.info(f"Alar.me: Timer {timer_id} was cancelled")
+            decky.logger.info(f"AlarMe: Timer {timer_id} was cancelled")
 
     async def _get_timers(self) -> dict:
         return await self.settings_getSetting(SETTINGS_KEY_TIMERS, {})
@@ -257,7 +257,7 @@ class Plugin:
         alarms[alarm_id] = alarm_data
         await self._save_alarms(alarms)
         
-        decky.logger.info(f"Alar.me: Created alarm {alarm_id} for {hour:02d}:{minute:02d} with sound {sound}")
+        decky.logger.info(f"AlarMe: Created alarm {alarm_id} for {hour:02d}:{minute:02d} with sound {sound}")
         await decky.emit("alarme_alarm_created", alarm_data)
         await self._emit_all_alarms()
         
@@ -269,7 +269,7 @@ class Plugin:
         if alarm_id in alarms:
             del alarms[alarm_id]
             await self._save_alarms(alarms)
-            decky.logger.info(f"Alar.me: Deleted alarm {alarm_id}")
+            decky.logger.info(f"AlarMe: Deleted alarm {alarm_id}")
             await decky.emit("alarme_alarm_deleted", alarm_id)
             await self._emit_all_alarms()
             return True
@@ -311,11 +311,11 @@ class Plugin:
             alarm["last_triggered"] = None
             
             await self._save_alarms(alarms)
-            decky.logger.info(f"Alar.me: Updated alarm {alarm_id} to {hour:02d}:{minute:02d}, recurring={recurring}, sound={sound}")
+            decky.logger.info(f"AlarMe: Updated alarm {alarm_id} to {hour:02d}:{minute:02d}, recurring={recurring}, sound={sound}")
             await decky.emit("alarme_alarm_updated", alarm)
             await self._emit_all_alarms()
             return True
-        decky.logger.warning(f"Alar.me: Update failed - alarm {alarm_id} not found")
+        decky.logger.warning(f"AlarMe: Update failed - alarm {alarm_id} not found")
         return False
 
     async def snooze_alarm(self, alarm_id: str, minutes: int = None) -> bool:
@@ -335,7 +335,7 @@ class Plugin:
             await self._save_alarms(alarms)
             
             snooze_dt = datetime.fromtimestamp(snooze_time)
-            decky.logger.info(f"Alar.me: Snoozed alarm {alarm_id} for {minutes} minutes until {snooze_dt.strftime('%H:%M:%S')}")
+            decky.logger.info(f"AlarMe: Snoozed alarm {alarm_id} for {minutes} minutes until {snooze_dt.strftime('%H:%M:%S')}")
             
             await decky.emit("alarme_alarm_snoozed", {
                 "id": alarm_id,
@@ -344,7 +344,7 @@ class Plugin:
             })
             await self._emit_all_alarms()
             return True
-        decky.logger.warning(f"Alar.me: Snooze failed - alarm {alarm_id} not found")
+        decky.logger.warning(f"AlarMe: Snooze failed - alarm {alarm_id} not found")
         return False
 
     async def get_alarms(self) -> list:
@@ -385,24 +385,21 @@ class Plugin:
                 "snoozed_until": alarm.get("snoozed_until")
             })
         
-        decky.logger.info(f"Alar.me Debug: {debug_info}")
+        decky.logger.info(f"AlarMe Debug: {debug_info}")
         return debug_info
 
     async def get_sounds(self) -> list:
-        """Get list of available sound files from the plugin dist folder."""
-        # Start with special soundless option (no sound, no vibration)
+        """Get list of available sound files from dist and custom_sounds folders."""
         sounds = [
             {"filename": "soundless", "name": "🔇 Soundless"}
         ]
         try:
-            # Get the plugin directory (parent of settings dir)
             plugin_dir = os.environ.get("DECKY_PLUGIN_DIR", "")
             if not plugin_dir:
-                # Fallback: derive from settings dir
                 plugin_dir = os.path.dirname(settingsDir)
             
+            # Built-in sounds from dist/
             dist_dir = os.path.join(plugin_dir, "dist")
-            
             if os.path.exists(dist_dir):
                 for filename in os.listdir(dist_dir):
                     if filename.lower().endswith(('.mp3', '.wav', '.ogg')):
@@ -411,16 +408,273 @@ class Plugin:
                             "name": os.path.splitext(filename)[0].replace('_', ' ').title()
                         })
             
-            decky.logger.info(f"Alar.me: Found {len(sounds)} sound options (including soundless)")
+            # Custom sounds from settingsDir/custom_sounds/
+            custom_dir = os.path.join(settingsDir, "custom_sounds")
+            if os.path.exists(custom_dir):
+                for filename in os.listdir(custom_dir):
+                    if filename.lower().endswith(('.mp3', '.wav', '.ogg')):
+                        sounds.append({
+                            "filename": f"custom:{filename}",
+                            "name": f"★ {os.path.splitext(filename)[0].replace('_', ' ').title()}"
+                        })
+            
+            decky.logger.info(f"AlarMe: Found {len(sounds)} sound options")
         except Exception as e:
-            decky.logger.error(f"Alar.me: Error listing sounds: {e}")
-            # Return soundless and default sound as fallback
+            decky.logger.error(f"AlarMe: Error listing sounds: {e}")
             sounds = [
                 {"filename": "soundless", "name": "🔇 Soundless"},
                 {"filename": "alarm.mp3", "name": "Alarm"}
             ]
         
         return sounds
+
+    async def import_custom_sounds(self) -> dict:
+        """Sync custom sounds from ~/Music/AlarMe_Sounds.
+        
+        This acts as a sync: copies new/updated files and removes
+        sounds that no longer exist in the source folder.
+        """
+        import shutil
+        
+        result = {
+            "success": False,
+            "imported": 0,
+            "removed": 0,
+            "errors": [],
+            "message": ""
+        }
+        
+        try:
+            # Source directory: ~/Music/AlarMe_Sounds
+            home_dir = os.path.expanduser("~")
+            source_dir = os.path.join(home_dir, "Music", "AlarMe_Sounds")
+            
+            if not os.path.exists(source_dir):
+                result["message"] = f"Folder not found: {source_dir}"
+                return result
+                
+            # Destination directory: settingsDir/custom_sounds (writable)
+            custom_dir = os.path.join(settingsDir, "custom_sounds")
+            os.makedirs(custom_dir, exist_ok=True)
+            
+            # Scan and copy files
+            valid_extensions = ('.mp3', '.wav', '.ogg')
+            max_size = 2 * 1024 * 1024  # 2MB
+            
+            # Get set of source files (lowercase for case-insensitive comparison)
+            source_files = set()
+            for filename in os.listdir(source_dir):
+                if filename.lower().endswith(valid_extensions):
+                    source_files.add(filename)
+            
+            # Copy new/updated files from source
+            count = 0
+            for filename in source_files:
+                src_path = os.path.join(source_dir, filename)
+                
+                # Check size
+                try:
+                    size = os.path.getsize(src_path)
+                    if size > max_size:
+                        result["errors"].append(f"{filename} too large (>2MB)")
+                        continue
+                        
+                    # Copy file
+                    dst_path = os.path.join(custom_dir, filename)
+                    shutil.copy2(src_path, dst_path)
+                    count += 1
+                    decky.logger.info(f"Alarme: Imported sound {filename}")
+                    
+                except Exception as e:
+                    result["errors"].append(f"Error copying {filename}: {str(e)}")
+            
+            # Remove files that no longer exist in source (sync behavior)
+            removed_count = 0
+            if os.path.exists(custom_dir):
+                for filename in os.listdir(custom_dir):
+                    if filename.lower().endswith(valid_extensions):
+                        if filename not in source_files:
+                            try:
+                                dst_path = os.path.join(custom_dir, filename)
+                                os.remove(dst_path)
+                                removed_count += 1
+                                decky.logger.info(f"Alarme: Removed sound {filename} (no longer in source)")
+                            except Exception as e:
+                                result["errors"].append(f"Error removing {filename}: {str(e)}")
+            
+            result["success"] = True
+            result["imported"] = count
+            result["removed"] = removed_count
+            
+            # Build message
+            messages = []
+            if count > 0:
+                messages.append(f"Imported {count} sound(s)")
+            if removed_count > 0:
+                messages.append(f"Removed {removed_count} sound(s)")
+            if not messages:
+                messages.append("No changes - sounds are in sync")
+            result["message"] = ". ".join(messages) + "."
+                 
+        except Exception as e:
+            decky.logger.error(f"Alarme: Import sounds failed: {e}")
+            result["message"] = f"Sync failed: {str(e)}"
+            
+        return result
+
+    async def get_sound_data(self, filename: str) -> dict:
+        """Get base64-encoded sound data for a custom sound file.
+        
+        This allows the frontend to play custom sounds via HTML5 Audio,
+        which routes correctly through Steam's audio system.
+        
+        Args:
+            filename: Sound filename with 'custom:' prefix
+            
+        Returns:
+            Dict with 'success', 'data' (base64), 'mime_type'
+        """
+        import base64
+        import mimetypes
+        
+        result = {"success": False, "data": None, "mime_type": None}
+        
+        if not filename or not filename.startswith("custom:"):
+            result["error"] = "Only custom sounds supported"
+            return result
+            
+        actual_name = filename[7:]  # Remove "custom:" prefix
+        file_path = os.path.join(settingsDir, "custom_sounds", actual_name)
+        
+        if not os.path.exists(file_path):
+            result["error"] = f"File not found: {file_path}"
+            decky.logger.error(f"AlarMe: Sound file not found: {file_path}")
+            return result
+            
+        try:
+            # Determine MIME type
+            mime_type, _ = mimetypes.guess_type(file_path)
+            if not mime_type:
+                ext = os.path.splitext(file_path)[1].lower()
+                mime_type = {
+                    '.mp3': 'audio/mpeg',
+                    '.wav': 'audio/wav',
+                    '.ogg': 'audio/ogg'
+                }.get(ext, 'audio/mpeg')
+            
+            # Read and encode file
+            with open(file_path, 'rb') as f:
+                audio_data = f.read()
+            
+            result["success"] = True
+            result["data"] = base64.b64encode(audio_data).decode('utf-8')
+            result["mime_type"] = mime_type
+            decky.logger.info(f"AlarMe: Loaded sound data for {filename} ({len(audio_data)} bytes)")
+            
+        except Exception as e:
+            result["error"] = str(e)
+            decky.logger.error(f"AlarMe: Failed to load sound data: {e}")
+            
+        return result
+
+    async def play_sound(self, filename: str, volume: int = 100, loop: bool = False) -> bool:
+        """Play a sound file via paplay (Linux/SteamOS).
+        
+        Args:
+            filename: Sound filename. Can be 'custom:file.mp3' for custom sounds or just 'file.mp3' for built-in.
+            volume: Volume 0-100
+        """
+        import subprocess
+        
+        if not filename or filename == "soundless":
+            return True
+            
+        # Resolve file path
+        file_path = None
+        if filename.startswith("custom:"):
+            # Custom sound in settingsDir/custom_sounds
+            actual_name = filename[7:]  # Remove "custom:" prefix
+            file_path = os.path.join(settingsDir, "custom_sounds", actual_name)
+        else:
+            # Built-in sound in dist/
+            plugin_dir = os.environ.get("DECKY_PLUGIN_DIR", "")
+            if not plugin_dir:
+                plugin_dir = os.path.dirname(settingsDir)
+            file_path = os.path.join(plugin_dir, "dist", filename)
+        
+        if not os.path.exists(file_path):
+            decky.logger.error(f"AlarMe: Sound file not found: {file_path}")
+            return False
+            
+        try:
+            # Convert volume 0-100 to paplay's 0-65536
+            vol = int((min(100, max(0, volume)) / 100) * 65536)
+            
+            # Stop any currently playing sound first
+            if hasattr(self, '_current_sound_process') and self._current_sound_process:
+                try:
+                    self._current_sound_process.terminate()
+                except:
+                    pass
+            
+            decky.logger.info(f"AlarMe: Attempting to play: {file_path} at volume {vol}")
+            
+            # Play using paplay (non-blocking)
+            self._current_sound_process = subprocess.Popen(
+                ["paplay", "--volume", str(vol), file_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            decky.logger.info(f"AlarMe: Started paplay PID {self._current_sound_process.pid}")
+            return True
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to play sound: {e}")
+            return False
+
+    async def stop_sound(self) -> bool:
+        """Stop currently playing sound."""
+        import subprocess
+        try:
+            if hasattr(self, '_current_sound_process') and self._current_sound_process:
+                self._current_sound_process.terminate()
+                self._current_sound_process = None
+                decky.logger.info("AlarMe: Stopped sound")
+            return True
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to stop sound: {e}")
+            return False
+
+    async def debug_sound(self, filename: str) -> dict:
+        """Debug sound file path resolution."""
+        result = {
+            "filename": filename,
+            "is_custom": filename.startswith("custom:"),
+            "resolved_path": None,
+            "file_exists": False,
+            "settings_dir": settingsDir,
+            "custom_sounds_dir": os.path.join(settingsDir, "custom_sounds"),
+            "custom_sounds_files": []
+        }
+        
+        # List files in custom_sounds dir
+        custom_dir = os.path.join(settingsDir, "custom_sounds")
+        if os.path.exists(custom_dir):
+            result["custom_sounds_files"] = os.listdir(custom_dir)
+        
+        # Resolve path
+        if filename.startswith("custom:"):
+            actual_name = filename[7:]
+            result["resolved_path"] = os.path.join(settingsDir, "custom_sounds", actual_name)
+        else:
+            plugin_dir = os.environ.get("DECKY_PLUGIN_DIR", "")
+            if not plugin_dir:
+                plugin_dir = os.path.dirname(settingsDir)
+            result["resolved_path"] = os.path.join(plugin_dir, "dist", filename)
+        
+        result["file_exists"] = os.path.exists(result["resolved_path"]) if result["resolved_path"] else False
+        
+        decky.logger.info(f"AlarMe Debug: {result}")
+        return result
 
     def _calculate_next_trigger(self, alarm: dict) -> float:
         """Calculate the next trigger time for an alarm."""
@@ -488,7 +742,7 @@ class Plugin:
 
     async def _alarm_checker(self):
         """Background task to check and trigger alarms."""
-        decky.logger.info("Alar.me: Alarm checker started!")
+        decky.logger.info("AlarMe: Alarm checker started!")
         check_count = 0
         try:
             while True:
@@ -500,7 +754,7 @@ class Plugin:
                     
                     # Only log occasionally to avoid spam (every 60 checks = 1 minute)
                     if check_count % 60 == 1:
-                        decky.logger.info(f"Alar.me: Alarm check heartbeat - {len(alarms)} alarms")
+                        decky.logger.info(f"AlarMe: Alarm check heartbeat - {len(alarms)} alarms")
                     
                     for alarm_id, alarm in alarms.items():
                         if not alarm.get("enabled", True):
@@ -513,7 +767,7 @@ class Plugin:
                             
                             if next_trigger <= current_time:
                                 # Alarm should trigger!
-                                decky.logger.info(f"Alar.me: >>> TRIGGERING alarm {alarm_id}! <<<")
+                                decky.logger.info(f"AlarMe: >>> TRIGGERING alarm {alarm_id}! <<<")
                                 
                                 # Get per-alarm settings (no global fallback needed for alarms)
                                 subtle = alarm.get("subtle_mode", False)
@@ -537,7 +791,7 @@ class Plugin:
                                 
                                 # Handle one-time alarms - disable them
                                 if alarm.get("recurring") == "once":
-                                    decky.logger.info(f"Alar.me: Disabling one-time alarm {alarm_id}")
+                                    decky.logger.info(f"AlarMe: Disabling one-time alarm {alarm_id}")
                                     alarms[alarm_id]["enabled"] = False
                                     alarms[alarm_id]["snoozed_until"] = None
                                 else:
@@ -552,15 +806,15 @@ class Plugin:
                                 await self._save_alarms(alarms)
                                 await self._emit_all_alarms()
                         else:
-                            decky.logger.info(f"Alar.me: Alarm '{alarm_id}' ({alarm_time_str}) - no next trigger")
+                            decky.logger.info(f"AlarMe: Alarm '{alarm_id}' ({alarm_time_str}) - no next trigger")
                 
                 except Exception as e:
-                    decky.logger.error(f"Alar.me: Error in alarm check loop: {e}")
+                    decky.logger.error(f"AlarMe: Error in alarm check loop: {e}")
                 
                 await asyncio.sleep(1)  # Check every second for accuracy
                 
         except asyncio.CancelledError:
-            decky.logger.info("Alar.me: Alarm checker stopped")
+            decky.logger.info("AlarMe: Alarm checker stopped")
 
     async def _get_alarms(self) -> dict:
         return await self.settings_getSetting(SETTINGS_KEY_ALARMS, {})
@@ -601,7 +855,7 @@ class Plugin:
         
         self.pomodoro_task = self.loop.create_task(self._pomodoro_handler())
         
-        decky.logger.info(f"Alar.me: Started Pomodoro session {session}")
+        decky.logger.info(f"AlarMe: Started Pomodoro session {session}")
         
         # Inject stats for frontend update
         state["stats"] = await self._get_pomodoro_stats()
@@ -625,7 +879,7 @@ class Plugin:
                     duration=elapsed
                 )
         except Exception as e:
-            decky.logger.error(f"Alar.me: Failed to update stats on stop: {e}")
+            decky.logger.error(f"AlarMe: Failed to update stats on stop: {e}")
 
         state = {
             "active": False,
@@ -637,7 +891,7 @@ class Plugin:
         }
         await self._save_pomodoro_state(state)
         
-        decky.logger.info("Alar.me: Stopped Pomodoro")
+        decky.logger.info("AlarMe: Stopped Pomodoro")
         
         # Inject stats
         state["stats"] = await self._get_pomodoro_stats()
@@ -661,7 +915,7 @@ class Plugin:
                     duration=elapsed
                 )
         except Exception as e:
-            decky.logger.error(f"Alar.me: Failed to update stats on skip: {e}")
+            decky.logger.error(f"AlarMe: Failed to update stats on skip: {e}")
         
         user_settings = await self._get_user_settings()
         is_break = pomodoro_state.get("is_break", False)
@@ -883,7 +1137,7 @@ class Plugin:
                                 completed_cycle=is_break and state.get("break_type") == "long"
                             )
                     except Exception as e:
-                        decky.logger.error(f"Alar.me: Failed to update stats on completion: {e}")
+                        decky.logger.error(f"AlarMe: Failed to update stats on completion: {e}")
                     
                     if is_break:
                         # Break finished, start new work session
@@ -937,7 +1191,7 @@ class Plugin:
                         await decky.emit("alarme_pomodoro_work_ended", new_state)
                     
                     await self._save_pomodoro_state(new_state)
-                    decky.logger.info(f"Alar.me: Pomodoro phase changed - is_break={new_state['is_break']}")
+                    decky.logger.info(f"AlarMe: Pomodoro phase changed - is_break={new_state['is_break']}")
                 
                 # Emit tick every 5 seconds
                 await decky.emit("alarme_pomodoro_tick", {
@@ -950,7 +1204,7 @@ class Plugin:
                 await asyncio.sleep(1)  # Update every second for real-time display
                 
         except asyncio.CancelledError:
-            decky.logger.info("Alar.me: Pomodoro handler stopped")
+            decky.logger.info("AlarMe: Pomodoro handler stopped")
 
     async def _get_pomodoro_state(self) -> dict:
         return await self.settings_getSetting(SETTINGS_KEY_POMODORO, {
@@ -1043,10 +1297,10 @@ class Plugin:
             with open(filepath, 'w') as f:
                 f.write(json_str)
             
-            decky.logger.info(f"Alar.me: Backup exported to {filepath}")
+            decky.logger.info(f"AlarMe: Backup exported to {filepath}")
             return True
         except Exception as e:
-            decky.logger.error(f"Alar.me: Export to file failed: {e}")
+            decky.logger.error(f"AlarMe: Export to file failed: {e}")
             return False
 
     async def import_backup_from_file(self, filepath: str) -> bool:
@@ -1056,7 +1310,7 @@ class Plugin:
             filepath = os.path.expanduser(filepath)
             
             if not os.path.exists(filepath):
-                decky.logger.error(f"Alar.me: Import file not found: {filepath}")
+                decky.logger.error(f"AlarMe: Import file not found: {filepath}")
                 return False
                 
             with open(filepath, 'r') as f:
@@ -1064,7 +1318,7 @@ class Plugin:
                 
             return await self.import_backup(json_str)
         except Exception as e:
-             decky.logger.error(f"Alar.me: Import from file failed: {e}")
+             decky.logger.error(f"AlarMe: Import from file failed: {e}")
              return False
 
     async def import_backup(self, json_str: str) -> bool:
@@ -1097,10 +1351,10 @@ class Plugin:
                 await self.settings_commit()
                 await decky.emit("alarme_settings_updated", settings_to_save)
             
-            decky.logger.info("Alar.me: Backup imported successfully")
+            decky.logger.info("AlarMe: Backup imported successfully")
             return True
         except Exception as e:
-             decky.logger.error(f"Alar.me: Import failed: {e}")
+             decky.logger.error(f"AlarMe: Import failed: {e}")
              return False
 
     async def _get_user_settings(self) -> dict:
@@ -1140,7 +1394,7 @@ class Plugin:
         for timer_id, timer in timers.items():
             remaining = timer["end_time"] - current_time
             if remaining > 0:
-                decky.logger.info(f"Alar.me: Resuming timer {timer_id} with {remaining:.0f}s remaining")
+                decky.logger.info(f"AlarMe: Resuming timer {timer_id} with {remaining:.0f}s remaining")
                 self.timer_tasks[timer_id] = self.loop.create_task(
                     self._timer_handler(timer_id, timer["end_time"], timer.get("label", "Timer"))
                 )
@@ -1157,13 +1411,13 @@ class Plugin:
         pomodoro = await self._get_pomodoro_state()
         if pomodoro.get("active") and pomodoro.get("end_time"):
             if pomodoro["end_time"] > current_time:
-                decky.logger.info("Alar.me: Resuming Pomodoro session")
+                decky.logger.info("AlarMe: Resuming Pomodoro session")
                 self.pomodoro_task = self.loop.create_task(self._pomodoro_handler())
         
         # Start alarm checker
         self.alarm_check_task = self.loop.create_task(self._alarm_checker())
         
-        decky.logger.info("Alar.me: Plugin initialized successfully")
+        decky.logger.info("AlarMe: Plugin initialized successfully")
 
     async def _unload(self):
         """Plugin unload cleanup."""
@@ -1180,15 +1434,15 @@ class Plugin:
         if self.pomodoro_task:
             self.pomodoro_task.cancel()
         
-        decky.logger.info("Alar.me: Plugin unloaded")
+        decky.logger.info("AlarMe: Plugin unloaded")
 
     async def _uninstall(self):
         """Plugin uninstall cleanup."""
-        decky.logger.info("Alar.me: Plugin uninstalled")
+        decky.logger.info("AlarMe: Plugin uninstalled")
 
     async def _migration(self):
         """Plugin migration."""
-        decky.logger.info("Alar.me: Running migration")
+        decky.logger.info("AlarMe: Running migration")
         
         decky.migrate_logs(os.path.join(decky.DECKY_USER_HOME, ".config", "alarme", "plugin.log"))
         decky.migrate_settings(

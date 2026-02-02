@@ -12,7 +12,7 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaClock, FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf } from "react-icons/fa";
 
 import { useState } from "react";
 
@@ -34,8 +34,56 @@ import type {
     PomodoroState
 } from "./types";
 
-// Backend callables for snooze
+// Backend callables for snooze and sound data
 const snoozeAlarm = callable<[alarm_id: string, minutes: number], boolean>('snooze_alarm');
+const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
+
+// Smart sound player: uses base64 data for custom sounds, frontend for built-in
+async function playSound(soundFile: string, volume: number = 100): Promise<void> {
+    console.log('[Alarme] playSound called:', soundFile, 'volume:', volume);
+    if (!soundFile || soundFile === 'soundless') return;
+
+    if (soundFile.startsWith('custom:')) {
+        // Custom sounds: fetch base64 from backend and play via HTML5 Audio
+        console.log('[Alarme] Playing custom sound via base64...');
+        try {
+            const result = await getSoundDataCall(soundFile);
+            console.log('[Alarme] Got sound data:', result.success, 'mime:', result.mime_type);
+            if (!result.success || !result.data || !result.mime_type) {
+                console.error('[Alarme] Failed to load custom sound:', result.error);
+                return;
+            }
+
+            // Convert base64 to blob URL
+            const byteCharacters = atob(result.data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: result.mime_type });
+            const blobUrl = URL.createObjectURL(blob);
+            console.log('[Alarme] Created blob URL, playing audio...');
+
+            // Play via HTML5 Audio
+            const audio = new Audio(blobUrl);
+            audio.volume = Math.min(1, Math.max(0, volume / 100));
+            audio.onended = () => URL.revokeObjectURL(blobUrl);
+            audio.onerror = (e) => {
+                console.error('[Alarme] Audio error:', e);
+                URL.revokeObjectURL(blobUrl);
+            };
+            await audio.play();
+            console.log('[Alarme] Custom sound playing successfully');
+        } catch (e) {
+            console.error('[Alarme] Failed to play custom sound:', e);
+        }
+    } else {
+        // Built-in sounds can use frontend audio
+        console.log('[Alarme] Playing built-in sound...');
+        playAlarmSound(soundFile, volume);
+    }
+}
 
 // Tab configuration
 interface Tab {
@@ -143,7 +191,7 @@ export default definePlugin(() => {
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
-                playAlarmSound(event.sound || 'alarm.mp3', event.volume);
+                playSound(event.sound || 'alarm.mp3', event.volume);
             }
             // Suspend after toast is visible
             if (event.auto_suspend) {
@@ -173,7 +221,7 @@ export default definePlugin(() => {
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
-                playAlarmSound(event.sound || 'alarm.mp3', event.volume);
+                playSound(event.sound || 'alarm.mp3', event.volume);
             }
             // Suspend after toast is visible
             if (event.auto_suspend) {
@@ -196,7 +244,7 @@ export default definePlugin(() => {
     const handlePomodoroWorkEnded = (state: PomodoroState) => {
         if (state.subtle_mode) {
             // Play sound briefly for subtle mode
-            playAlarmSound(state.sound || 'alarm.mp3', state.volume);
+            playSound(state.sound || 'alarm.mp3', state.volume);
             toaster.toast({
                 title: "🎉 Great work!",
                 body: `Session ${state.current_session} complete.`
@@ -209,7 +257,7 @@ export default definePlugin(() => {
     const handlePomodoroBreakEnded = (state: PomodoroState) => {
         if (state.subtle_mode) {
             // Play sound briefly for subtle mode
-            playAlarmSound(state.sound || 'alarm.mp3', state.volume);
+            playSound(state.sound || 'alarm.mp3', state.volume);
             toaster.toast({
                 title: "💪 Break's over!",
                 body: `Ready for session ${state.current_session}?`
@@ -229,7 +277,7 @@ export default definePlugin(() => {
         name: "AlarMe",
         titleView: (
             <div className={staticClasses.Title}>
-                <FaClock style={{ marginRight: 8 }} />
+                <FaHourglassHalf style={{ marginRight: 8 }} />
                 AlarMe
             </div>
         ),
