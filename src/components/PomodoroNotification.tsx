@@ -3,6 +3,7 @@ import { callable } from "@decky/api";
 import { FaStop, FaCoffee, FaBrain } from "react-icons/fa";
 import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
+import { useGameStatus } from "../hooks/useGameStatus";
 import { formatDuration } from "../utils/time";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { useEffect, useRef, useState } from "react";
@@ -64,6 +65,8 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
     const { settings } = useSettings();
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
+    const [canInteract, setCanInteract] = useState(false);
+    const isGameRunning = useGameStatus();
 
     // Play sound on mount (supporting custom sounds via base64), stop on unmount
     useEffect(() => {
@@ -127,6 +130,17 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
         };
     }, []);
 
+    // Delay to prevent accidental button presses ONLY if game is running
+    useEffect(() => {
+        if (isGameRunning) {
+            setCanInteract(false);
+            const timer = setTimeout(() => setCanInteract(true), 2000);
+            return () => clearTimeout(timer);
+        } else {
+            setCanInteract(true);
+        }
+    }, [isGameRunning]);
+
     const workDuration = settings.pomodoro_work_duration * 60;
     const breakDuration = settings.pomodoro_break_duration * 60;
     const longBreakDuration = settings.pomodoro_long_break_duration * 60;
@@ -162,23 +176,27 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
     };
 
     const handleSkip = async () => {
+        if (!canInteract) return;
         stopPlayingSound();
         await skipPhase();
         // Keep modal open to show next phase
     };
 
     const handleStop = async () => {
+        if (!canInteract) return;
         stopPlayingSound();
         await stopPomodoro();
         closeModal?.();
     };
 
     const handleDismiss = () => {
+        if (!canInteract) return;
         stopPlayingSound();
         closeModal?.();
     };
 
     const handleStart = async () => {
+        if (!canInteract) return;
         stopPlayingSound();
         await startPomodoro();
         closeModal?.();
@@ -190,6 +208,7 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
     };
 
     const handleOK = async () => {
+        if (!canInteract) return;
         // Sound handling is delegated to the specific action handlers
         if (isActive) {
             await handleSkip();
@@ -264,6 +283,12 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
                 {isActive && isLongBreakNext && !isBreak && (
                     <div style={{ fontSize: 13, color: '#44aa88', fontWeight: 'bold', marginBottom: 10 }}>
                         ✨ Long break coming up next!
+                    </div>
+                )}
+
+                {!canInteract && (
+                    <div style={{ fontSize: 11, color: '#666666', marginTop: 8 }}>
+                        Wait a moment...
                     </div>
                 )}
 

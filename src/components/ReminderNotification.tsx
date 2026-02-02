@@ -1,7 +1,8 @@
 import { ConfirmModal } from "@decky/ui";
 import { FaRedo } from "react-icons/fa";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { playAlarmSound, stopSound } from "../utils/sounds";
+import { useGameStatus } from "../hooks/useGameStatus";
 import type { Reminder } from "../types";
 
 interface Props {
@@ -14,6 +15,8 @@ interface Props {
 
 export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, volume }: Props) => {
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [canInteract, setCanInteract] = useState(false);
+    const isGameRunning = useGameStatus();
 
     useEffect(() => {
         let mounted = true;
@@ -34,16 +37,35 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
         };
     }, [sound, volume]);
 
+    // Delay to prevent accidental button presses ONLY if game is running
+    useEffect(() => {
+        if (isGameRunning) {
+            setCanInteract(false);
+            const timer = setTimeout(() => setCanInteract(true), 2000);
+            return () => clearTimeout(timer);
+        } else {
+            setCanInteract(true);
+        }
+    }, [isGameRunning]);
+
+    const handleDismiss = () => {
+        if (!canInteract) return;
+        closeModal?.();
+    };
+
+    const handleDisable = () => {
+        if (!canInteract) return;
+        onDisable?.();
+        closeModal?.();
+    };
+
     return (
         <ConfirmModal
             strTitle="⏰ Reminder"
             strOKButtonText="Dismiss"
             strCancelButtonText="Turn off reminder"
-            onOK={() => closeModal?.()}
-            onCancel={() => {
-                onDisable?.();
-                closeModal?.();
-            }}
+            onOK={handleDismiss}
+            onCancel={handleDisable}
         >
             <div style={{
                 display: 'flex',
@@ -70,6 +92,12 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
                         ? `${reminder.triggers_remaining} repeats remaining`
                         : "Periodic Reminder"}
                 </div>
+
+                {!canInteract && (
+                    <div style={{ fontSize: 11, color: '#666666', marginTop: 8 }}>
+                        Wait a moment...
+                    </div>
+                )}
             </div>
 
             <style>{`

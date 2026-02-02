@@ -3,6 +3,7 @@ import { callable } from "@decky/api";
 import { FaBell, FaBan, FaPowerOff, FaPlus, FaMinus } from "react-icons/fa";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { SteamUtils } from "../utils/steam";
+import { useGameStatus } from "../hooks/useGameStatus";
 import { useEffect, useRef, useState } from "react";
 
 // Backend callable for base64 sound data
@@ -63,6 +64,8 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
     const [snoozeMinutes, setSnoozeMinutes] = useState(defaultSnoozeDuration ?? 5);
+    const [canInteract, setCanInteract] = useState(false);
+    const isGameRunning = useGameStatus();
 
     // Play alarm sound on mount with volume, supporting custom sounds via base64
     useEffect(() => {
@@ -126,19 +129,33 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
         };
     }, [sound, volume]);
 
+    // Delay to prevent accidental button presses ONLY if game is running
+    useEffect(() => {
+        if (isGameRunning) {
+            setCanInteract(false);
+            const timer = setTimeout(() => setCanInteract(true), 2000);
+            return () => clearTimeout(timer);
+        } else {
+            setCanInteract(true);
+        }
+    }, [isGameRunning]);
+
     const handleSnooze = () => {
+        if (!canInteract) return;
         stopSound(audioRef.current);
         onSnooze(snoozeMinutes);
         closeModal?.();
     };
 
     const handleDismiss = () => {
+        if (!canInteract) return;
         stopSound(audioRef.current);
         onDismiss();
         closeModal?.();
     };
 
     const handleSuspend = async () => {
+        if (!canInteract) return;
         stopSound(audioRef.current);
         onDismiss();
         closeModal?.();
@@ -296,6 +313,12 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                         B = Suspend
                     </span>
                 </div>
+
+                {!canInteract && (
+                    <div style={{ fontSize: 11, color: '#666666', marginTop: 8 }}>
+                        Wait a moment...
+                    </div>
+                )}
             </div>
 
             {/* CSS Animation */}
