@@ -29,6 +29,7 @@ import { PomodoroNotification } from "./components/PomodoroNotification";
 import { ReminderNotification } from "./components/ReminderNotification";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
+import { formatTime } from "./utils/time";
 
 // Types
 import type {
@@ -141,14 +142,20 @@ function Content() {
 // Plugin Definition
 export default definePlugin(() => {
     // Event handlers
+    const getTimeStr = (use24h: boolean = true) => {
+        const now = new Date();
+        return formatTime(now.getHours(), now.getMinutes(), use24h);
+    };
+
     const handleTimerCompleted = (event: TimerCompletedEvent) => {
         // Auto-suspend forces subtle mode (modal before suspend makes no sense)
         const useSubtle = event.subtle || event.auto_suspend;
+        const use24h = event.time_format_24h ?? true;
 
         if (useSubtle) {
             toaster.toast({
                 title: "⏰ Timer Finished!",
-                body: event.label
+                body: `${event.label} • ${getTimeStr(use24h)}`
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
@@ -165,6 +172,7 @@ export default definePlugin(() => {
                 type: 'timer',
                 sound: event.sound,
                 volume: event.volume,
+                use24h,
                 onSnooze: () => { }, // Timers don't snooze
                 onDismiss: () => { }
             });
@@ -174,11 +182,12 @@ export default definePlugin(() => {
     const handleAlarmTriggered = (event: AlarmTriggeredEvent) => {
         // Auto-suspend forces subtle mode (modal before suspend makes no sense)
         const useSubtle = event.subtle || event.auto_suspend;
+        const use24h = event.time_format_24h ?? true;
 
         if (useSubtle) {
             toaster.toast({
                 title: "🔔 Alarm!",
-                body: event.label
+                body: `${event.label} • ${getTimeStr(use24h)}`
             });
             // Play sound briefly for non-subtle with auto-suspend
             if (!event.subtle && event.auto_suspend) {
@@ -196,6 +205,7 @@ export default definePlugin(() => {
                 sound: event.sound,
                 volume: event.volume,
                 defaultSnoozeDuration: event.snooze_duration,
+                use24h,
                 onSnooze: (minutes) => snoozeAlarm(event.id, minutes),
                 onDismiss: () => { }
             });
@@ -229,11 +239,12 @@ export default definePlugin(() => {
     };
 
     const handleReminderTriggered = (event: ReminderTriggeredEvent) => {
+        const use24h = event.time_format_24h ?? true;
         // Use subtle_mode from the event
         if (event.subtle_mode) {
             toaster.toast({
                 title: "⏰ Reminder",
-                body: event.reminder.label || "Time for a break!"
+                body: `${event.reminder.label || "Time for a break!"} • ${getTimeStr(use24h)}`
             });
             // Play sound briefly if configured? No, subtle implies quiet or toast only.
             // But user might want sound + toast.
@@ -250,6 +261,7 @@ export default definePlugin(() => {
                     onDisable={() => toggleReminder(event.reminder.id, false)}
                     sound={event.sound || 'alarm.mp3'}
                     volume={event.volume}
+                    use24h={use24h}
                 />
             );
         }

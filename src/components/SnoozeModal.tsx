@@ -5,6 +5,7 @@ import { playAlarmSound, stopSound } from "../utils/sounds";
 import { SteamUtils } from "../utils/steam";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { useEffect, useRef, useState } from "react";
+import { formatTime } from "../utils/time";
 
 // Backend callable for base64 sound data
 const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
@@ -16,6 +17,7 @@ interface SnoozeModalProps {
     sound?: string;
     volume?: number;
     defaultSnoozeDuration?: number;
+    use24h?: boolean;
     onSnooze: (minutes: number) => void;
     onDismiss: () => void;
     closeModal?: () => void;
@@ -60,12 +62,19 @@ const SnoozeButton = ({ label, onClick, isDefault }: SnoozeButtonProps) => {
     );
 };
 
-function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnoozeDuration, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
+function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnoozeDuration, use24h = true, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
     const [snoozeMinutes, setSnoozeMinutes] = useState(defaultSnoozeDuration ?? 5);
     const [canInteract, setCanInteract] = useState(false);
     const isGameRunning = useGameStatus();
+
+    // Current time for display
+    const getCurrentTime = () => {
+        const now = new Date();
+        return formatTime(now.getHours(), now.getMinutes(), use24h);
+    };
+    const [currentTime, setCurrentTime] = useState(getCurrentTime());
 
     // Play alarm sound on mount with volume, supporting custom sounds via base64
     useEffect(() => {
@@ -180,34 +189,32 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '16px 0'
+                padding: '4px 0'
             }}>
                 {/* Animated Bell */}
                 <div style={{
-                    fontSize: 48,
-                    marginBottom: 16,
+                    fontSize: 40,
+                    marginBottom: 20,
+                    marginTop: 10,
                     animation: 'shake 0.5s infinite'
                 }}>
                     {type === 'timer' ? '⏰' : '🔔'}
                 </div>
 
-                {/* Label */}
-                <div style={{
-                    fontSize: 20,
-                    fontWeight: 'bold',
-                    marginBottom: 20,
-                    textAlign: 'center'
-                }}>
-                    {label}
+
+
+                {/* Current time display */}
+                <div style={{ fontSize: 13, color: '#888888', marginBottom: 4 }}>
+                    {currentTime}
                 </div>
 
                 {/* Snooze Controls (for alarms only) */}
                 {type === 'alarm' && (
-                    <div style={{ marginBottom: 16, width: '100%' }}>
+                    <div style={{ marginBottom: 8, width: '100%' }}>
                         <div style={{
-                            fontSize: 13,
+                            fontSize: 12,
                             color: '#888888',
-                            marginBottom: 8,
+                            marginBottom: 4,
                             textAlign: 'center'
                         }}>
                             <FaBell style={{ marginRight: 6 }} />
@@ -220,7 +227,7 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: 8,
-                            marginBottom: 12
+                            marginBottom: 8
                         }}>
                             <Focusable
                                 onActivate={() => adjustSnooze(-5)}
@@ -301,8 +308,8 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                 <div style={{
                     display: 'flex',
                     gap: 20,
-                    marginTop: 8,
-                    fontSize: 12,
+                    marginTop: 4,
+                    fontSize: 11,
                     color: '#666666'
                 }}>
                     <span>

@@ -157,7 +157,7 @@ export function PomodoroPanel() {
             <PanelSection title="How it works">
                 <PanelSectionRow>
                     <Focusable style={{ width: '100%' }}>
-                        <div style={{ fontSize: 13, color: '#aaaaaa', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 13, color: '#aaaaaa', lineHeight: 1.5, paddingRight: 16 }}>
                             <p style={{ marginBottom: 8 }}>
                                 <strong>1.</strong> Focus for {settings.pomodoro_work_duration} minutes
                             </p>

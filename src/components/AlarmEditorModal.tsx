@@ -1,8 +1,9 @@
 import { ConfirmModal, Dropdown, DropdownOption, Focusable, showModal, SliderField, TextField } from "@decky/ui";
-import { FaBell, FaMusic, FaCalendarAlt, FaVolumeUp } from "react-icons/fa";
+import { FaBell, FaMusic, FaCalendarAlt, FaVolumeUp, FaClock } from "react-icons/fa";
 import { useEffect, useRef, useState } from "react";
 import type { Alarm, RecurringType, SoundFile } from "../types";
 import { playAlarmSound, stopSound } from "../utils/sounds";
+import { formatTime } from "../utils/time";
 
 // Days of the week - 0=Monday per backend convention
 const DAYS_OF_WEEK = [
@@ -31,6 +32,8 @@ interface AlarmEditorModalProps {
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
     closeModal?: () => void;
+    use24h?: boolean;
+    returnFocusId?: string;
 }
 
 export function showAlarmEditorModal(props: AlarmEditorModalProps) {
@@ -111,7 +114,7 @@ const DayToggle = ({ day, selected, onToggle }: DayToggleProps) => {
     );
 };
 
-function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModal }: AlarmEditorModalProps) {
+function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModal, use24h = true, returnFocusId }: AlarmEditorModalProps) {
     const isEditing = !!alarm;
 
     // Form state
@@ -159,6 +162,90 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
             stopSound(previewAudioRef.current);
         };
     }, [getSounds]);
+
+    // Restore focus on unmount
+    useEffect(() => {
+        return () => {
+            if (returnFocusId) {
+                // Small timeout to ensure modal is fully gone and generic focus logic has run
+                setTimeout(() => {
+                    const element = document.getElementById(returnFocusId);
+                    if (element) {
+                        element.focus();
+                        // Also try searching for the first focusable child if the ID container isn't focusable
+                        if (element.tabIndex === -1) {
+                            const focusableChild = element.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as HTMLElement;
+                            focusableChild?.focus();
+                        }
+                    }
+                }, 50);
+            }
+        };
+    }, [returnFocusId]);
+
+    // Current time state with live updates
+    const getCurrentTime = () => {
+        const now = new Date();
+        return { hours: now.getHours(), minutes: now.getMinutes() };
+    };
+    const [currentTime, setCurrentTime] = useState(getCurrentTime());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(getCurrentTime()), 30000); // Update every 30s
+        return () => clearInterval(timer);
+    }, []);
+
+    // Calculate when alarm will start based on selected time and recurrence
+    const getWillStartText = (): string => {
+        const now = new Date();
+        const todayDayOfWeek = (now.getDay() + 6) % 7; // Convert to Mon=0 format
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const alarmMinutes = hour * 60 + minute;
+
+        // Get the effective selected days
+        let effectiveDays: number[] = [];
+        if (quickRecurring === 'once') {
+            effectiveDays = [];
+        } else if (quickRecurring === 'daily') {
+            effectiveDays = [0, 1, 2, 3, 4, 5, 6];
+        } else if (quickRecurring === 'weekdays') {
+            effectiveDays = [0, 1, 2, 3, 4];
+        } else if (quickRecurring === 'weekends') {
+            effectiveDays = [5, 6];
+        } else {
+            effectiveDays = selectedDays;
+        }
+
+        const alarmTimeStr = formatTime(hour, minute, use24h);
+
+        // For 'once' alarms
+        if (effectiveDays.length === 0) {
+            if (alarmMinutes > nowMinutes) {
+                return `Will start today at ${alarmTimeStr}`;
+            }
+            return `Will start tomorrow at ${alarmTimeStr}`;
+        }
+
+        // For recurring alarms, find the next occurrence
+        for (let offset = 0; offset <= 7; offset++) {
+            const checkDay = (todayDayOfWeek + offset) % 7;
+            if (effectiveDays.includes(checkDay)) {
+                if (offset === 0 && alarmMinutes > nowMinutes) {
+                    return `Will start today at ${alarmTimeStr}`;
+                } else if (offset === 0) {
+                    // Same day but time passed - check next occurrence
+                    continue;
+                } else if (offset === 1) {
+                    return `Will start tomorrow at ${alarmTimeStr}`;
+                } else {
+                    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    return `Will start ${days[checkDay]} at ${alarmTimeStr}`;
+                }
+            }
+        }
+
+        return "Will start next week";
+    };
 
     const startRepeating = (action: () => void) => {
         action();
@@ -284,10 +371,16 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                         marginBottom: 8,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 6
+                        justifyContent: 'space-between'
                     }}>
-                        <FaBell size={12} />
-                        Alarm Time
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <FaBell size={12} />
+                            Alarm Time
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <FaClock size={10} />
+                            Now: {formatTime(currentTime.hours, currentTime.minutes, use24h)}
+                        </span>
                     </div>
                     <Focusable
                         flow-children="row"
@@ -350,6 +443,17 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                             />
                         </Focusable>
                     </Focusable>
+
+                    {/* Will start indicator */}
+                    <div style={{
+                        textAlign: 'center',
+                        marginTop: 8,
+                        fontSize: 13,
+                        color: '#44aa88',
+                        fontStyle: 'italic'
+                    }}>
+                        {getWillStartText()}
+                    </div>
                 </div>
 
                 {/* Label */}

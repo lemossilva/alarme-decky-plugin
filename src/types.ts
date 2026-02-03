@@ -103,6 +103,7 @@ export interface ReminderTriggeredEvent {
     sound: string;
     volume: number;
     subtle_mode: boolean;
+    time_format_24h?: boolean;
 }
 
 // Settings types
@@ -139,6 +140,7 @@ export interface TimerCompletedEvent {
     sound?: string;
     volume?: number;
     auto_suspend?: boolean;
+    time_format_24h?: boolean;
 }
 
 export interface AlarmTriggeredEvent {
@@ -149,6 +151,7 @@ export interface AlarmTriggeredEvent {
     volume?: number;
     snooze_duration?: number;
     auto_suspend?: boolean;
+    time_format_24h?: boolean;
 }
 
 export interface TimerTickEvent {

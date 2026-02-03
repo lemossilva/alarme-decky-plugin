@@ -3,6 +3,7 @@ import { FaRedo } from "react-icons/fa";
 import { useEffect, useRef, useState } from "react";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { useGameStatus } from "../hooks/useGameStatus";
+import { formatTime } from "../utils/time";
 import type { Reminder } from "../types";
 
 interface Props {
@@ -11,12 +12,20 @@ interface Props {
     onDisable?: () => void;
     sound?: string;
     volume?: number;
+    use24h?: boolean;
 }
 
-export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, volume }: Props) => {
+export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, volume, use24h = true }: Props) => {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [canInteract, setCanInteract] = useState(false);
     const isGameRunning = useGameStatus();
+
+    // Current time for display
+    const getCurrentTime = () => {
+        const now = new Date();
+        return formatTime(now.getHours(), now.getMinutes(), use24h);
+    };
+    const [currentTime, setCurrentTime] = useState(getCurrentTime());
 
     useEffect(() => {
         let mounted = true;
@@ -77,6 +86,11 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
             }}>
                 <div style={{ animation: 'bounce 2s infinite' }}>
                     <FaRedo size={48} color="#88aaff" />
+                </div>
+
+                {/* Current time display */}
+                <div style={{ fontSize: 14, color: '#888888', marginBottom: -8 }}>
+                    {currentTime}
                 </div>
 
                 <div style={{

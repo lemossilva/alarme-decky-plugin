@@ -8,6 +8,7 @@ import {
 import { FaBell, FaBellSlash, FaPlus, FaChevronRight, FaSync } from "react-icons/fa";
 import { useState } from "react";
 import { useReminders } from "../hooks/useReminders";
+import { useSettings } from "../hooks/useSettings";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { showReminderEditorModal } from "./ReminderEditorModal";
 import type { Reminder } from "../types";
@@ -154,6 +155,8 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
 
 export function ReminderPanel() {
     const { reminders, createReminder, updateReminder, deleteReminder, toggleReminder, getSounds } = useReminders();
+    const { settings } = useSettings();
+    const use24h = settings.time_format_24h;
     const gameRunning = useGameStatus();
 
     const handleCreateReminder = () => {
@@ -171,7 +174,9 @@ export function ReminderPanel() {
             ) => {
                 await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode);
             },
-            getSounds
+            getSounds,
+            use24h,
+            returnFocusId: "create-reminder-btn"
         });
     };
 
@@ -194,7 +199,9 @@ export function ReminderPanel() {
             onDelete: async () => {
                 await deleteReminder(reminder.id);
             },
-            getSounds
+            getSounds,
+            use24h,
+            returnFocusId: `reminder-item-${reminder.id}`
         });
     };
 
@@ -204,13 +211,17 @@ export function ReminderPanel() {
             {reminders.length > 0 && (
                 <PanelSection title={`Reminders (${reminders.filter(r => r.enabled).length} active)`}>
                     {reminders.map(reminder => (
-                        <ReminderItem
-                            key={reminder.id}
-                            reminder={reminder}
-                            onToggle={(enabled) => toggleReminder(reminder.id, enabled)}
-                            onEdit={() => handleEditReminder(reminder)}
-                            gameRunning={gameRunning}
-                        />
+                        <div key={reminder.id} id={`reminder-item-${reminder.id}`}>
+                            <ReminderItem
+                                reminder={reminder}
+                                onToggle={(enabled) => toggleReminder(reminder.id, enabled)}
+                                onEdit={() => {
+                                    handleEditReminder(reminder);
+                                    // Focus restoration handled by passing returnFocusId to modal
+                                }}
+                                gameRunning={gameRunning}
+                            />
+                        </div>
                     ))}
                 </PanelSection>
             )}
@@ -218,13 +229,15 @@ export function ReminderPanel() {
             {/* Create New Reminder Button */}
             <PanelSection title="New Reminder">
                 <PanelSectionRow>
-                    <ButtonItem
-                        layout="below"
-                        onClick={handleCreateReminder}
-                    >
-                        <FaPlus size={12} style={{ marginRight: 8 }} />
-                        Create New Reminder
-                    </ButtonItem>
+                    <div id="create-reminder-btn">
+                        <ButtonItem
+                            layout="below"
+                            onClick={handleCreateReminder}
+                        >
+                            <FaPlus size={12} style={{ marginRight: 8 }} />
+                            Create New Reminder
+                        </ButtonItem>
+                    </div>
                 </PanelSectionRow>
             </PanelSection>
         </div>

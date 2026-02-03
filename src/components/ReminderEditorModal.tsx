@@ -12,6 +12,7 @@ import { FaMusic, FaVolumeUp, FaClock, FaGamepad, FaRedo, FaPlay, FaPause, FaCal
 import { useRef, useEffect, useState } from "react";
 
 import { playAlarmSound, stopSound } from "../utils/sounds";
+import { formatTime } from "../utils/time";
 import type { Reminder, SoundFile } from "../types";
 
 // Frequency options (in minutes)
@@ -64,6 +65,8 @@ interface ReminderEditorModalProps {
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
     closeModal?: () => void;
+    use24h?: boolean;
+    returnFocusId?: string;
 }
 
 export function showReminderEditorModal(props: ReminderEditorModalProps) {
@@ -77,7 +80,9 @@ function ReminderEditorModalContent({
     onSave,
     onDelete,
     getSounds,
-    closeModal
+    closeModal,
+    use24h = true,
+    returnFocusId
 }: ReminderEditorModalProps) {
     const isEditing = !!reminder;
 
@@ -142,6 +147,26 @@ function ReminderEditorModalContent({
             setCustomRecurrence(true);
         }
     }, [getSounds, reminder]);
+
+    // Restore focus on unmount
+    useEffect(() => {
+        return () => {
+            if (returnFocusId) {
+                // Small timeout to ensure modal is fully gone and generic focus logic has run
+                setTimeout(() => {
+                    const element = document.getElementById(returnFocusId);
+                    if (element) {
+                        element.focus();
+                        // Also try searching for the first focusable child if the ID container isn't focusable
+                        if (element.tabIndex === -1) {
+                            const focusableChild = element.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as HTMLElement;
+                            focusableChild?.focus();
+                        }
+                    }
+                }, 50);
+            }
+        };
+    }, [returnFocusId]);
 
     // Cleanup sound on unmount
     useEffect(() => {
@@ -505,12 +530,32 @@ function ReminderEditorModalContent({
                                     </div>
                                 </div>
 
-                                <div style={{ textAlign: 'center', marginTop: 4, fontSize: 12, color: '#888' }}>
+                                <div style={{ textAlign: 'center', marginTop: 4, fontSize: 12, color: '#44aa88', fontStyle: 'italic' }}>
                                     {(() => {
                                         const now = new Date();
-                                        const target = new Date();
-                                        target.setHours(startHour, startMinute, 0, 0);
-                                        return target.getTime() < now.getTime() - 60000 ? "Will start tomorrow" : "Will start today";
+                                        const startTime = new Date();
+                                        startTime.setHours(startHour, startMinute, 0, 0);
+
+                                        // If start time is in the past, it means tomorrow
+                                        if (startTime.getTime() < now.getTime() - 60000) {
+                                            startTime.setDate(startTime.getDate() + 1);
+                                        }
+
+                                        // First trigger is start_time + frequency
+                                        const firstTrigger = new Date(startTime.getTime() + frequencyMinutes * 60000);
+                                        const triggerTimeStr = formatTime(firstTrigger.getHours(), firstTrigger.getMinutes(), use24h);
+
+                                        // Check if first trigger is today or tomorrow
+                                        const today = new Date();
+                                        const tomorrow = new Date(today);
+                                        tomorrow.setDate(today.getDate() + 1);
+
+                                        if (firstTrigger.toDateString() === today.toDateString()) {
+                                            return `First reminder today at ${triggerTimeStr}`;
+                                        } else if (firstTrigger.toDateString() === tomorrow.toDateString()) {
+                                            return `First reminder tomorrow at ${triggerTimeStr}`;
+                                        }
+                                        return `First reminder at ${triggerTimeStr}`;
                                     })()}
                                 </div>
                             </>
@@ -576,7 +621,7 @@ function ReminderEditorModalContent({
                         value={volume}
                         min={0}
                         max={100}
-                        step={10}
+                        step={5}
                         onChange={setVolume}
                         label=""
                         showValue={false}

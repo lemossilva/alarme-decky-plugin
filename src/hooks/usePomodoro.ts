@@ -46,14 +46,16 @@ export function usePomodoro() {
     const stopPomodoro = useCallback(async () => {
         try {
             await stopPomodoroCall();
-            setState({
+            // Only reset timer-related fields, preserve stats
+            setState(prev => ({
+                ...prev,
                 active: false,
                 is_break: false,
                 current_session: 0,
                 end_time: null,
                 duration: 0,
                 remaining: 0
-            });
+            }));
         } catch (e) {
             console.error('Failed to stop Pomodoro:', e);
         }

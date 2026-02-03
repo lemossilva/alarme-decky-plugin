@@ -146,9 +146,11 @@ export function AlarmPanel() {
             onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
                 await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend);
             },
-            getSounds
+            getSounds,
+            use24h,
+            returnFocusId: "create-alarm-btn"
         });
-    }, [createAlarm, getSounds]);
+    }, [createAlarm, getSounds, use24h]);
 
     const handleEditAlarm = useCallback((alarm: Alarm) => {
         showAlarmEditorModal({
@@ -159,9 +161,12 @@ export function AlarmPanel() {
             onDelete: async () => {
                 await deleteAlarm(alarm.id);
             },
-            getSounds
+            getSounds,
+            use24h,
+            returnFocusId: `alarm-item-${alarm.id}`
         });
-    }, [updateAlarm, deleteAlarm, getSounds]);
+
+    }, [updateAlarm, deleteAlarm, getSounds, use24h]);
 
     return (
         <div>
@@ -169,13 +174,17 @@ export function AlarmPanel() {
             {alarms.length > 0 && (
                 <PanelSection title={`Alarms (${alarms.filter(a => a.enabled).length} active)`}>
                     {alarms.map(alarm => (
-                        <AlarmItem
-                            key={alarm.id}
-                            alarm={alarm}
-                            use24h={use24h}
-                            onToggle={toggleAlarm}
-                            onEdit={handleEditAlarm}
-                        />
+                        <div key={alarm.id} id={`alarm-item-${alarm.id}`}>
+                            <AlarmItem
+                                alarm={alarm}
+                                use24h={use24h}
+                                onToggle={toggleAlarm}
+                                onEdit={() => {
+                                    handleEditAlarm(alarm);
+                                    // Focus restoration handled by passing returnFocusId to modal
+                                }}
+                            />
+                        </div>
                     ))}
                 </PanelSection>
             )}
@@ -183,13 +192,15 @@ export function AlarmPanel() {
             {/* Create New Alarm Button */}
             <PanelSection title="New Alarm">
                 <PanelSectionRow>
-                    <ButtonItem
-                        layout="below"
-                        onClick={handleCreateAlarm}
-                    >
-                        <FaPlus size={12} style={{ marginRight: 8 }} />
-                        Create New Alarm
-                    </ButtonItem>
+                    <div id="create-alarm-btn">
+                        <ButtonItem
+                            layout="below"
+                            onClick={handleCreateAlarm}
+                        >
+                            <FaPlus size={12} style={{ marginRight: 8 }} />
+                            Create New Alarm
+                        </ButtonItem>
+                    </div>
                 </PanelSectionRow>
             </PanelSection>
         </div>

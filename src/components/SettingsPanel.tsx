@@ -440,7 +440,7 @@ export function SettingsPanel() {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.2.0-beta-3
+                                <strong>AlarMe</strong> v1.2.1
 
                             </p>
                             <p>

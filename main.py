@@ -168,7 +168,8 @@ class Plugin:
                         "subtle": subtle,
                         "sound": timer_sound,
                         "volume": timer_volume,
-                        "auto_suspend": timer_auto_suspend
+                        "auto_suspend": timer_auto_suspend,
+                        "time_format_24h": user_settings.get("time_format_24h", True)
                     })
                     decky.logger.info(f"AlarMe: Timer {timer_id} completed")
                     return
@@ -242,11 +243,21 @@ class Plugin:
         """
         alarm_id = str(uuid.uuid4())[:8]
         
+        if not label:
+            user_settings = await self._get_user_settings()
+            use24h = user_settings.get("time_format_24h", True)
+            if use24h:
+                label = f"Alarm {hour:02d}:{minute:02d}"
+            else:
+                period = "PM" if hour >= 12 else "AM"
+                display_hour = hour % 12 or 12
+                label = f"Alarm {display_hour}:{minute:02d} {period}"
+
         alarm_data = {
             "id": alarm_id,
             "hour": hour,
             "minute": minute,
-            "label": label or f"Alarm {hour:02d}:{minute:02d}",
+            "label": label,
             "recurring": recurring,
             "enabled": True,
             "created_at": time.time(),
@@ -302,7 +313,17 @@ class Plugin:
             alarm = alarms[alarm_id]
             alarm["hour"] = hour
             alarm["minute"] = minute
-            alarm["label"] = label or f"Alarm {hour:02d}:{minute:02d}"
+            if not label:
+                user_settings = await self._get_user_settings()
+                use24h = user_settings.get("time_format_24h", True)
+                if use24h:
+                    label = f"Alarm {hour:02d}:{minute:02d}"
+                else:
+                    period = "PM" if hour >= 12 else "AM"
+                    display_hour = hour % 12 or 12
+                    label = f"Alarm {display_hour}:{minute:02d} {period}"
+            
+            alarm["label"] = label
             alarm["recurring"] = recurring
             alarm["sound"] = sound
             alarm["volume"] = volume
@@ -790,7 +811,8 @@ class Plugin:
                                     "sound": alarm_sound,
                                     "volume": alarm_volume,
                                     "snooze_duration": snooze_duration,
-                                    "auto_suspend": auto_suspend
+                                    "auto_suspend": auto_suspend,
+                                    "time_format_24h": user_settings.get("time_format_24h", True)
                                 })
                                 
                                 # Handle one-time alarms - disable them
@@ -1625,7 +1647,8 @@ class Plugin:
                             "reminder": reminder,
                             "sound": reminder.get("sound", "alarm.mp3"),
                             "volume": reminder.get("volume", 100),
-                            "subtle_mode": reminder.get("subtle_mode", False)
+                            "subtle_mode": reminder.get("subtle_mode", False),
+                            "time_format_24h": user_settings.get("time_format_24h", True)
                         })
                         
                         # Update for next trigger
@@ -1635,6 +1658,10 @@ class Plugin:
                         # Decrement remaining if not infinite
                         if triggers_remaining > 0:
                             reminder["triggers_remaining"] = triggers_remaining - 1
+                            # Auto-disable when exhausted
+                            if reminder["triggers_remaining"] == 0:
+                                reminder["enabled"] = False
+                                decky.logger.info(f"AlarMe: Reminder {reminder_id} exhausted, auto-disabled")
                         
                         modified = True
                 

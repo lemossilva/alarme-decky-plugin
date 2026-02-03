@@ -127,22 +127,48 @@ export function PomodoroStatsPanel({
     const WeeklyChart = () => {
         const data = getWeekData();
         const maxVal = Math.max(...data.map(d => d.value), dailyGoalHours * 3600);
-        const chartHeight = 60;
+        const chartHeight = 70; // Increased to accommodate labels
         const barWidth = 28;
         const gap = 8;
+        const labelOffset = 14; // Space for data labels above bars
+
+        // Format value for display (compact format)
+        const formatLabel = (seconds: number): string => {
+            if (seconds === 0) return '';
+            const hours = seconds / 3600;
+            if (hours >= 1) {
+                return hours % 1 === 0 ? `${hours}h` : `${hours.toFixed(1)}h`;
+            }
+            const mins = Math.round(seconds / 60);
+            return `${mins}m`;
+        };
 
         return (
-            <div style={{ padding: '8px 0' }}>
+            <div style={{ padding: '8px 0', paddingRight: 16 }}>
                 <svg width="100%" height={chartHeight + 20} viewBox={`0 0 ${data.length * (barWidth + gap)} ${chartHeight + 20}`}>
                     {data.map((d, i) => {
-                        const barHeight = maxVal > 0 ? (d.value / maxVal) * chartHeight : 0;
+                        const barHeight = maxVal > 0 ? (d.value / maxVal) * (chartHeight - labelOffset) : 0;
                         const isToday = i === data.length - 1;
+                        const labelText = formatLabel(d.value);
                         return (
                             <g key={i} transform={`translate(${i * (barWidth + gap)}, 0)`}>
+                                {/* Data label above bar */}
+                                {labelText && (
+                                    <text
+                                        x={barWidth / 2}
+                                        y={chartHeight - labelOffset - barHeight - 2}
+                                        textAnchor="middle"
+                                        fontSize={9}
+                                        fill={isToday ? '#4488aa' : '#44aa88'}
+                                        fontWeight="bold"
+                                    >
+                                        {labelText}
+                                    </text>
+                                )}
                                 {/* Bar */}
                                 <rect
                                     x={0}
-                                    y={chartHeight - barHeight}
+                                    y={chartHeight - labelOffset - barHeight}
                                     width={barWidth}
                                     height={Math.max(barHeight, 2)}
                                     fill={isToday ? '#4488aa' : '#44aa88'}
@@ -151,7 +177,7 @@ export function PomodoroStatsPanel({
                                 {/* Day label */}
                                 <text
                                     x={barWidth / 2}
-                                    y={chartHeight + 14}
+                                    y={chartHeight + 6}
                                     textAnchor="middle"
                                     fontSize={10}
                                     fill={isToday ? '#ffffff' : '#888888'}
@@ -174,7 +200,7 @@ export function PomodoroStatsPanel({
         const goalMet = todayFocus >= goalSeconds;
 
         return (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 16, marginRight: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span style={{ fontSize: 12, color: '#aaaaaa' }}>🎯 Daily Goal</span>
                     <span style={{ fontSize: 12, color: goalMet ? '#44aa88' : '#ffffff' }}>
