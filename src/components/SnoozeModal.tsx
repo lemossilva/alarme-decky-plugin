@@ -74,7 +74,7 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
         const now = new Date();
         return formatTime(now.getHours(), now.getMinutes(), use24h);
     };
-    const [currentTime, setCurrentTime] = useState(getCurrentTime());
+    const [currentTime] = useState(getCurrentTime());
 
     // Play alarm sound on mount with volume, supporting custom sounds via base64
     useEffect(() => {

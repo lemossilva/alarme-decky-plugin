@@ -25,7 +25,7 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
         const now = new Date();
         return formatTime(now.getHours(), now.getMinutes(), use24h);
     };
-    const [currentTime, setCurrentTime] = useState(getCurrentTime());
+    const [currentTime] = useState(getCurrentTime());
 
     useEffect(() => {
         let mounted = true;

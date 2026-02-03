@@ -13,7 +13,7 @@ import {
 } from "@decky/api";
 import { showModal } from "@decky/ui";
 import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo } from "react-icons/fa";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Global declaration for SteamClient
 declare const SteamClient: any;
@@ -27,6 +27,8 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { showSnoozeModal } from "./components/SnoozeModal";
 import { PomodoroNotification } from "./components/PomodoroNotification";
 import { ReminderNotification } from "./components/ReminderNotification";
+import showMissedReportModal from "./components/MissedReportModal";
+import { MissedItem } from "./types";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
@@ -44,6 +46,7 @@ import type {
 const snoozeAlarm = callable<[alarm_id: string, minutes: number], boolean>('snooze_alarm');
 const setGameRunning = callable<[is_running: boolean], void>('set_game_running');
 const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean>('toggle_reminder');
+const getMissedItems = callable<[], MissedItem[]>('get_missed_items');
 
 // Tab configuration
 interface Tab {
@@ -100,9 +103,108 @@ const TabButton = ({ tab, active, onClick }: TabButtonProps) => {
 // Main Content Component
 function Content() {
     const [activeTab, setActiveTab] = useState<TabId>('timers');
+    const [missedItems, setMissedItems] = useState<MissedItem[]>([]);
+    // Persistent dismissal logic
+    const [lastDismissed, setLastDismissed] = useState<number>(() => {
+        return parseInt(localStorage.getItem('alarme_missed_dismissed_at') || '0');
+    });
+
+    const latestMissedTime = missedItems.length > 0
+        ? Math.max(...missedItems.map(i => i.missed_at))
+        : 0;
+
+    const showMissedAlerts = missedItems.length > 0 && latestMissedTime > lastDismissed;
+
+    const handleHideReport = () => {
+        const now = Date.now() / 1000; // UNIX timestamp in seconds
+        setLastDismissed(now);
+        localStorage.setItem('alarme_missed_dismissed_at', now.toString());
+    };
+
+    const fetchMissed = async () => {
+        try {
+            const items = await getMissedItems();
+            if (items) {
+                setMissedItems(items);
+            }
+        } catch (e) {
+            console.error("Failed to fetch missed items", e);
+        }
+    };
+
+    useEffect(() => {
+        fetchMissed();
+
+        const handleMissedUpdate = (items: MissedItem[]) => {
+            setMissedItems(items || []);
+            // If new items arrive (and they are newer than dismissal), they will naturally show up
+            // because latestMissedTime > lastDismissed
+        };
+
+        addEventListener('alarme_missed_items_updated', handleMissedUpdate);
+        return () => { removeEventListener('alarme_missed_items_updated', handleMissedUpdate); };
+    }, []);
 
     return (
-        <div id="alarme-container">
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* Missed Alerts Notification Area */}
+            {showMissedAlerts && (
+                <PanelSection title="Missed Alerts">
+                    <Focusable
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px 8px 4px' }}
+                        flow-children="horizontal"
+                    >
+                        {/* Main Report Button */}
+                        <Focusable
+                            onClick={() => showMissedReportModal(missedItems)}
+                            style={{
+                                flex: 1,
+                                padding: '12px 16px',
+                                backgroundColor: '#1a1a1a',
+                                border: '2px solid #aa4444',
+                                color: '#eeeeee',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                fontWeight: '500',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ color: '#ff6666', fontSize: '1.2em' }}><FaBell /></div>
+                                <span style={{ fontSize: '1em', fontWeight: 'bold' }}>
+                                    {missedItems.length} Missed Alert{missedItems.length !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            <span style={{ fontSize: 13, opacity: 0.9, color: '#ffaaaa', fontWeight: '600' }}>View Report</span>
+                        </Focusable>
+
+                        {/* Hide Button */}
+                        <Focusable
+                            onClick={handleHideReport}
+                            style={{
+                                width: 48,
+                                height: 48,
+                                padding: 0,
+                                backgroundColor: '#2a2a2a',
+                                color: '#aaaaaa',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '1px solid transparent',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}
+                            title="Hide until new alert"
+                        >
+                            <span style={{ fontSize: 20, fontWeight: 'bold' }}>✕</span>
+                        </Focusable>
+                    </Focusable>
+                </PanelSection>
+            )}
+
             {/* Tab Navigation */}
             <PanelSection>
                 <PanelSectionRow>
@@ -273,6 +375,14 @@ export default definePlugin(() => {
     addEventListener('alarme_pomodoro_work_ended', handlePomodoroWorkEnded);
     addEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
     addEventListener('alarme_reminder_triggered', handleReminderTriggered);
+
+    // Missed items toast
+    addEventListener('alarme_missed_items_toast', (count: number) => {
+        toaster.toast({
+            title: "AlarMe",
+            body: `You missed ${count} alert${count !== 1 ? 's' : ''} while away.`
+        });
+    });
 
     // Game lifecycle listeners
     // Using SteamGameLifetimeNotification or similar

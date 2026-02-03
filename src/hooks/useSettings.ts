@@ -26,7 +26,14 @@ const DEFAULT_SETTINGS: UserSettings = {
     pomodoro_long_break_duration: 15,
     pomodoro_sessions_until_long_break: 4,
     pomodoro_daily_goal_enabled: false,
-    pomodoro_daily_goal: 4  // 4 hours default
+    pomodoro_daily_goal: 4,  // 4 hours default
+    // Missed Alerts settings
+    missed_alerts_enabled: true,
+    missed_alerts_mode: 'report',
+    missed_alerts_window: 24,
+    // Suspend Behavior
+    reminder_suspend_behavior: 'continue', // 'continue' = missed alerts, 'pause' = shift schedule
+    pomodoro_suspend_behavior: 'continue'  // 'continue' = missed session, 'pause' = shift session
 };
 
 export function useSettings() {

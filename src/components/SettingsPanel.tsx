@@ -351,6 +351,105 @@ export function SettingsPanel() {
                 </PanelSectionRow>
             </PanelSection>
 
+            {/* Missed Alerts Settings */}
+            <PanelSection title="Missed Alerts Settings">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaStopwatch />}
+                        label="Enable Detection"
+                        description="Notify about alarms and timers missed while suspended"
+                        checked={settings.missed_alerts_enabled ?? true}
+                        onChange={(value) => updateSetting('missed_alerts_enabled', value)}
+                    />
+                </PanelSectionRow>
+
+                {settings.missed_alerts_enabled && (
+                    <>
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span>Notification Mode</span>
+                                    <span style={{ fontSize: 12, color: '#888' }}>How missed alerts are presented</span>
+                                </div>
+                                <div style={{ width: '200px' }}>
+                                    <Dropdown
+                                        rgOptions={[
+                                            { data: 'report', label: 'Resume Modal (Report)' },
+                                            { data: 'individual', label: 'Individual Notifications' }
+                                        ]}
+                                        selectedOption={[
+                                            { data: 'report', label: 'Resume Modal (Report)' },
+                                            { data: 'individual', label: 'Individual Notifications' }
+                                        ].find(o => o.data === (settings.missed_alerts_mode || 'report'))}
+                                        onChange={(option) => updateSetting('missed_alerts_mode', option.data as any)}
+                                        menuLabel="Notification Mode"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <SliderField
+                                label="Report Time Window"
+                                description={`${settings.missed_alerts_window ?? 24} hours`}
+                                value={settings.missed_alerts_window ?? 24}
+                                min={1}
+                                max={72}
+                                step={1}
+                                onChange={(value) => updateSetting('missed_alerts_window', value)}
+                                icon={<FaClock />}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span>Reminders while Suspended</span>
+                                    <span style={{ fontSize: 12, color: '#888' }}>Behavior when device is sleeping</span>
+                                </div>
+                                <div style={{ width: '200px' }}>
+                                    <Dropdown
+                                        rgOptions={[
+                                            { data: 'continue', label: 'Continue (Report Missed)' },
+                                            { data: 'pause', label: 'Pause (Shift Schedule)' }
+                                        ]}
+                                        selectedOption={[
+                                            { data: 'continue', label: 'Continue (Report Missed)' },
+                                            { data: 'pause', label: 'Pause (Shift Schedule)' }
+                                        ].find(o => o.data === (settings.reminder_suspend_behavior || 'continue'))}
+                                        onChange={(option) => updateSetting('reminder_suspend_behavior', option.data as any)}
+                                        menuLabel="Reminder Behavior"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span>Pomodoro while Suspended</span>
+                                    <span style={{ fontSize: 12, color: '#888' }}>Behavior when device is sleeping</span>
+                                </div>
+                                <div style={{ width: '200px' }}>
+                                    <Dropdown
+                                        rgOptions={[
+                                            { data: 'continue', label: 'Continue (Report Missed)' },
+                                            { data: 'pause', label: 'Pause (Shift Session)' }
+                                        ]}
+                                        selectedOption={[
+                                            { data: 'continue', label: 'Continue (Report Missed)' },
+                                            { data: 'pause', label: 'Pause (Shift Session)' }
+                                        ].find(o => o.data === (settings.pomodoro_suspend_behavior || 'continue'))}
+                                        onChange={(option) => updateSetting('pomodoro_suspend_behavior', option.data as any)}
+                                        menuLabel="Pomodoro Behavior"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                    </>
+                )}
+            </PanelSection>
+
             {/* Display Settings */}
             <PanelSection title="Display">
                 <PanelSectionRow>
@@ -440,7 +539,7 @@ export function SettingsPanel() {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.2.1
+                                <strong>AlarMe</strong> v1.3.0
 
                             </p>
                             <p>

@@ -125,11 +125,27 @@ export interface UserSettings {
     pomodoro_sessions_until_long_break: number;
     pomodoro_daily_goal_enabled: boolean;
     pomodoro_daily_goal: number;  // hours per day goal
+    // Missed Alerts Global Settings
+    missed_alerts_enabled: boolean;
+    missed_alerts_mode: 'toast' | 'report';
+    missed_alerts_window: number; // hours to look back
+    // Suspend Behavior
+    reminder_suspend_behavior?: 'continue' | 'pause';
+    pomodoro_suspend_behavior?: 'continue' | 'pause';
     // Legacy/deprecated (kept for migration)
     subtle_mode?: boolean;
     auto_suspend?: boolean;
     alarm_volume?: number;
     alarm_sound?: string;
+}
+
+export interface MissedItem {
+    id: string;
+    type: 'alarm' | 'timer' | 'reminder' | 'pomodoro';
+    label: string;
+    due_time: number;
+    missed_at: number;
+    details?: string; // Richer details about what was missed
 }
 
 // Event payload types
