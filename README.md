@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.3.1-green)
+![Version](https://img.shields.io/badge/release-v1.4.0-green)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
 ![AlarMe Promo](assets/promo.png)
@@ -60,6 +60,11 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **24/12 hour format** - Choose your preferred time display
 - **Global volume control** - Per-feature volume settings
 
+## Screenshots
+
+<details>
+<summary>📸 Click to view screenshots</summary>
+
 ### 🔔 Alarms & Reminders
 ![Alarm List](assets/screenshots/alarm_list.png)
 *Manage multiple alarms with ease.*
@@ -92,6 +97,8 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 ### 🚨 Missed Alerts
 ![Missed Report](assets/screenshots/missed_report.png)
 *See what you missed while your Deck was asleep.*
+
+</details>
 
 ## Installation
 
