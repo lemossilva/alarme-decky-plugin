@@ -75,6 +75,9 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 ![Pomodoro Session](assets/screenshots/pomodoro.png)
 *Stay focused with the built-in Pomodoro timer.*
 
+![Pomodoro Customization](assets/screenshots/pomodoro_settings.png)
+*Customize your pomodoro however you like. Daily focus time and stats available*
+
 ### 📝 Easy Configuration
 ![Alarm Editor](assets/screenshots/alarm_editor.png)
 *Detailed settings for every alarm.*
