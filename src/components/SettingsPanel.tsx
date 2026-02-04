@@ -136,6 +136,96 @@ const MenuButton = ({
     );
 };
 
+const BinarySelector = ({
+    label,
+    description,
+    leftOption,
+    rightOption,
+    value,
+    onChange,
+    icon
+}: {
+    label: string,
+    description?: string,
+    leftOption: { value: any, label: string },
+    rightOption: { value: any, label: string },
+    value: any,
+    onChange: (value: any) => void,
+    icon?: React.ReactNode
+}) => {
+    const [focusedLeft, setFocusedLeft] = useState(false);
+    const [focusedRight, setFocusedRight] = useState(false);
+
+    return (
+        <PanelSectionRow>
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                width: '100%',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: '1 1 auto', minWidth: '150px' }}>
+                    {icon && <div style={{ color: '#888', display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</div>}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 500 }}>{label}</span>
+                        {description && <span style={{ fontSize: 12, color: '#888' }}>{description}</span>}
+                    </div>
+                </div>
+
+                <div style={{
+                    display: 'flex',
+                    backgroundColor: '#1a1f2c',
+                    borderRadius: 20,
+                    padding: 4,
+                    gap: 4,
+                    flex: '0 0 auto'
+                }}>
+                    <Focusable
+                        onActivate={() => onChange(leftOption.value)}
+                        onFocus={() => setFocusedLeft(true)}
+                        onBlur={() => setFocusedLeft(false)}
+                        style={{
+                            padding: '6px 10px',
+                            borderRadius: 16,
+                            backgroundColor: value === leftOption.value ? '#1a9fff' : (focusedLeft ? '#ffffff22' : 'transparent'),
+                            color: value === leftOption.value ? 'white' : '#888',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            textAlign: 'center',
+                            minWidth: 60,
+                            transition: 'all 0.2s ease',
+                            border: focusedLeft ? '1px solid white' : '1px solid transparent'
+                        }}
+                    >
+                        {leftOption.label}
+                    </Focusable>
+                    <Focusable
+                        onActivate={() => onChange(rightOption.value)}
+                        onFocus={() => setFocusedRight(true)}
+                        onBlur={() => setFocusedRight(false)}
+                        style={{
+                            padding: '6px 10px',
+                            borderRadius: 16,
+                            backgroundColor: value === rightOption.value ? '#1a9fff' : (focusedRight ? '#ffffff22' : 'transparent'),
+                            color: value === rightOption.value ? 'white' : '#888',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            textAlign: 'center',
+                            minWidth: 60,
+                            transition: 'all 0.2s ease',
+                            border: focusedRight ? '1px solid white' : '1px solid transparent'
+                        }}
+                    >
+                        {rightOption.label}
+                    </Focusable>
+                </div>
+            </div>
+        </PanelSectionRow>
+    );
+};
+
 export function SettingsPanel() {
     const { settings, updateSetting } = useSettings();
     const { getSounds, importCustomSounds, playCustomSound } = useAlarms();
@@ -365,28 +455,7 @@ export function SettingsPanel() {
 
                 {settings.missed_alerts_enabled && (
                     <>
-                        <PanelSectionRow>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span>Notification Mode</span>
-                                    <span style={{ fontSize: 12, color: '#888' }}>How missed alerts are presented</span>
-                                </div>
-                                <div style={{ width: '200px' }}>
-                                    <Dropdown
-                                        rgOptions={[
-                                            { data: 'report', label: 'Resume Modal (Report)' },
-                                            { data: 'individual', label: 'Individual Notifications' }
-                                        ]}
-                                        selectedOption={[
-                                            { data: 'report', label: 'Resume Modal (Report)' },
-                                            { data: 'individual', label: 'Individual Notifications' }
-                                        ].find(o => o.data === (settings.missed_alerts_mode || 'report'))}
-                                        onChange={(option) => updateSetting('missed_alerts_mode', option.data as any)}
-                                        menuLabel="Notification Mode"
-                                    />
-                                </div>
-                            </div>
-                        </PanelSectionRow>
+
 
                         <PanelSectionRow>
                             <SliderField
@@ -401,51 +470,25 @@ export function SettingsPanel() {
                             />
                         </PanelSectionRow>
 
-                        <PanelSectionRow>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span>Reminders while Suspended</span>
-                                    <span style={{ fontSize: 12, color: '#888' }}>Behavior when device is sleeping</span>
-                                </div>
-                                <div style={{ width: '200px' }}>
-                                    <Dropdown
-                                        rgOptions={[
-                                            { data: 'continue', label: 'Continue (Report Missed)' },
-                                            { data: 'pause', label: 'Pause (Shift Schedule)' }
-                                        ]}
-                                        selectedOption={[
-                                            { data: 'continue', label: 'Continue (Report Missed)' },
-                                            { data: 'pause', label: 'Pause (Shift Schedule)' }
-                                        ].find(o => o.data === (settings.reminder_suspend_behavior || 'continue'))}
-                                        onChange={(option) => updateSetting('reminder_suspend_behavior', option.data as any)}
-                                        menuLabel="Reminder Behavior"
-                                    />
-                                </div>
-                            </div>
-                        </PanelSectionRow>
+                        <BinarySelector
+                            label="Reminders while Suspended"
+                            description="Behavior when device is sleeping"
+                            leftOption={{ value: 'pause', label: 'Shift (Pause)' }}
+                            rightOption={{ value: 'continue', label: 'Miss (Continue)' }}
+                            value={settings.reminder_suspend_behavior || 'continue'}
+                            onChange={(val) => updateSetting('reminder_suspend_behavior', val)}
+                            icon={<FaStopwatch />}
+                        />
 
-                        <PanelSectionRow>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span>Pomodoro while Suspended</span>
-                                    <span style={{ fontSize: 12, color: '#888' }}>Behavior when device is sleeping</span>
-                                </div>
-                                <div style={{ width: '200px' }}>
-                                    <Dropdown
-                                        rgOptions={[
-                                            { data: 'continue', label: 'Continue (Report Missed)' },
-                                            { data: 'pause', label: 'Pause (Shift Session)' }
-                                        ]}
-                                        selectedOption={[
-                                            { data: 'continue', label: 'Continue (Report Missed)' },
-                                            { data: 'pause', label: 'Pause (Shift Session)' }
-                                        ].find(o => o.data === (settings.pomodoro_suspend_behavior || 'continue'))}
-                                        onChange={(option) => updateSetting('pomodoro_suspend_behavior', option.data as any)}
-                                        menuLabel="Pomodoro Behavior"
-                                    />
-                                </div>
-                            </div>
-                        </PanelSectionRow>
+                        <BinarySelector
+                            label="Pomodoro while Suspended"
+                            description="Behavior when device is sleeping"
+                            leftOption={{ value: 'pause', label: 'Shift (Pause)' }}
+                            rightOption={{ value: 'continue', label: 'Miss (Continue)' }}
+                            value={settings.pomodoro_suspend_behavior || 'continue'}
+                            onChange={(val) => updateSetting('pomodoro_suspend_behavior', val)}
+                            icon={<FaBrain />}
+                        />
                     </>
                 )}
             </PanelSection>
@@ -539,7 +582,7 @@ export function SettingsPanel() {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.3.0
+                                <strong>AlarMe</strong> v1.3.1
 
                             </p>
                             <p>

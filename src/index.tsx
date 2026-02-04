@@ -12,7 +12,7 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes } from "react-icons/fa";
 import { useState, useEffect } from "react";
 
 // Global declaration for SteamClient
@@ -121,24 +121,22 @@ function Content() {
         localStorage.setItem('alarme_missed_dismissed_at', now.toString());
     };
 
-    const fetchMissed = async () => {
-        try {
-            const items = await getMissedItems();
-            if (items) {
-                setMissedItems(items);
-            }
-        } catch (e) {
-            console.error("Failed to fetch missed items", e);
-        }
-    };
-
     useEffect(() => {
+        const fetchMissed = async () => {
+            try {
+                const items = await getMissedItems();
+                if (items) {
+                    setMissedItems(items);
+                }
+            } catch (e) {
+                console.error("Failed to fetch missed items", e);
+            }
+        };
+
         fetchMissed();
 
         const handleMissedUpdate = (items: MissedItem[]) => {
             setMissedItems(items || []);
-            // If new items arrive (and they are newer than dismissal), they will naturally show up
-            // because latestMissedTime > lastDismissed
         };
 
         addEventListener('alarme_missed_items_updated', handleMissedUpdate);
@@ -146,62 +144,77 @@ function Content() {
     }, []);
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <>
             {/* Missed Alerts Notification Area */}
             {showMissedAlerts && (
                 <PanelSection title="Missed Alerts">
-                    <Focusable
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 4px 8px 4px' }}
-                        flow-children="horizontal"
-                    >
-                        {/* Main Report Button */}
-                        <Focusable
-                            onClick={() => showMissedReportModal(missedItems)}
-                            style={{
-                                flex: 1,
-                                padding: '12px 16px',
-                                backgroundColor: '#1a1a1a',
-                                border: '2px solid #aa4444',
-                                color: '#eeeeee',
-                                borderRadius: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                fontWeight: '500',
-                                transition: 'all 0.2s ease',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div style={{ color: '#ff6666', fontSize: '1.2em' }}><FaBell /></div>
-                                <span style={{ fontSize: '1em', fontWeight: 'bold' }}>
-                                    {missedItems.length} Missed Alert{missedItems.length !== 1 ? 's' : ''}
-                                </span>
-                            </div>
-                            <span style={{ fontSize: 13, opacity: 0.9, color: '#ffaaaa', fontWeight: '600' }}>View Report</span>
-                        </Focusable>
+                    <PanelSectionRow>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                            {/* View Report Button */}
+                            <Focusable
+                                id="view-missed-report-btn"
+                                onActivate={() => showMissedReportModal(missedItems)}
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    backgroundColor: '#ffffff11',
+                                    borderRadius: 8,
+                                    border: '2px solid transparent',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.1s ease-in-out'
+                                }}
+                                // Set focus styles using focusable-focused class or inline state if needed
+                                // But since we want to be elegant, let's use a subtle hover/focus state
+                                onFocus={(e: any) => {
+                                    e.target.style.backgroundColor = '#4488aa';
+                                    e.target.style.borderColor = 'white';
+                                }}
+                                onBlur={(e: any) => {
+                                    e.target.style.backgroundColor = '#ffffff11';
+                                    e.target.style.borderColor = 'transparent';
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <FaBell style={{ color: '#ff4444' }} />
+                                    <span style={{ fontSize: 13, fontWeight: 500 }}>{missedItems.length} Missed</span>
+                                </div>
+                                <span style={{ fontSize: 11, opacity: 0.6 }}>View Report</span>
+                            </Focusable>
 
-                        {/* Hide Button */}
-                        <Focusable
-                            onClick={handleHideReport}
-                            style={{
-                                width: 48,
-                                height: 48,
-                                padding: 0,
-                                backgroundColor: '#2a2a2a',
-                                color: '#aaaaaa',
-                                borderRadius: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: '1px solid transparent',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                            }}
-                            title="Hide until new alert"
-                        >
-                            <span style={{ fontSize: 20, fontWeight: 'bold' }}>✕</span>
-                        </Focusable>
-                    </Focusable>
+                            {/* Dismiss Button (X) */}
+                            <Focusable
+                                id="dismiss-missed-report-btn"
+                                onActivate={handleHideReport}
+                                style={{
+                                    width: 40,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: '#ff444415',
+                                    borderRadius: 8,
+                                    border: '2px solid transparent',
+                                    color: '#ff4444',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.1s ease-in-out'
+                                }}
+                                onFocus={(e: any) => {
+                                    e.target.style.backgroundColor = '#4488aa';
+                                    e.target.style.borderColor = 'white';
+                                    e.target.style.color = 'white';
+                                }}
+                                onBlur={(e: any) => {
+                                    e.target.style.backgroundColor = '#ff444415';
+                                    e.target.style.borderColor = 'transparent';
+                                    e.target.style.color = '#ff4444';
+                                }}
+                            >
+                                <FaTimes size={14} />
+                            </Focusable>
+                        </div>
+                    </PanelSectionRow>
                 </PanelSection>
             )}
 
@@ -237,7 +250,7 @@ function Content() {
             {activeTab === 'pomodoro' && <PomodoroPanel />}
             {activeTab === 'reminders' && <ReminderPanel />}
             {activeTab === 'settings' && <SettingsPanel />}
-        </div>
+        </>
     );
 }
 

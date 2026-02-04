@@ -41,7 +41,12 @@ DEFAULT_SETTINGS = {
     "pomodoro_work_duration": 25,  # minutes
     "pomodoro_break_duration": 5,  # minutes
     "pomodoro_long_break_duration": 15,  # minutes
-    "pomodoro_sessions_until_long_break": 4
+    "pomodoro_sessions_until_long_break": 4,
+    # Missed Alerts settings
+    "missed_alerts_enabled": True,
+    "missed_alerts_window": 24,
+    "reminder_suspend_behavior": "continue",
+    "pomodoro_suspend_behavior": "continue"
 }
 
 # Default presets
@@ -74,20 +79,27 @@ class Plugin:
 
     async def get_missed_items(self) -> list:
         """Get list of missed items."""
-        return self.missed_items
+        return await self.settings_getSetting("missed_alerts_items", [])
 
     async def clear_missed_items(self) -> bool:
         """Clear all missed items."""
-        self.missed_items = []
-        await decky.emit("alarme_missed_items_updated", [])
+        await self.settings_setSetting("missed_alerts_items", [])
+        await self.settings_commit()
+        await self._emit_missed_update()
         return True
 
-    def _add_missed_item(self, m_type: str, m_id: str, label: str, timestamp: float, details: str = None):
+    async def _emit_missed_update(self):
+        """Emit the current missed items to the frontend."""
+        missed = await self.get_missed_items()
+        await decky.emit("alarme_missed_items_updated", missed)
+
+    async def _add_missed_item(self, m_type: str, m_id: str, label: str, timestamp: float, details: str = None):
         """Add an item to the missed alerts list."""
-        if not self.settings.get("missed_alerts_enabled", True):
+        user_settings = await self._get_user_settings()
+        if not user_settings.get("missed_alerts_enabled", True):
             return
 
-        missed = self.settings.get("missed_alerts_items", [])
+        missed = await self.settings_getSetting("missed_alerts_items", [])
         
         # Check for duplicates (same ID within small window)
         for item in missed:
@@ -107,15 +119,15 @@ class Plugin:
         missed.append(item)
         
         # Prune old items
-        window = float(self.settings.get("missed_alerts_window", 24)) * 3600
+        window = float(user_settings.get("missed_alerts_window", 24)) * 3600
         cutoff = time.time() - window
         missed = [i for i in missed if i["missed_at"] > cutoff]
         
-        self.settings.set("missed_alerts_items", missed)
-        self.settings.save()
+        await self.settings_setSetting("missed_alerts_items", missed)
+        await self.settings_commit()
         
         # Notify frontend
-        self._emit_missed_update()
+        await self._emit_missed_update()
 
     # ==================== TIMER METHODS ====================
 
@@ -214,7 +226,7 @@ class Plugin:
                     #  Check if missed by > 60 seconds
                     if remaining < -60:
                         decky.logger.info(f"AlarMe: Timer {timer_id} finished {abs(remaining):.0f}s ago - counting as MISSED")
-                        self._add_missed_item("timer", timer_id, label, end_time)
+                        await self._add_missed_item("timer", timer_id, label, end_time)
                         return # Skip sound/notification for missed items
 
                     user_settings = await self._get_user_settings()
@@ -825,9 +837,15 @@ class Plugin:
             while True:
                 check_count += 1
                 try:
-                    alarms = await self._get_alarms()
                     now = datetime.now()
                     current_time = now.timestamp()
+                    
+                    # Sync with suspend monitor to avoid double-processing during resume
+                    if self.last_tick > 0 and current_time - self.last_tick > 5:
+                        await asyncio.sleep(0.5)
+                        continue
+
+                    alarms = await self._get_alarms()
                     
                     # Only log occasionally to avoid spam (every 60 checks = 1 minute)
                     if check_count % 60 == 1:
@@ -850,7 +868,7 @@ class Plugin:
                                 if delay > 90:
                                     # Missed!
                                     decky.logger.info(f"AlarMe: Alarm {alarm_id} missed by {delay:.0f}s")
-                                    self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), next_trigger)
+                                    await self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), next_trigger)
                                     
                                     # Mark as handled so we don't loop
                                     # For once: Disable
@@ -1220,6 +1238,12 @@ class Plugin:
         """Background task to handle Pomodoro timing."""
         try:
             while True:
+                now = time.time()
+                # Sync with suspend monitor to avoid double-processing during resume
+                if self.last_tick > 0 and now - self.last_tick > 5:
+                    await asyncio.sleep(0.5)
+                    continue
+
                 state = await self._get_pomodoro_state()
                 
                 if not state.get("active"):
@@ -1240,7 +1264,7 @@ class Plugin:
                         missed_label = f"Pomodoro: {'Break' if is_break else 'Focus Session'} {session}"
                         # Use scheduled end time as due time
                         due_time = state.get("end_time", time.time())
-                        self._add_missed_item("pomodoro", "pomodoro", missed_label, due_time)
+                        await self._add_missed_item("pomodoro", "pomodoro", missed_label, due_time)
                         
                         # Stop the cycle (do not auto-advance)
                         # We still credit the session duration (capped) because it "finished"
@@ -1720,7 +1744,12 @@ class Plugin:
         while True:
             try:
                 await asyncio.sleep(1)  # Check every second
+                now_ts = time.time()
                 
+                # Sync with suspend monitor to avoid double-processing during resume
+                if self.last_tick > 0 and now_ts - self.last_tick > 5:
+                    continue
+
                 reminders = await self._get_reminders()
                 now = datetime.now()
                 modified = False
@@ -1754,7 +1783,7 @@ class Plugin:
                         missed_delay = (now - next_trigger).total_seconds()
                         if missed_delay > 60:
                              decky.logger.info(f"AlarMe: Reminder {reminder_id} missed by {missed_delay:.0f}s")
-                             self._add_missed_item("reminder", reminder_id, reminder["label"], next_trigger.timestamp())
+                             await self._add_missed_item("reminder", reminder_id, reminder["label"], next_trigger.timestamp())
                              # Fall through to update next trigger, but SKIP emit
                         else:
                             # Trigger the reminder!
@@ -1846,7 +1875,7 @@ class Plugin:
                     except: pass
                 
                 if is_valid:
-                    self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), candidate.timestamp())
+                    await self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), candidate.timestamp())
                     
                     if recurring == "once":
                         alarms[alarm_id]["enabled"] = False
@@ -1936,7 +1965,7 @@ class Plugin:
                  if missed_in_window > 1:
                      details = f"Missed {missed_in_window} occurrences while away"
                  
-                 self._add_missed_item("reminder", reminder_id, reminder["label"], last_missed, details)
+                 await self._add_missed_item("reminder", reminder_id, reminder["label"], last_missed, details)
                  
                  modified = True
         
@@ -1957,7 +1986,7 @@ class Plugin:
              suspend_duration = end_time - start_time
              if pomodoro.get("end_time"):
                  pomodoro["end_time"] += suspend_duration
-                 await self._save_pomodoro_state()
+                 await self._save_pomodoro_state(pomodoro)
                  decky.logger.info(f"AlarMe: Pomodoro paused during suspend. Extended by {suspend_duration:.0f}s")
                  
                  # Restart the task to respect new end time
@@ -1982,7 +2011,7 @@ class Plugin:
              finished_at_str = datetime.fromtimestamp(p_end).strftime('%H:%M')
              details = f"Session finished at {finished_at_str}"
              
-             self._add_missed_item("pomodoro", "pomodoro-session", label, p_end, details)
+             await self._add_missed_item("pomodoro", "pomodoro-session", label, p_end, details)
              
              # Mark inactive
              pomodoro["active"] = False
@@ -2009,43 +2038,43 @@ class Plugin:
                     decky.logger.info(f"AlarMe: Suspend detected! Jumped {jump_duration:.1f}s")
                     
                     user_settings = await self._get_user_settings()
+                    
+                    # Run historical checks (Missed Alerts Report logic)
                     if user_settings.get("missed_alerts_enabled", True):
                         # Determine check window
                         window_hours = user_settings.get("missed_alerts_window", 24)
                         check_start = max(self.last_tick, now - (window_hours * 3600))
                         
-                        # Run historical checks
+                        # Run historical checks for Alarms (Always Miss if enabled)
                         await self._check_missed_alarms(check_start, now)
-                        await self._check_missed_reminders(check_start, now)
-                        await self._check_missed_pomodoro(check_start, now)
                         
-                        # Wait briefly for synchronous checkers (alarm/timer) if they are racing?
-                        # Actually, our historical checks handle the logic better.
-                        # Wait a bit before emitting to ensure UI is ready
-                        await asyncio.sleep(1)
+                        # Run historical checks for Reminders/Pomodoro ONLY if mode is CONTINUE
+                        if user_settings.get("reminder_suspend_behavior", "continue") == "continue":
+                            await self._check_missed_reminders(check_start, now)
                         
-                        if self.missed_items:
-                            count = len(self.missed_items)
+                        if user_settings.get("pomodoro_suspend_behavior", "continue") == "continue":
+                            await self._check_missed_pomodoro(check_start, now)
+
+                    # Run Pause (Shift) logic regardless of missed_alerts_enabled
+                    # Shift logic handles its own behavior check internally
+                    if user_settings.get("reminder_suspend_behavior", "continue") == "pause":
+                        await self._check_missed_reminders(self.last_tick, now)
+                    
+                    if user_settings.get("pomodoro_suspend_behavior", "continue") == "pause":
+                        await self._check_missed_pomodoro(self.last_tick, now)
+                        
+                    # Wait briefly for synchronous checkers to resume
+                    await asyncio.sleep(1)
+                    
+                    # Check if we should notify about new items in the report
+                    if user_settings.get("missed_alerts_enabled", True):
+                        all_missed = await self.settings_getSetting("missed_alerts_items", [])
+                        recent_missed = [i for i in all_missed if i.get("missed_at", 0) >= self.last_tick]
+                        
+                        if recent_missed:
+                            count = len(recent_missed)
                             decky.logger.info(f"AlarMe: Emitting missed items: {count}")
-                            
-                            # Handle Mode
-                            mode = user_settings.get("missed_alerts_mode", "report")
-                            if mode == "report":
-                                await decky.emit("alarme_missed_items_toast", count)
-                            elif mode == "individual":
-                                # Proposed: Emit toast for each NEW item?
-                                # For now, we reuse the toast but maybe prompt user?
-                                # Implementing "Individual" properly requires emitting 'alarme_alarm_triggered' events.
-                                # But those events expect immediate action.
-                                # For now, fallback to toast, as it's safe.
-                                # Or trigger specific events?
-                                # The request asks for "Individual Notification Mode".
-                                # I'll stick to report for stability unless explicitly requested to fire events.
-                                # User said "Trigger each missed alert individually... Queue notifications".
-                                # That logic is complex to implement safely (queueing).
-                                # I will default to Toast but maybe change label if mode is individual?
-                                # I'll emit toast for now, as it satisfies the "Show visibility" requirement safely.
-                                await decky.emit("alarme_missed_items_toast", count)
+                            await decky.emit("alarme_missed_items_toast", count)
 
                 self.last_tick = now
             except asyncio.CancelledError:
