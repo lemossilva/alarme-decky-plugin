@@ -127,7 +127,6 @@ export interface UserSettings {
     pomodoro_daily_goal: number;  // hours per day goal
     // Missed Alerts Global Settings
     missed_alerts_enabled: boolean;
-    missed_alerts_mode: 'toast' | 'report';
     missed_alerts_window: number; // hours to look back
     // Suspend Behavior
     reminder_suspend_behavior?: 'continue' | 'pause';

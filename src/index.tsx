@@ -8,6 +8,7 @@ import {
     addEventListener,
     removeEventListener,
     definePlugin,
+    routerHook,
     toaster,
     callable
 } from "@decky/api";
@@ -23,7 +24,7 @@ import { TimerPanel } from "./components/TimerPanel";
 import { AlarmPanel } from "./components/AlarmPanel";
 import { PomodoroPanel } from "./components/PomodoroPanel";
 import { ReminderPanel } from "./components/ReminderPanel";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { SettingsPage, SETTINGS_ROUTE, navigateToSettings } from "./components/SettingsModal";
 import { showSnoozeModal } from "./components/SnoozeModal";
 import { PomodoroNotification } from "./components/PomodoroNotification";
 import { ReminderNotification } from "./components/ReminderNotification";
@@ -237,7 +238,13 @@ function Content() {
                                 key={tab.id}
                                 tab={tab}
                                 active={activeTab === tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => {
+                                    if (tab.id === 'settings') {
+                                        navigateToSettings();
+                                    } else {
+                                        setActiveTab(tab.id);
+                                    }
+                                }}
                             />
                         ))}
                     </Focusable>
@@ -249,7 +256,6 @@ function Content() {
             {activeTab === 'alarms' && <AlarmPanel />}
             {activeTab === 'pomodoro' && <PomodoroPanel />}
             {activeTab === 'reminders' && <ReminderPanel />}
-            {activeTab === 'settings' && <SettingsPanel />}
         </>
     );
 }
@@ -431,6 +437,9 @@ export default definePlugin(() => {
         console.error("AlarMe: Failed to register game listeners", e);
     }
 
+    // Register settings route
+    routerHook.addRoute(SETTINGS_ROUTE, () => <SettingsPage />);
+
     return {
         name: "AlarMe",
         titleView: (
@@ -448,6 +457,8 @@ export default definePlugin(() => {
             removeEventListener('alarme_pomodoro_work_ended', handlePomodoroWorkEnded);
             removeEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
             removeEventListener('alarme_reminder_triggered', handleReminderTriggered);
+            // Unregister settings route
+            routerHook.removeRoute(SETTINGS_ROUTE);
             if (unregisterGameListener) {
                 if (typeof unregisterGameListener === 'function') {
                     unregisterGameListener();

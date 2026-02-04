@@ -2129,6 +2129,100 @@ class Plugin:
         
         decky.logger.info("AlarMe: Plugin initialized successfully")
 
+    async def factory_reset(self) -> bool:
+        """Factory reset - restore all settings to defaults and clear all data."""
+        try:
+            decky.logger.info("AlarMe: Starting factory reset...")
+            
+            # 1. Cancel all active timer tasks
+            for timer_id, task in list(self.timer_tasks.items()):
+                task.cancel()
+            self.timer_tasks.clear()
+            
+            # 2. Cancel alarm checker
+            if self.alarm_check_task:
+                self.alarm_check_task.cancel()
+                self.alarm_check_task = None
+            
+            # 3. Cancel Pomodoro task
+            if self.pomodoro_task:
+                self.pomodoro_task.cancel()
+                self.pomodoro_task = None
+            
+            # 4. Cancel reminder checker and all reminder tasks
+            if self.reminder_check_task:
+                self.reminder_check_task.cancel()
+                self.reminder_check_task = None
+            for task in self.reminder_tasks.values():
+                task.cancel()
+            self.reminder_tasks.clear()
+            
+            # 5. Cancel suspend monitor
+            if self.suspend_monitor_task:
+                self.suspend_monitor_task.cancel()
+                self.suspend_monitor_task = None
+            
+            # 6. Reset settings to defaults
+            await self.settings_setSetting(SETTINGS_KEY_SETTINGS, DEFAULT_SETTINGS)
+            
+            # 7. Clear all data keys
+            await self.settings_setSetting(SETTINGS_KEY_TIMERS, {})
+            await self.settings_setSetting(SETTINGS_KEY_ALARMS, {})
+            await self.settings_setSetting(SETTINGS_KEY_RECENT_TIMERS, [])
+            await self.settings_setSetting(SETTINGS_KEY_POMODORO, {
+                "active": False,
+                "is_break": False,
+                "current_session": 1,
+                "end_time": None,
+                "duration": 0
+            })
+            await self.settings_setSetting(SETTINGS_KEY_REMINDERS, {})
+            await self.settings_setSetting("missed_alerts_items", [])
+            
+            # 8. Reset Pomodoro stats
+            await self.settings_setSetting("pomodoro_stats", {
+                "daily_focus_time": 0,
+                "daily_break_time": 0,
+                "daily_sessions": 0,
+                "total_focus_time": 0,
+                "total_break_time": 0,
+                "total_sessions": 0,
+                "total_cycles": 0,
+                "last_active_date": "",
+                "daily_history": [],
+                "current_streak": 0,
+                "longest_streak": 0
+            })
+            
+            # 9. Commit all changes
+            await self.settings_commit()
+            
+            # 10. Emit update events to frontend
+            await decky.emit("alarme_settings_updated", DEFAULT_SETTINGS)
+            await decky.emit("alarme_alarms_updated", [])
+            await decky.emit("alarme_timers_updated", [])
+            await decky.emit("alarme_reminders_updated", [])
+            await decky.emit("alarme_pomodoro_updated", {
+                "active": False,
+                "is_break": False,
+                "current_session": 1,
+                "end_time": None,
+                "duration": 0
+            })
+            await decky.emit("alarme_missed_items_updated", [])
+            
+            # 11. Restart background tasks
+            self.alarm_check_task = self.loop.create_task(self._alarm_checker())
+            self.reminder_check_task = self.loop.create_task(self._reminder_checker())
+            self.suspend_monitor_task = self.loop.create_task(self._suspend_monitor())
+            
+            decky.logger.info("AlarMe: Factory reset completed successfully")
+            return True
+            
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Factory reset failed: {e}")
+            return False
+
     async def _unload(self):
         """Plugin unload cleanup."""
         # Cancel all timer tasks

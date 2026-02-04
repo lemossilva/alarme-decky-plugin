@@ -29,7 +29,6 @@ const DEFAULT_SETTINGS: UserSettings = {
     pomodoro_daily_goal: 4,  // 4 hours default
     // Missed Alerts settings
     missed_alerts_enabled: true,
-    missed_alerts_mode: 'report',
     missed_alerts_window: 24,
     // Suspend Behavior
     reminder_suspend_behavior: 'continue', // 'continue' = missed alerts, 'pause' = shift schedule
