@@ -60,11 +60,12 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **24/12 hour format** - Choose your preferred time display
 - **Global volume control** - Per-feature volume settings
 
-## Screenshots
-
-### 🔔 Alarms & Timers
+### 🔔 Alarms & Reminders
 ![Alarm List](assets/screenshots/alarm_list.png)
 *Manage multiple alarms with ease.*
+
+![Reminder List](assets/screenshots/remind_list.png)
+*Keep track of your recurring reminders.*
 
 ### ⏱️ Quick Timers
 ![Timer Presets](assets/screenshots/timer_tab.png)
@@ -78,9 +79,16 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 ![Alarm Editor](assets/screenshots/alarm_editor.png)
 *Detailed settings for every alarm.*
 
+![Reminder Editor](assets/screenshots/reminder_editor.png)
+*Set periodic reminders like "Hydration Check" every 45 mins.*
+
 ### ⚙️ Customizable Settings
-![Settings Panel](assets/screenshots/settings.png)
-*Volume, custom sounds, and backup options.*
+![Settings Panel](assets/screenshots/backup_custom_sound_settings.png)
+*New dedicated Settings Modal with Sound Manager and Backup options.*
+
+### 🚨 Missed Alerts
+![Missed Report](assets/screenshots/missed_report.png)
+*See what you missed while your Deck was asleep.*
 
 ## Installation
 
