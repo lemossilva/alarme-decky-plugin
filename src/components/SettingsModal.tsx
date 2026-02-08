@@ -674,7 +674,7 @@ const FactoryResetPage = () => {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.4.0
+                                <strong>AlarMe</strong> v1.4.1
                             </p>
                             <p>
                                 By Guilherme Lemos

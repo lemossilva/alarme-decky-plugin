@@ -144,7 +144,7 @@ export function PomodoroStatsPanel({
         };
 
         return (
-            <div style={{ padding: '8px 0', paddingRight: 16 }}>
+            <div style={{ padding: '8px 0' }}>
                 <svg width="100%" height={chartHeight + 20} viewBox={`0 0 ${data.length * (barWidth + gap)} ${chartHeight + 20}`}>
                     {data.map((d, i) => {
                         const barHeight = maxVal > 0 ? (d.value / maxVal) * (chartHeight - labelOffset) : 0;
@@ -200,7 +200,7 @@ export function PomodoroStatsPanel({
         const goalMet = todayFocus >= goalSeconds;
 
         return (
-            <div style={{ marginBottom: 16, marginRight: 16 }}>
+            <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span style={{ fontSize: 12, color: '#aaaaaa' }}>🎯 Daily Goal</span>
                     <span style={{ fontSize: 12, color: goalMet ? '#44aa88' : '#ffffff' }}>
@@ -235,7 +235,10 @@ export function PomodoroStatsPanel({
                         gap: 4,
                         backgroundColor: '#ffffff11',
                         borderRadius: 8,
-                        padding: 4
+                        padding: 4,
+                        flex: '1 1 auto',
+                        minWidth: 0,
+                        overflow: 'hidden'
                     }}
                 >
                     {VIEW_MODES.map(({ mode, label }) => (
@@ -249,7 +252,7 @@ export function PomodoroStatsPanel({
                 </Focusable>
             </PanelSectionRow>
             <PanelSectionRow>
-                <Focusable style={{ width: '100%' }}>
+                <Focusable style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
 
                     {/* Goal Progress (if enabled) */}
                     {viewMode === 'today' && <GoalProgress />}

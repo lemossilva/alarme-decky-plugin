@@ -1782,8 +1782,12 @@ class Plugin:
                         #  Check if missed by > 60 seconds
                         missed_delay = (now - next_trigger).total_seconds()
                         if missed_delay > 60:
-                             decky.logger.info(f"AlarMe: Reminder {reminder_id} missed by {missed_delay:.0f}s")
-                             await self._add_missed_item("reminder", reminder_id, reminder["label"], next_trigger.timestamp())
+                             # Gaming-only reminders fall behind when no game runs — not a real miss
+                             if not reminder.get("only_while_gaming"):
+                                 decky.logger.info(f"AlarMe: Reminder {reminder_id} missed by {missed_delay:.0f}s")
+                                 await self._add_missed_item("reminder", reminder_id, reminder["label"], next_trigger.timestamp())
+                             else:
+                                 decky.logger.info(f"AlarMe: Gaming-only reminder {reminder_id} overdue by {missed_delay:.0f}s - advancing silently")
                              # Fall through to update next trigger, but SKIP emit
                         else:
                             # Trigger the reminder!
@@ -1902,6 +1906,8 @@ class Plugin:
             if suspend_duration > 0:
                 for reminder_id, reminder in reminders.items():
                     if not reminder.get("enabled"): continue
+                    # Gaming-only reminders don't tick during suspend, no shift needed
+                    if reminder.get("only_while_gaming"): continue
                     try:
                         # Shift next_trigger forward by the duration of suspend
                         if reminder.get("next_trigger"):
@@ -1922,6 +1928,11 @@ class Plugin:
         # Behavior is CONTINUE (Report Missed)
         for reminder_id, reminder in reminders.items():
              if not reminder.get("enabled"): continue
+             
+             # Gaming-only reminders should NOT be missed during suspend
+             # (device is not gaming when suspended)
+             if reminder.get("only_while_gaming"):
+                 continue
              
              try:
                  next_trigger_dt = datetime.fromisoformat(reminder["next_trigger"])

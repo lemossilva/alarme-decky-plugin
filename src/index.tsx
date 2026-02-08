@@ -33,6 +33,7 @@ import { MissedItem } from "./types";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
+import { useSettings } from "./hooks/useSettings";
 
 // Types
 import type {
@@ -105,6 +106,8 @@ const TabButton = ({ tab, active, onClick }: TabButtonProps) => {
 function Content() {
     const [activeTab, setActiveTab] = useState<TabId>('timers');
     const [missedItems, setMissedItems] = useState<MissedItem[]>([]);
+    const { settings: userSettings } = useSettings();
+    const use24h = userSettings.time_format_24h;
     // Persistent dismissal logic
     const [lastDismissed, setLastDismissed] = useState<number>(() => {
         return parseInt(localStorage.getItem('alarme_missed_dismissed_at') || '0');
@@ -154,7 +157,7 @@ function Content() {
                             {/* View Report Button */}
                             <Focusable
                                 id="view-missed-report-btn"
-                                onActivate={() => showMissedReportModal(missedItems)}
+                                onActivate={() => showMissedReportModal(missedItems, use24h)}
                                 style={{
                                     flex: 1,
                                     display: 'flex',

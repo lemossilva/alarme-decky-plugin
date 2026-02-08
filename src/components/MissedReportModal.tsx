@@ -2,19 +2,21 @@ import { ConfirmModal, showModal, Focusable } from "@decky/ui";
 import { callable } from "@decky/api";
 import { FaBell, FaStopwatch, FaRedo, FaBrain } from "react-icons/fa";
 import { MissedItem } from "../types";
+import { formatTime } from "../utils/time";
 
 const clearMissedItems = callable<[], boolean>('clear_missed_items');
 
 interface MissedReportModalProps {
     items: MissedItem[];
+    use24h: boolean;
     closeModal?: () => void;
 }
 
-export function showMissedReportModal(items: MissedItem[]) {
-    showModal(<MissedReportModalContent items={items} />);
+export function showMissedReportModal(items: MissedItem[], use24h: boolean) {
+    showModal(<MissedReportModalContent items={items} use24h={use24h} />);
 }
 
-function MissedReportModalContent({ items, closeModal }: MissedReportModalProps) {
+function MissedReportModalContent({ items, use24h, closeModal }: MissedReportModalProps) {
     const handleDismiss = async () => {
         await clearMissedItems();
         closeModal?.();
@@ -24,9 +26,10 @@ function MissedReportModalContent({ items, closeModal }: MissedReportModalProps)
         closeModal?.();
     };
 
-    // Format time helper (simple JS date, effectively local time)
+    // Format time helper - respects user's 12h/24h preference
     const formatDueTime = (timestamp: number) => {
-        return new Date(timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(timestamp * 1000);
+        return formatTime(date.getHours(), date.getMinutes(), use24h);
     };
 
     return (
@@ -48,18 +51,22 @@ function MissedReportModalContent({ items, closeModal }: MissedReportModalProps)
                 padding: '4px 8px 4px 0',
                 marginTop: '10px'
             }}>
-                {items.map((item, idx) => (
-                    <div key={`spacer-${idx}`} style={{ display: 'contents' }}>
-                        {idx > 0 && <div style={{ height: 1, minHeight: 1, width: '100%', flexShrink: 0 }} />}
-                        <Focusable key={idx} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            backgroundColor: '#ffffff11',
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            gap: 12,
-                            transition: 'background-color 0.2s'
-                        }}>
+                <Focusable>
+                    {items.map((item, idx) => (
+                        <Focusable
+                            key={idx}
+                            onActivate={() => {}}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                backgroundColor: '#ffffff11',
+                                padding: '10px 12px',
+                                borderRadius: 8,
+                                gap: 12,
+                                marginBottom: idx < items.length - 1 ? 8 : 0,
+                                transition: 'background-color 0.2s'
+                            }}
+                        >
                             <div style={{ fontSize: 18, color: '#aaeeff', display: 'flex', alignItems: 'center' }}>
                                 {item.type === 'alarm' && <FaBell />}
                                 {item.type === 'timer' && <FaStopwatch />}
@@ -73,8 +80,8 @@ function MissedReportModalContent({ items, closeModal }: MissedReportModalProps)
                                 </div>
                             </div>
                         </Focusable>
-                    </div>
-                ))}
+                    ))}
+                </Focusable>
             </div>
         </ConfirmModal>
     );

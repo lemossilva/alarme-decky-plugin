@@ -296,7 +296,7 @@ export function TimerPanel() {
             {hasRecentTimers && (
                 <PanelSection title="Recent">
                     <PanelSectionRow>
-                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
                             {recentTimers.slice(0, 5).map((recent, idx) => (
                                 <RecentTimerButton
                                     key={`${recent.seconds}-${recent.label}-${idx}`}
@@ -313,7 +313,7 @@ export function TimerPanel() {
             {presets.length > 0 && (
                 <PanelSection title="Quick Presets">
                     <PanelSectionRow>
-                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
                             {presets.slice(0, 5).map(preset => (
                                 <PresetButton
                                     key={preset.id}

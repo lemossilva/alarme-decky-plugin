@@ -1,5 +1,5 @@
 import { ConfirmModal, Dropdown, DropdownOption, Focusable, showModal, SliderField, TextField } from "@decky/ui";
-import { FaBell, FaMusic, FaCalendarAlt, FaVolumeUp, FaClock } from "react-icons/fa";
+import { FaBell, FaMusic, FaCalendarAlt, FaVolumeUp, FaClock, FaPlay, FaPause } from "react-icons/fa";
 import { useEffect, useRef, useState } from "react";
 import type { Alarm, RecurringType, SoundFile } from "../types";
 import { playAlarmSound, stopSound } from "../utils/sounds";
@@ -150,6 +150,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
 
     // Sound preview
     const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     // Repeater logic for time adjustment
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -297,16 +298,33 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
         // 'custom' keeps current selection
     };
 
-    const previewSound = async (filename: string) => {
-        stopSound(previewAudioRef.current);
-        const audio = await playAlarmSound(filename);
-        previewAudioRef.current = audio;
-        // Stop after 2 seconds
-        setTimeout(() => stopSound(audio), 2000);
+    const toggleSoundPreview = async () => {
+        if (isPlaying && previewAudioRef.current) {
+            stopSound(previewAudioRef.current);
+            previewAudioRef.current = null;
+            setIsPlaying(false);
+        } else {
+            // Stop any previous sound
+            if (previewAudioRef.current) {
+                stopSound(previewAudioRef.current);
+            }
+
+            // Play new sound (async)
+            const audio = await playAlarmSound(selectedSound, volume);
+            if (audio) {
+                previewAudioRef.current = audio;
+                setIsPlaying(true);
+                audio.onended = () => {
+                    setIsPlaying(false);
+                    previewAudioRef.current = null;
+                };
+            }
+        }
     };
 
     const handleSave = async () => {
         stopSound(previewAudioRef.current);
+        setIsPlaying(false);
 
         // Build recurring string
         let recurring: RecurringType;
@@ -332,12 +350,14 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
 
     const handleDelete = async () => {
         stopSound(previewAudioRef.current);
+        setIsPlaying(false);
         await onDelete?.();
         closeModal?.();
     };
 
     const handleCancel = () => {
         stopSound(previewAudioRef.current);
+        setIsPlaying(false);
         closeModal?.();
     };
 
@@ -551,15 +571,21 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                             />
                         </div>
                         <Focusable
-                            onActivate={() => previewSound(selectedSound)}
+                            onActivate={toggleSoundPreview}
                             style={{
                                 padding: '8px 12px',
-                                backgroundColor: '#ffffff22',
-                                borderRadius: 6,
-                                fontSize: 12
+                                backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                minWidth: 80,
+                                textAlign: 'center'
                             }}
                         >
-                            ▶ Preview
+                            {isPlaying ? (
+                                <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
+                            ) : (
+                                <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
+                            )}
                         </Focusable>
                     </Focusable>
                 </div>
