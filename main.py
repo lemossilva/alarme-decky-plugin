@@ -46,7 +46,22 @@ DEFAULT_SETTINGS = {
     "missed_alerts_enabled": True,
     "missed_alerts_window": 24,
     "reminder_suspend_behavior": "continue",
-    "pomodoro_suspend_behavior": "continue"
+    "pomodoro_suspend_behavior": "continue",
+    # Overlay settings
+    "overlay_enabled": False,
+    "overlay_display_mode": "always",
+    "overlay_position": "top-right",
+    "overlay_text_size": 12,
+    "overlay_opacity": 0.6,
+    "overlay_max_alerts": 3,
+    "overlay_time_window": 6,
+    "overlay_show_timers": True,
+    "overlay_show_alarms": True,
+    "overlay_show_pomodoros": True,
+    "overlay_show_reminders": True,
+    "overlay_pixel_shift": True,
+    "overlay_pixel_shift_interval": 45,
+    "overlay_pixel_shift_range": 3
 }
 
 # Default presets
@@ -1430,6 +1445,112 @@ class Plugin:
         await decky.emit("alarme_settings_updated", current)
         return current
 
+    async def get_overlay_data(self) -> dict:
+        """Get aggregated data for the in-game overlay.
+        
+        Returns upcoming alerts across all categories, filtered by user settings,
+        sorted by trigger time, and capped at max_alerts.
+        """
+        user_settings = await self._get_user_settings()
+        
+        if not user_settings.get("overlay_enabled", False):
+            return {"alerts": [], "settings": {}}
+        
+        max_alerts = user_settings.get("overlay_max_alerts", 3)
+        time_window = user_settings.get("overlay_time_window", 6) * 3600  # hours to seconds
+        now = time.time()
+        cutoff = now + time_window
+        use24h = user_settings.get("time_format_24h", True)
+        
+        alerts = []
+        
+        # Timers
+        if user_settings.get("overlay_show_timers", True):
+            timers = await self._get_timers()
+            for timer_id, timer in timers.items():
+                remaining = timer["end_time"] - now
+                if remaining > 0:
+                    alerts.append({
+                        "id": f"timer-{timer_id}",
+                        "category": "timer",
+                        "label": timer.get("label", "Timer"),
+                        "time": timer["end_time"],
+                        "remaining": remaining
+                    })
+        
+        # Alarms
+        if user_settings.get("overlay_show_alarms", True):
+            alarms = await self._get_alarms()
+            for alarm_id, alarm in alarms.items():
+                if not alarm.get("enabled", True):
+                    continue
+                next_trigger = self._calculate_next_trigger(alarm)
+                if next_trigger and next_trigger <= cutoff:
+                    alerts.append({
+                        "id": f"alarm-{alarm_id}",
+                        "category": "alarm",
+                        "label": alarm.get("label", "Alarm"),
+                        "time": next_trigger,
+                        "remaining": next_trigger - now
+                    })
+        
+        # Pomodoro
+        if user_settings.get("overlay_show_pomodoros", True):
+            pomodoro = await self._get_pomodoro_state()
+            if pomodoro.get("active") and pomodoro.get("end_time"):
+                remaining = pomodoro["end_time"] - now
+                if remaining > 0:
+                    phase = "Break" if pomodoro.get("is_break") else "Focus"
+                    session = pomodoro.get("current_session", 1)
+                    alerts.append({
+                        "id": "pomodoro",
+                        "category": "pomodoro",
+                        "label": f"{phase} #{session}",
+                        "time": pomodoro["end_time"],
+                        "remaining": remaining
+                    })
+        
+        # Reminders
+        if user_settings.get("overlay_show_reminders", True):
+            reminders = await self._get_reminders()
+            for reminder_id, reminder in reminders.items():
+                if not reminder.get("enabled"):
+                    continue
+                next_trigger_str = reminder.get("next_trigger")
+                if not next_trigger_str:
+                    continue
+                try:
+                    next_trigger_dt = datetime.fromisoformat(next_trigger_str)
+                    next_ts = next_trigger_dt.timestamp()
+                    if next_ts <= cutoff:
+                        alerts.append({
+                            "id": f"reminder-{reminder_id}",
+                            "category": "reminder",
+                            "label": reminder.get("label", "Reminder"),
+                            "time": next_ts,
+                            "remaining": next_ts - now
+                        })
+                except:
+                    continue
+        
+        # Sort by trigger time and cap
+        alerts.sort(key=lambda a: a["time"])
+        alerts = alerts[:max_alerts]
+        
+        # Return overlay-relevant settings alongside alerts
+        overlay_settings = {
+            "enabled": user_settings.get("overlay_enabled", False),
+            "position": user_settings.get("overlay_position", "top-right"),
+            "text_size": user_settings.get("overlay_text_size", 12),
+            "opacity": user_settings.get("overlay_opacity", 0.6),
+            "pixel_shift": user_settings.get("overlay_pixel_shift", True),
+            "pixel_shift_interval": user_settings.get("overlay_pixel_shift_interval", 45),
+            "pixel_shift_range": user_settings.get("overlay_pixel_shift_range", 3),
+            "time_format_24h": use24h
+        }
+        
+        return {"alerts": alerts, "settings": overlay_settings}
+
     async def export_backup(self) -> str:
         """Export all user data (alarms, presets, settings, recent timers) to JSON string."""
         data = {
@@ -1719,11 +1840,6 @@ class Plugin:
                     # Reset this reminder
                     freq = reminder.get("frequency_minutes", 60)
                     reminder["next_trigger"] = (now + timedelta(minutes=freq)).isoformat()
-                    # Reset recurrences too if they were counting down? 
-                    # Usually "reset" implies starting fresh, so yes, reset triggers_remaining
-                    # But the user said "start time is set to when the game was launched"
-                    # If I have a limit of 3 times, does launching a game reset it to 3 or just delay the next one?
-                    # "resetting the reminder" usually means fresh start.
                     original_recurrences = reminder.get("recurrences", -1)
                     if original_recurrences != -1:
                          reminder["triggers_remaining"] = original_recurrences

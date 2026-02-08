@@ -28,6 +28,7 @@ import { SettingsPage, SETTINGS_ROUTE, navigateToSettings } from "./components/S
 import { showSnoozeModal } from "./components/SnoozeModal";
 import { PomodoroNotification } from "./components/PomodoroNotification";
 import { ReminderNotification } from "./components/ReminderNotification";
+import { GameOverlay } from "./components/GameOverlay";
 import showMissedReportModal from "./components/MissedReportModal";
 import { MissedItem } from "./types";
 import { playAlarmSound } from "./utils/sounds";
@@ -443,6 +444,11 @@ export default definePlugin(() => {
     // Register settings route
     routerHook.addRoute(SETTINGS_ROUTE, () => <SettingsPage />);
 
+    // Register in-game overlay (Issue #18) using Decky's global component system
+    // This API injects components into both Steam UI and game overlay
+    const OVERLAY_COMPONENT_NAME = 'AlarMeGameOverlay';
+    routerHook.addGlobalComponent(OVERLAY_COMPONENT_NAME, GameOverlay);
+
     return {
         name: "AlarMe",
         titleView: (
@@ -453,6 +459,7 @@ export default definePlugin(() => {
         ),
         content: <Content />,
         icon: <FaHourglassHalf />,
+        alwaysRender: true, // Keep plugin state active for overlay visibility
 
         onDismount: () => {
             removeEventListener('alarme_timer_completed', handleTimerCompleted);
@@ -460,8 +467,9 @@ export default definePlugin(() => {
             removeEventListener('alarme_pomodoro_work_ended', handlePomodoroWorkEnded);
             removeEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
             removeEventListener('alarme_reminder_triggered', handleReminderTriggered);
-            // Unregister settings route
+            // Unregister settings route and overlay
             routerHook.removeRoute(SETTINGS_ROUTE);
+            routerHook.removeGlobalComponent(OVERLAY_COMPONENT_NAME);
             if (unregisterGameListener) {
                 if (typeof unregisterGameListener === 'function') {
                     unregisterGameListener();

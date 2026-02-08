@@ -131,6 +131,22 @@ export interface UserSettings {
     // Suspend Behavior
     reminder_suspend_behavior?: 'continue' | 'pause';
     pomodoro_suspend_behavior?: 'continue' | 'pause';
+    // Overlay settings
+    overlay_enabled: boolean;
+    overlay_display_mode: OverlayDisplayMode;
+    overlay_position: OverlayPosition;          // Position for in-game (QAM/Steam Menu)
+    overlay_position_steamui: OverlayPosition;  // Position for SteamOS UI
+    overlay_text_size: number;
+    overlay_opacity: number;
+    overlay_max_alerts: number;
+    overlay_time_window: number;        // hours ahead to show
+    overlay_show_timers: boolean;
+    overlay_show_alarms: boolean;
+    overlay_show_pomodoros: boolean;
+    overlay_show_reminders: boolean;
+    overlay_pixel_shift: boolean;       // OLED burn-in prevention
+    overlay_pixel_shift_interval: number; // seconds between shifts
+    overlay_pixel_shift_range: number;    // max px offset per axis
     // Legacy/deprecated (kept for migration)
     subtle_mode?: boolean;
     auto_suspend?: boolean;
@@ -187,12 +203,22 @@ export interface SnoozeEvent {
     minutes: number;
 }
 
+// Overlay types
+export type OverlayPosition = 'top-bar' | 'bottom-bar';
+
+export type OverlayDisplayMode = 'always' | 'games_only' | 'steamui_only';
+
+export type OverlayCategory = 'timer' | 'alarm' | 'pomodoro' | 'reminder';
+
+export interface OverlayAlert {
+    id: string;
+    category: OverlayCategory;
+    label: string;
+    time: number;       // UNIX timestamp of trigger/end
+    remaining?: number; // seconds remaining (for timers/pomodoro)
+}
+
 // Tab types
 export type TabId = 'timers' | 'alarms' | 'pomodoro' | 'reminders' | 'settings';
 
-// Global type augmentation for Steam
-declare global {
-    interface Window {
-        SP_REACT: typeof import('react');
-    }
-}
+// SP_REACT is already declared by @decky/ui

@@ -12,7 +12,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -603,6 +603,251 @@ const BackupSettingsPage = () => {
     );
 };
 
+// Overlay Settings Page
+const OverlaySettingsPage = () => {
+    const { settings, updateSetting } = useSettings();
+
+    const displayModeOptions = [
+        { data: 'always', label: 'Always (SteamOS + Games)' },
+        { data: 'games_only', label: 'Only in Games / Apps' },
+        { data: 'steamui_only', label: 'Only in SteamOS UI' }
+    ];
+
+    // Position options - designed to fit SteamOS UI black bar areas
+    const positionOptions = [
+        { data: 'top-bar', label: 'Top Bar' },
+        { data: 'bottom-bar', label: 'Bottom Bar' }
+    ];
+
+    // Time window options: 15m, 30m, 45m, 1h, 2h, 3h, 4h, 6h, 8h, 12h, 24h
+    const timeWindowOptions = [
+        { data: 0.25, label: '15 minutes' },
+        { data: 0.5, label: '30 minutes' },
+        { data: 0.75, label: '45 minutes' },
+        { data: 1, label: '1 hour' },
+        { data: 2, label: '2 hours' },
+        { data: 3, label: '3 hours' },
+        { data: 4, label: '4 hours' },
+        { data: 6, label: '6 hours' },
+        { data: 8, label: '8 hours' },
+        { data: 12, label: '12 hours' },
+        { data: 24, label: '24 hours' }
+    ];
+
+    return (
+        <ScrollableContent>
+            <PanelSection title="General">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaEye />}
+                        label="Enable Overlay"
+                        description="Show upcoming alerts when QAM or Steam Menu is open"
+                        checked={settings.overlay_enabled ?? false}
+                        onChange={(value) => updateSetting('overlay_enabled', value)}
+                    />
+                </PanelSectionRow>
+
+                {settings.overlay_enabled && (
+                    <>
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 12, color: '#888888', padding: '4px 0', lineHeight: 1.4 }}>
+                                ℹ️ During gameplay, the overlay only appears when the Quick Access Menu (•••) or Steam Menu is open
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaCog style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Show In</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={displayModeOptions}
+                                        selectedOption={settings.overlay_display_mode || 'always'}
+                                        onChange={(option) => updateSetting('overlay_display_mode', option.data as any)}
+                                        strDefaultLabel="Select Mode"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                    </>
+                )}
+            </PanelSection>
+
+            {settings.overlay_enabled && (
+                <>
+                    <PanelSection title="Appearance">
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Position</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={positionOptions}
+                                        selectedOption={settings.overlay_position || 'bottom-bar'}
+                                        onChange={(option) => updateSetting('overlay_position', option.data as any)}
+                                        strDefaultLabel="Select Position"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 24px', lineHeight: 1.3 }}>
+                                Fits in the black bar areas of SteamOS UI. Bottom bar avoids the QAM panel.
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <SliderField
+                                label="Text Size"
+                                description={`${settings.overlay_text_size ?? 11}px`}
+                                value={settings.overlay_text_size ?? 11}
+                                min={11}
+                                max={16}
+                                step={1}
+                                onChange={(value) => updateSetting('overlay_text_size', value)}
+                                icon={<FaCog />}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <SliderField
+                                label="Opacity"
+                                description={`${Math.round((settings.overlay_opacity ?? 0.6) * 100)}%`}
+                                value={Math.round((settings.overlay_opacity ?? 0.6) * 100)}
+                                min={10}
+                                max={100}
+                                step={5}
+                                onChange={(value) => updateSetting('overlay_opacity', value / 100)}
+                                icon={<FaEye />}
+                            />
+                        </PanelSectionRow>
+                    </PanelSection>
+
+                    <PanelSection title="Content">
+                        <PanelSectionRow>
+                            <SliderField
+                                label="Max Alerts Shown"
+                                description={`${settings.overlay_max_alerts ?? 3} alert${(settings.overlay_max_alerts ?? 3) !== 1 ? 's' : ''}`}
+                                value={settings.overlay_max_alerts ?? 3}
+                                min={1}
+                                max={5}
+                                step={1}
+                                onChange={(value) => updateSetting('overlay_max_alerts', value)}
+                                icon={<FaBell />}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaClock style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Time Window</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={timeWindowOptions}
+                                        selectedOption={settings.overlay_time_window ?? 6}
+                                        onChange={(option) => updateSetting('overlay_time_window', option.data as number)}
+                                        strDefaultLabel="Select Window"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                    </PanelSection>
+
+                    <PanelSection title="Categories">
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaStopwatch />}
+                                label="Timers"
+                                description="Show active timer countdowns"
+                                checked={settings.overlay_show_timers ?? true}
+                                onChange={(value) => updateSetting('overlay_show_timers', value)}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaBell />}
+                                label="Alarms"
+                                description="Show upcoming alarms"
+                                checked={settings.overlay_show_alarms ?? true}
+                                onChange={(value) => updateSetting('overlay_show_alarms', value)}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaBrain />}
+                                label="Pomodoro"
+                                description="Show active focus/break countdown"
+                                checked={settings.overlay_show_pomodoros ?? true}
+                                onChange={(value) => updateSetting('overlay_show_pomodoros', value)}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaClock />}
+                                label="Reminders"
+                                description="Show next periodic reminders"
+                                checked={settings.overlay_show_reminders ?? true}
+                                onChange={(value) => updateSetting('overlay_show_reminders', value)}
+                            />
+                        </PanelSectionRow>
+                    </PanelSection>
+
+                    <PanelSection title="OLED Protection">
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaCog />}
+                                label="Pixel Shift"
+                                description="Periodically move overlay to prevent burn-in (disable for LCD)"
+                                checked={settings.overlay_pixel_shift ?? true}
+                                onChange={(value) => updateSetting('overlay_pixel_shift', value)}
+                            />
+                        </PanelSectionRow>
+
+                        {settings.overlay_pixel_shift && (
+                            <>
+                                <PanelSectionRow>
+                                    <SliderField
+                                        label="Shift Interval"
+                                        description={`Every ${settings.overlay_pixel_shift_interval ?? 45} seconds`}
+                                        value={settings.overlay_pixel_shift_interval ?? 45}
+                                        min={15}
+                                        max={120}
+                                        step={5}
+                                        onChange={(value) => updateSetting('overlay_pixel_shift_interval', value)}
+                                        icon={<FaClock />}
+                                    />
+                                </PanelSectionRow>
+
+                                <PanelSectionRow>
+                                    <SliderField
+                                        label="Shift Range"
+                                        description={`±${settings.overlay_pixel_shift_range ?? 3} pixels`}
+                                        value={settings.overlay_pixel_shift_range ?? 3}
+                                        min={1}
+                                        max={8}
+                                        step={1}
+                                        onChange={(value) => updateSetting('overlay_pixel_shift_range', value)}
+                                        icon={<FaCog />}
+                                    />
+                                </PanelSectionRow>
+                            </>
+                        )}
+
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 12, color: '#888888', padding: '4px 0' }}>
+                                Steam Deck OLED users should keep Pixel Shift enabled. LCD users can safely disable it.
+                            </div>
+                        </PanelSectionRow>
+                    </PanelSection>
+                </>
+            )}
+        </ScrollableContent>
+    );
+};
+
 // Factory Reset Confirmation Modal
 const showFactoryResetConfirm = (onConfirm: () => void) => {
     showModal(
@@ -674,7 +919,7 @@ const FactoryResetPage = () => {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.4.1
+                                <strong>AlarMe</strong> v1.5.0
                             </p>
                             <p>
                                 By Guilherme Lemos
@@ -717,6 +962,11 @@ export const SettingsPage = () => {
             title: "Display",
             icon: <FaCog />,
             content: <DisplaySettingsPage />
+        },
+        {
+            title: "Overlay",
+            icon: <FaEye />,
+            content: <OverlaySettingsPage />
         },
         {
             title: "Backup",
