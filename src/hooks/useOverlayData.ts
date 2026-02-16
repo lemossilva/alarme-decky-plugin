@@ -5,7 +5,7 @@ import type { OverlayAlert, UserSettings, TimerTickEvent, PomodoroTickEvent } fr
 // Backend callable
 const getOverlayDataCall = callable<[], { alerts: OverlayAlert[]; settings: Record<string, any> }>('get_overlay_data');
 
-export function useOverlayData(settings: UserSettings) {
+export function useOverlayData(settings: UserSettings, isGameRunning?: boolean) {
     const [alerts, setAlerts] = useState<OverlayAlert[]>([]);
     const alertsRef = useRef<OverlayAlert[]>([]);
 
@@ -98,12 +98,17 @@ export function useOverlayData(settings: UserSettings) {
             fetchOverlayData();
         }
     }, [
+        settings.overlay_display_mode,
+        settings.overlay_position,
+        settings.overlay_custom_x,
+        settings.overlay_custom_y,
         settings.overlay_show_timers,
         settings.overlay_show_alarms,
         settings.overlay_show_pomodoros,
         settings.overlay_show_reminders,
         settings.overlay_time_window,
         settings.overlay_max_alerts,
+        isGameRunning,
         fetchOverlayData
     ]);
 

@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useMemo } from "react";
 import { FaStopwatch, FaBell, FaBrain, FaRedo } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { formatDuration, formatTime } from "../utils/time";
-import type { OverlayAlert, OverlayPosition } from "../types";
+import type { OverlayAlert } from "../types";
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, JSX.Element> = {
@@ -14,39 +14,13 @@ const CATEGORY_ICONS: Record<string, JSX.Element> = {
     reminder: <FaRedo />
 };
 
-// Position CSS mapping - designed to fit in SteamOS UI black bar areas
-// top-bar: The black strip at the very top (left of system tray)
-// bottom-bar: The black strip at bottom (between STEAM MENU and controller hints)
-const POSITION_STYLES: Record<OverlayPosition, React.CSSProperties> = {
-    'top-bar': {
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 40, // Match typical SteamOS header height
-        paddingLeft: 24, // Safe margin from left edge
-        paddingRight: 320, // Avoid system icons on the right
-        justifyContent: 'flex-start',
-        paddingTop: 0,    // Force zero padding
-        paddingBottom: 0, // Force zero padding
-        marginTop: 0,     // Ensure no margins
-        // Ensure vertical centering happens in the container
-        display: 'flex',
-        alignItems: 'center'
-    },
-    'bottom-bar': {
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 40, // Match typical SteamOS footer height
-        paddingLeft: 200, // Safe margin after "STEAM MENU" button area
-        paddingRight: 240, // Avoid controller hints area
-        paddingTop: 0,
-        paddingBottom: 0,
-        marginBottom: 0,
-        justifyContent: 'flex-start',
-        display: 'flex',
-        alignItems: 'center'
-    }
+// Default position style (top-left corner)
+const DEFAULT_POSITION_STYLE: React.CSSProperties = {
+    top: 12,
+    left: 12,
+    justifyContent: 'flex-start',
+    display: 'flex',
+    alignItems: 'center'
 };
 
 // Format alert time display
@@ -141,74 +115,31 @@ const OverlayAlertItem = ({
 
 export const GameOverlay = () => {
     const { settings } = useSettings();
-    const alerts = useOverlayData(settings);
     const isGameRunning = useGameStatus();
+    const alerts = useOverlayData(settings, isGameRunning);
 
-    // Pixel shift state
-    const [shiftX, setShiftX] = useState(0);
-    const shiftTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // Pixel shift effect
-    useEffect(() => {
-        if (!settings.overlay_enabled || !settings.overlay_pixel_shift) {
-            setShiftX(0);
-            if (shiftTimerRef.current) {
-                clearInterval(shiftTimerRef.current);
-                shiftTimerRef.current = null;
-            }
-            return;
+    const positionStyle = useMemo(() => {
+        const isCustom = settings.overlay_position === 'custom';
+        if (isCustom) {
+            return {
+                ...DEFAULT_POSITION_STYLE,
+                left: settings.overlay_custom_x ?? 12,
+                top: settings.overlay_custom_y ?? 12
+            };
         }
-
-        const range = settings.overlay_pixel_shift_range || 3;
-        const interval = (settings.overlay_pixel_shift_interval || 45) * 1000;
-
-        const doShift = () => {
-            setShiftX(Math.round((Math.random() * 2 - 1) * range));
-        };
-
-        // Initial shift
-        doShift();
-
-        shiftTimerRef.current = setInterval(doShift, interval);
-
-        return () => {
-            if (shiftTimerRef.current) {
-                clearInterval(shiftTimerRef.current);
-                shiftTimerRef.current = null;
-            }
-        };
-    }, [
-        settings.overlay_enabled,
-        settings.overlay_pixel_shift,
-        settings.overlay_pixel_shift_interval,
-        settings.overlay_pixel_shift_range
-    ]);
-
-    // Position styles - use different positions for in-game vs SteamOS UI
-    // Unified position setting for both in-game and SteamOS UI
-    const currentPosition = settings.overlay_position || 'bottom-bar';
-
-    const positionStyle = useMemo(() =>
-        POSITION_STYLES[currentPosition] || POSITION_STYLES['top-bar'],
-        [currentPosition]
-    );
-
-    // For bar positions, transform is already in the style. Only add pixel shift.
-    // Apply pixel shift only horizontally for bar positions to avoid breaking the bar layout
-    const shiftTransform = `translateX(${shiftX}px)`;
-    // Combine with any existing transform from position style
-    const existingTransform = positionStyle.transform || '';
-    const transform = existingTransform ? `${existingTransform} ${shiftTransform}` : shiftTransform;
+        return DEFAULT_POSITION_STYLE;
+    }, [settings.overlay_position, settings.overlay_custom_x, settings.overlay_custom_y]);
 
     // Don't render if disabled or no alerts
     if (!settings.overlay_enabled || alerts.length === 0) {
         return null;
     }
 
-    // Display mode check
+    // Display mode filtering
     const displayMode = settings.overlay_display_mode || 'always';
-    if (displayMode === 'games_only' && !isGameRunning) return null;
-    if (displayMode === 'steamui_only' && isGameRunning) return null;
+    if (displayMode === 'gaming_only' && !isGameRunning) {
+        return null;
+    }
 
     return (
         <div style={{
@@ -216,8 +147,6 @@ export const GameOverlay = () => {
             ...positionStyle,
             zIndex: 7100,
             pointerEvents: 'none',
-            transform,
-            transition: 'transform 0.5s ease',
             opacity: settings.overlay_opacity ?? 0.85,
             color: '#8b8b8b',  // Match SteamOS muted text color
             fontFamily: 'system-ui, -apple-system, sans-serif',

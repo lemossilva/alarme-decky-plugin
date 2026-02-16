@@ -2,9 +2,10 @@ import {
     ButtonItem,
     Focusable,
     PanelSection,
-    PanelSectionRow
+    PanelSectionRow,
+    ToggleField
 } from "@decky/ui";
-import { FaPlus, FaMinus, FaTimes, FaPlay, FaEdit } from "react-icons/fa";
+import { FaPlus, FaMinus, FaTimes, FaPlay, FaEdit, FaPause } from "react-icons/fa";
 import { useState, useCallback } from "react";
 
 import { useTimers, RecentTimer } from "../hooks/useTimers";
@@ -58,14 +59,31 @@ const QuickButton = ({ minutes, onClick, variant, disabled }: QuickButtonProps) 
     );
 };
 
-const TimerItem = ({ timer, onCancel }: { timer: Timer; onCancel: (id: string) => void }) => {
-    const [focused, setFocused] = useState(false);
+interface TimerItemProps {
+    timer: Timer;
+    onCancel: (id: string) => void;
+    onPause: (id: string) => void;
+    onResume: (id: string) => void;
+}
+
+const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
+    const [cancelFocused, setCancelFocused] = useState(false);
+    const [pauseFocused, setPauseFocused] = useState(false);
     const remaining = timer.remaining ?? 0;
-    const isUrgent = remaining < 60;
+    const isUrgent = remaining < 60 && !timer.paused;
+    const isPaused = timer.paused ?? false;
 
     const handleCancel = useCallback(() => {
         onCancel(timer.id);
     }, [onCancel, timer.id]);
+
+    const handlePauseResume = useCallback(() => {
+        if (isPaused) {
+            onResume(timer.id);
+        } else {
+            onPause(timer.id);
+        }
+    }, [isPaused, onPause, onResume, timer.id]);
 
     return (
         <div style={{
@@ -73,36 +91,69 @@ const TimerItem = ({ timer, onCancel }: { timer: Timer; onCancel: (id: string) =
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '8px 12px',
-            backgroundColor: isUrgent ? '#aa444444' : '#ffffff11',
+            backgroundColor: isPaused ? '#4488aa44' : (isUrgent ? '#aa444444' : '#ffffff11'),
             borderRadius: 8,
             marginBottom: 8
         }}>
             <div>
-                <div style={{ fontWeight: 'bold', fontSize: 16 }}>{timer.label}</div>
+                <div style={{ fontWeight: 'bold', fontSize: 16 }}>
+                    {timer.label}
+                    {isPaused && <span style={{ color: '#4488aa', marginLeft: 8, fontSize: 12 }}>PAUSED</span>}
+                </div>
                 <div style={{
                     fontSize: 24,
                     fontFamily: 'monospace',
-                    color: isUrgent ? '#ff6666' : '#ffffff'
+                    color: isPaused ? '#4488aa' : (isUrgent ? '#ff6666' : '#ffffff')
                 }}>
                     {formatDuration(remaining)}
                 </div>
+                {(timer.subtle_mode || timer.auto_suspend) && (
+                    <div style={{
+                        fontSize: 11,
+                        color: '#bbbbbb',
+                        marginTop: 4,
+                        display: 'flex',
+                        gap: 8
+                    }}>
+                        {timer.subtle_mode && <span>Subtle</span>}
+                        {timer.auto_suspend && <span>Auto-Suspend</span>}
+                    </div>
+                )}
             </div>
-            <Focusable
-                onActivate={handleCancel}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                style={{
-                    padding: 8,
-                    backgroundColor: focused ? '#ff6666' : '#aa444488',
-                    borderRadius: 8,
-                    border: focused ? '2px solid white' : '2px solid transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                }}
-            >
-                <FaTimes size={16} />
-            </Focusable>
+            <div style={{ display: 'flex', gap: 8 }}>
+                <Focusable
+                    onActivate={handlePauseResume}
+                    onFocus={() => setPauseFocused(true)}
+                    onBlur={() => setPauseFocused(false)}
+                    style={{
+                        padding: 8,
+                        backgroundColor: pauseFocused ? '#4488aa' : '#4488aa88',
+                        borderRadius: 8,
+                        border: pauseFocused ? '2px solid white' : '2px solid transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    {isPaused ? <FaPlay size={16} /> : <FaPause size={16} />}
+                </Focusable>
+                <Focusable
+                    onActivate={handleCancel}
+                    onFocus={() => setCancelFocused(true)}
+                    onBlur={() => setCancelFocused(false)}
+                    style={{
+                        padding: 8,
+                        backgroundColor: cancelFocused ? '#ff6666' : '#aa444488',
+                        borderRadius: 8,
+                        border: cancelFocused ? '2px solid white' : '2px solid transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    <FaTimes size={16} />
+                </Focusable>
+            </div>
         </div>
     );
 };
@@ -119,14 +170,23 @@ const PresetButton = ({ preset, onClick, disabled }: { preset: Preset; onClick: 
     </ButtonItem>
 );
 
-const RecentTimerButton = ({ recent, onClick }: { recent: RecentTimer; onClick: () => void }) => {
+const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; onClick: () => void; isFirst?: boolean }) => {
     const [focused, setFocused] = useState(false);
+    const [pressed, setPressed] = useState(false);
     const minutes = Math.floor(recent.seconds / 60);
     const displayLabel = recent.label || `${minutes} min`;
 
+    const handleActivate = () => {
+        if (isFirst) {
+            setPressed(true);
+            setTimeout(() => setPressed(false), 200);
+        }
+        onClick();
+    };
+
     return (
         <Focusable
-            onActivate={onClick}
+            onActivate={handleActivate}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             style={{
@@ -134,10 +194,11 @@ const RecentTimerButton = ({ recent, onClick }: { recent: RecentTimer; onClick: 
                 alignItems: 'center',
                 gap: 8,
                 padding: '8px 12px',
-                backgroundColor: focused ? '#4488aa' : '#ffffff11',
+                backgroundColor: pressed ? '#66bb6a' : (focused ? '#4488aa' : '#ffffff11'),
                 borderRadius: 8,
                 border: focused ? '2px solid white' : '2px solid transparent',
-                transition: 'all 0.1s ease-in-out'
+                transition: 'all 0.1s ease-in-out',
+                transform: pressed ? 'scale(0.97)' : 'scale(1)'
             }}
         >
             <FaPlay size={10} />
@@ -148,16 +209,20 @@ const RecentTimerButton = ({ recent, onClick }: { recent: RecentTimer; onClick: 
 };
 
 export function TimerPanel() {
-    const { timers, recentTimers, createTimer, cancelTimer } = useTimers();
-    const { presets } = useSettings();
+    const { timers, recentTimers, createTimer, cancelTimer, pauseTimer, resumeTimer } = useTimers();
+    const { presets, settings, updateSetting } = useSettings();
     const [timerMinutes, setTimerMinutes] = useState(5);
+
+    // Use settings directly for persistence
+    const timerSubtleMode = settings.timer_subtle_mode ?? false;
+    const timerAutoSuspend = settings.timer_auto_suspend ?? false;
 
     const hasActiveTimers = timers.length > 0;
     const hasRecentTimers = recentTimers.length > 0;
 
     // Quick start timer (no label)
     const handleQuickStart = async () => {
-        await createTimer(timerMinutes * 60, '');
+        await createTimer(timerMinutes * 60, '', timerSubtleMode, timerAutoSuspend);
     };
 
     // Open modal for labeled timer
@@ -165,19 +230,19 @@ export function TimerPanel() {
         showTimerLabelModal({
             seconds: timerMinutes * 60,
             onStart: async (seconds, label) => {
-                await createTimer(seconds, label);
+                await createTimer(seconds, label, timerSubtleMode, timerAutoSuspend);
             }
         });
     };
 
     // Start from preset
     const handlePresetClick = async (preset: Preset) => {
-        await createTimer(preset.seconds, preset.label);
+        await createTimer(preset.seconds, preset.label, timerSubtleMode, timerAutoSuspend);
     };
 
     // Start from recent
     const handleRecentClick = async (recent: RecentTimer) => {
-        await createTimer(recent.seconds, recent.label);
+        await createTimer(recent.seconds, recent.label, timerSubtleMode, timerAutoSuspend);
     };
 
     return (
@@ -190,7 +255,8 @@ export function TimerPanel() {
                             key={timer.id}
                             timer={timer}
                             onCancel={cancelTimer}
-
+                            onPause={pauseTimer}
+                            onResume={resumeTimer}
                         />
                     ))}
                 </PanelSection>
@@ -290,6 +356,34 @@ export function TimerPanel() {
                         Add Label...
                     </ButtonItem>
                 </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaPlay size={12} />}
+                        label="Subtle Mode"
+                        description={timerAutoSuspend
+                            ? "Required when Auto-Suspend is enabled"
+                            : "Show a small toast instead of fullscreen popup"}
+                        checked={timerAutoSuspend ? true : timerSubtleMode}
+                        disabled={timerAutoSuspend}
+                        onChange={(value) => updateSetting('timer_subtle_mode', value)}
+                    />
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaTimes size={12} />}
+                        label="Auto-Suspend"
+                        description="Suspend device when timer finishes (enables Subtle Mode)"
+                        checked={timerAutoSuspend}
+                        onChange={async (value) => {
+                            await updateSetting('timer_auto_suspend', value);
+                            if (value) {
+                                await updateSetting('timer_subtle_mode', true);
+                            }
+                        }}
+                    />
+                </PanelSectionRow>
             </PanelSection>
 
             {/* Recent Timers */}
@@ -302,6 +396,7 @@ export function TimerPanel() {
                                     key={`${recent.seconds}-${recent.label}-${idx}`}
                                     recent={recent}
                                     onClick={() => handleRecentClick(recent)}
+                                    isFirst={idx === 0}
                                 />
                             ))}
                         </Focusable>

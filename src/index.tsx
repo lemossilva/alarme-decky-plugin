@@ -14,10 +14,7 @@ import {
 } from "@decky/api";
 import { showModal } from "@decky/ui";
 import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes } from "react-icons/fa";
-import { useState, useEffect } from "react";
-
-// Global declaration for SteamClient
-declare const SteamClient: any;
+import { useState, useEffect, useRef } from "react";
 
 // Components
 import { TimerPanel } from "./components/TimerPanel";
@@ -38,7 +35,6 @@ import { useSettings } from "./hooks/useSettings";
 
 // Types
 import type {
-    TabId,
     TimerCompletedEvent,
     AlarmTriggeredEvent,
     PomodoroState,
@@ -52,6 +48,8 @@ const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean
 const getMissedItems = callable<[], MissedItem[]>('get_missed_items');
 
 // Tab configuration
+type TabId = 'timers' | 'alarms' | 'pomodoro' | 'reminders' | 'settings';
+
 interface Tab {
     id: TabId;
     label: string;
@@ -87,7 +85,7 @@ const TabButton = ({ tab, active, onClick }: TabButtonProps) => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '6px 4px', // Reduced padding to account for border
+                padding: '6px 4px',
                 backgroundColor: active ? '#4488aa' : (focused ? '#ffffff22' : 'transparent'),
                 color: active || focused ? '#ffffff' : '#888888',
                 border: focused ? '2px solid #ffffff' : '2px solid transparent',
@@ -109,6 +107,40 @@ function Content() {
     const [missedItems, setMissedItems] = useState<MissedItem[]>([]);
     const { settings: userSettings } = useSettings();
     const use24h = userSettings.time_format_24h;
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    // Scroll to top on mount — SteamOS auto-focuses toggle fields which scrolls to middle
+    useEffect(() => {
+        const scrollToTop = () => {
+            if (contentRef.current) {
+                // Try to scroll the contentRef itself into view
+                contentRef.current.scrollIntoView({ block: 'start' });
+
+                // Also walk up to find the actual scroll container and reset it
+                let el: HTMLElement | null = contentRef.current.parentElement;
+                while (el) {
+                    if (el.scrollHeight > el.clientHeight) {
+                        el.scrollTop = 0;
+                    }
+                    el = el.parentElement;
+                }
+            }
+        };
+
+        // Run multiple times with increasing delays to beat SteamOS focus timing
+        scrollToTop();
+        requestAnimationFrame(scrollToTop);
+        const t1 = setTimeout(scrollToTop, 50);
+        const t2 = setTimeout(scrollToTop, 150);
+        const t3 = setTimeout(scrollToTop, 300);
+
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+            clearTimeout(t3);
+        };
+    }, []);
+
     // Persistent dismissal logic
     const [lastDismissed, setLastDismissed] = useState<number>(() => {
         return parseInt(localStorage.getItem('alarme_missed_dismissed_at') || '0');
@@ -149,7 +181,7 @@ function Content() {
     }, []);
 
     return (
-        <>
+        <div ref={contentRef}>
             {/* Missed Alerts Notification Area */}
             {showMissedAlerts && (
                 <PanelSection title="Missed Alerts">
@@ -260,7 +292,7 @@ function Content() {
             {activeTab === 'alarms' && <AlarmPanel />}
             {activeTab === 'pomodoro' && <PomodoroPanel />}
             {activeTab === 'reminders' && <ReminderPanel />}
-        </>
+        </div>
     );
 }
 

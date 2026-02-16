@@ -25,6 +25,13 @@ SETTINGS_KEY_POMODORO = "pomodoro_state"
 SETTINGS_KEY_RECENT_TIMERS = "recent_timers"
 SETTINGS_KEY_REMINDERS = "reminders"
 
+# Limits to prevent excessive data
+MAX_ACTIVE_TIMERS = 50
+MAX_ALARMS = 100
+MAX_REMINDERS = 50
+MAX_RECENT_TIMERS = 20
+MAX_PRESETS = 50
+
 # Default user settings
 DEFAULT_SETTINGS = {
     "snooze_duration": 5,  # default minutes for alarm snooze
@@ -50,7 +57,9 @@ DEFAULT_SETTINGS = {
     # Overlay settings
     "overlay_enabled": False,
     "overlay_display_mode": "always",
-    "overlay_position": "top-right",
+    "overlay_position": "default",
+    "overlay_custom_x": 24,
+    "overlay_custom_y": 0,
     "overlay_text_size": 12,
     "overlay_opacity": 0.6,
     "overlay_max_alerts": 3,
@@ -58,10 +67,7 @@ DEFAULT_SETTINGS = {
     "overlay_show_timers": True,
     "overlay_show_alarms": True,
     "overlay_show_pomodoros": True,
-    "overlay_show_reminders": True,
-    "overlay_pixel_shift": True,
-    "overlay_pixel_shift_interval": 45,
-    "overlay_pixel_shift_range": 3
+    "overlay_show_reminders": True
 }
 
 # Default presets
@@ -160,10 +166,26 @@ class Plugin:
         else:
             return f"{seconds}s timer"
 
-    async def create_timer(self, seconds: int, label: str = "") -> str:
+    async def create_timer(self, seconds: int, label: str = "",
+                          subtle_mode: bool = None,
+                          auto_suspend: bool = None) -> str:
         """Create a new countdown timer."""
+        # Check limit
+        timers = await self._get_timers()
+        if len(timers) >= MAX_ACTIVE_TIMERS:
+            decky.logger.warning(f"AlarMe: Timer limit reached ({MAX_ACTIVE_TIMERS})")
+            return None
+        
         timer_id = str(uuid.uuid4())[:8]
         end_time = time.time() + seconds
+        user_settings = await self._get_user_settings()
+
+        if subtle_mode is None:
+            subtle_mode = user_settings.get("timer_subtle_mode", False)
+        if auto_suspend is None:
+            auto_suspend = user_settings.get("timer_auto_suspend", False)
+        if auto_suspend:
+            subtle_mode = True
         
         # Generate default label from duration if not provided
         if not label:
@@ -174,7 +196,9 @@ class Plugin:
             "label": label,
             "seconds": seconds,
             "end_time": end_time,
-            "created_at": time.time()
+            "created_at": time.time(),
+            "subtle_mode": subtle_mode,
+            "auto_suspend": auto_suspend
         }
         
         # Save to settings
@@ -212,6 +236,84 @@ class Plugin:
             return True
         return False
 
+    async def pause_timer(self, timer_id: str) -> bool:
+        """Pause an active timer."""
+        timers = await self._get_timers()
+        if timer_id not in timers:
+            return False
+        
+        timer = timers[timer_id]
+        if timer.get("paused"):
+            return False  # Already paused
+        
+        # Cancel the background task
+        if timer_id in self.timer_tasks:
+            self.timer_tasks[timer_id].cancel()
+            del self.timer_tasks[timer_id]
+        
+        # Store remaining time and mark as paused
+        remaining = timer["end_time"] - time.time()
+        timer["paused"] = True
+        timer["paused_remaining"] = max(0, remaining)
+        
+        await self._save_timers(timers)
+        decky.logger.info(f"AlarMe: Paused timer {timer_id} with {remaining:.0f}s remaining")
+        await decky.emit("alarme_timer_paused", {"id": timer_id, "remaining": remaining})
+        await self._emit_all_timers()
+        return True
+
+    async def resume_timer(self, timer_id: str) -> bool:
+        """Resume a paused timer."""
+        timers = await self._get_timers()
+        if timer_id not in timers:
+            return False
+        
+        timer = timers[timer_id]
+        if not timer.get("paused"):
+            return False  # Not paused
+        
+        # Calculate new end time from paused remaining
+        remaining = timer.get("paused_remaining", 0)
+        new_end_time = time.time() + remaining
+        
+        timer["end_time"] = new_end_time
+        timer["paused"] = False
+        timer.pop("paused_remaining", None)
+        
+        await self._save_timers(timers)
+        
+        # Restart the background task
+        self.timer_tasks[timer_id] = self.loop.create_task(
+            self._timer_handler(timer_id, new_end_time, timer["label"])
+        )
+        
+        decky.logger.info(f"AlarMe: Resumed timer {timer_id} with {remaining:.0f}s remaining")
+        await decky.emit("alarme_timer_resumed", {"id": timer_id, "remaining": remaining})
+        await self._emit_all_timers()
+        return True
+
+    async def update_timer(self, timer_id: str, label: str = None,
+                          subtle_mode: bool = None, auto_suspend: bool = None) -> dict:
+        """Update an active timer's editable properties."""
+        timers = await self._get_timers()
+        if timer_id not in timers:
+            return None
+
+        timer = timers[timer_id]
+        if label is not None:
+            timer["label"] = label
+        if subtle_mode is not None:
+            timer["subtle_mode"] = subtle_mode
+        if auto_suspend is not None:
+            timer["auto_suspend"] = auto_suspend
+            if auto_suspend:
+                timer["subtle_mode"] = True
+
+        await self._save_timers(timers)
+        await decky.emit("alarme_timer_updated", timer)
+        await self._emit_all_timers()
+        return timer
+
     async def get_active_timers(self) -> list:
         """Get all active timers with remaining time."""
         timers = await self._get_timers()
@@ -219,12 +321,19 @@ class Plugin:
         active = []
         
         for timer_id, timer in timers.items():
-            remaining = timer["end_time"] - current_time
-            if remaining > 0:
+            # Handle paused timers
+            if timer.get("paused"):
                 active.append({
                     **timer,
-                    "remaining": remaining
+                    "remaining": timer.get("paused_remaining", 0)
                 })
+            else:
+                remaining = timer["end_time"] - current_time
+                if remaining > 0:
+                    active.append({
+                        **timer,
+                        "remaining": remaining
+                    })
         
         return sorted(active, key=lambda x: x["remaining"])
 
@@ -235,6 +344,9 @@ class Plugin:
                 remaining = end_time - time.time()
                 
                 if remaining <= 0:
+                    timers = await self._get_timers()
+                    timer = timers.get(timer_id, {})
+
                     # Timer completed
                     await self.cancel_timer(timer_id)
                     
@@ -245,10 +357,12 @@ class Plugin:
                         return # Skip sound/notification for missed items
 
                     user_settings = await self._get_user_settings()
-                    subtle = user_settings.get("timer_subtle_mode", False)
+                    subtle = timer.get("subtle_mode", user_settings.get("timer_subtle_mode", False))
                     timer_sound = user_settings.get("timer_sound", "alarm.mp3")
                     timer_volume = user_settings.get("timer_volume", 100)
-                    timer_auto_suspend = user_settings.get("timer_auto_suspend", False)
+                    timer_auto_suspend = timer.get("auto_suspend", user_settings.get("timer_auto_suspend", False))
+                    if timer_auto_suspend:
+                        subtle = True
                     await decky.emit("alarme_timer_completed", {
                         "id": timer_id,
                         "label": label,
@@ -328,6 +442,12 @@ class Plugin:
         subtle_mode: if True, show only a toast notification
         auto_suspend: if True, suspend device after alarm
         """
+        # Check limit
+        alarms = await self._get_alarms()
+        if len(alarms) >= MAX_ALARMS:
+            decky.logger.warning(f"AlarMe: Alarm limit reached ({MAX_ALARMS})")
+            return None
+        
         alarm_id = str(uuid.uuid4())[:8]
         
         if not label:
@@ -1146,7 +1266,7 @@ class Plugin:
         # Check daily reset
         today = datetime.now().strftime("%Y-%m-%d")
         if stats.get("last_active_date") != today:
-            # Archive yesterday's data if there was activity
+            # Archive previous day's data if there was activity
             last_date = stats.get("last_active_date", "")
             if last_date and (stats.get("daily_focus_time", 0) > 0 or stats.get("daily_sessions", 0) > 0):
                 # Add to history
@@ -1161,26 +1281,18 @@ class Plugin:
                 if len(history) > 30:
                     history = history[-30:]
                 stats["daily_history"] = history
-                
-                # Update streak - check if consecutive
-                if last_date:
-                    from datetime import timedelta
-                    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-                    if last_date == yesterday:
-                        # Consecutive day - increment streak
-                        stats["current_streak"] = stats.get("current_streak", 0) + 1
-                    else:
-                        # Gap detected - reset streak (but archive if there was activity today)
-                        if stats.get("daily_sessions", 0) > 0:
-                            stats["current_streak"] = 1
-                        else:
-                            stats["current_streak"] = 0
-                            
-                    # Update longest streak
-                    if stats["current_streak"] > stats.get("longest_streak", 0):
-                        stats["longest_streak"] = stats["current_streak"]
             
-            # Reset daily counters
+            # Check streak: was there activity YESTERDAY specifically?
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            if last_date == yesterday:
+                # Last activity was yesterday - streak continues (will increment when user does session today)
+                pass
+            else:
+                # Gap detected (last activity was 2+ days ago, or no previous activity)
+                # Reset streak to 0 - it will become 1 when user completes a session today
+                stats["current_streak"] = 0
+            
+            # Reset daily counters for the new day
             stats["daily_focus_time"] = 0
             stats["daily_break_time"] = 0
             stats["daily_sessions"] = 0
@@ -1206,7 +1318,15 @@ class Plugin:
             
         if completed_session and not is_break:
             stats["total_sessions"] = stats.get("total_sessions", 0) + 1
-            stats["daily_sessions"] = stats.get("daily_sessions", 0) + 1
+            old_daily = stats.get("daily_sessions", 0)
+            stats["daily_sessions"] = old_daily + 1
+            
+            # Increment streak on first session of the day
+            if old_daily == 0:
+                stats["current_streak"] = stats.get("current_streak", 0) + 1
+                # Update longest streak
+                if stats["current_streak"] > stats.get("longest_streak", 0):
+                    stats["longest_streak"] = stats["current_streak"]
             
         if completed_cycle:
             stats["total_cycles"] = stats.get("total_cycles", 0) + 1
@@ -1404,6 +1524,13 @@ class Plugin:
 
     async def save_preset(self, seconds: int, label: str) -> dict:
         """Save a new timer preset."""
+        presets = await self.get_presets()
+        
+        # Check limit
+        if len(presets) >= MAX_PRESETS:
+            decky.logger.warning(f"AlarMe: Preset limit reached ({MAX_PRESETS})")
+            return None
+        
         preset_id = str(uuid.uuid4())[:8]
         preset = {
             "id": preset_id,
@@ -1411,7 +1538,6 @@ class Plugin:
             "label": label
         }
         
-        presets = await self.get_presets()
         presets.append(preset)
         await self.settings_setSetting(SETTINGS_KEY_PRESETS, presets)
         await self.settings_commit()
@@ -1454,6 +1580,10 @@ class Plugin:
         user_settings = await self._get_user_settings()
         
         if not user_settings.get("overlay_enabled", False):
+            return {"alerts": [], "settings": {}}
+
+        display_mode = user_settings.get("overlay_display_mode", "menu_only")
+        if display_mode == "gaming_and_menu" and not await self._is_game_running():
             return {"alerts": [], "settings": {}}
         
         max_alerts = user_settings.get("overlay_max_alerts", 3)
@@ -1516,6 +1646,8 @@ class Plugin:
             for reminder_id, reminder in reminders.items():
                 if not reminder.get("enabled"):
                     continue
+                if reminder.get("only_while_gaming") and not await self._is_game_running():
+                    continue
                 next_trigger_str = reminder.get("next_trigger")
                 if not next_trigger_str:
                     continue
@@ -1540,12 +1672,12 @@ class Plugin:
         # Return overlay-relevant settings alongside alerts
         overlay_settings = {
             "enabled": user_settings.get("overlay_enabled", False),
-            "position": user_settings.get("overlay_position", "top-right"),
+            "display_mode": user_settings.get("overlay_display_mode", "menu_only"),
+            "position": user_settings.get("overlay_position", "top"),
+            "position_x": user_settings.get("overlay_custom_x", 24),
+            "position_y": user_settings.get("overlay_custom_y", 0),
             "text_size": user_settings.get("overlay_text_size", 12),
             "opacity": user_settings.get("overlay_opacity", 0.6),
-            "pixel_shift": user_settings.get("overlay_pixel_shift", True),
-            "pixel_shift_interval": user_settings.get("overlay_pixel_shift_interval", 45),
-            "pixel_shift_range": user_settings.get("overlay_pixel_shift_range", 3),
             "time_format_24h": use24h
         }
         
@@ -1641,7 +1773,133 @@ class Plugin:
 
     async def _get_user_settings(self) -> dict:
         saved = await self.settings_getSetting(SETTINGS_KEY_SETTINGS, {})
-        return {**DEFAULT_SETTINGS, **saved}
+        merged = {**DEFAULT_SETTINGS, **saved}
+
+        # Migrate old display mode values to new schema (only 'always' and 'gaming_only' are valid)
+        display_mode_map = {
+            "menu_only": "always",
+            "gaming_and_menu": "always",
+            "games_only": "gaming_only",
+            "steamui_only": "always",
+            "steam_menu_only": "always"
+        }
+        current_mode = merged.get("overlay_display_mode")
+        if current_mode in display_mode_map:
+            merged["overlay_display_mode"] = display_mode_map[current_mode]
+        elif current_mode not in {"always", "gaming_only"}:
+            merged["overlay_display_mode"] = "always"
+
+        # Migrate old position values to new schema
+        position_map = {
+            "top": "default",
+            "bottom": "default",
+            "left": "default",
+            "right": "default",
+            "top-bar": "default",
+            "bottom-bar": "default",
+            "top-right": "default",
+            "top-left": "default",
+            "bottom-right": "default",
+            "bottom-left": "default"
+        }
+        current_position = merged.get("overlay_position")
+        if current_position in position_map:
+            merged["overlay_position"] = position_map[current_position]
+        elif current_position not in {"default", "custom"}:
+            merged["overlay_position"] = "default"
+
+        return merged
+
+    async def _migrate_settings_schema(self):
+        """One-time migration for updated overlay settings schema."""
+        saved = await self.settings_getSetting(SETTINGS_KEY_SETTINGS, {})
+        if not isinstance(saved, dict):
+            return
+
+        updated = dict(saved)
+        changed = False
+
+        # Migrate old display mode values to new schema (only 'always' and 'gaming_only' are valid)
+        display_mode_map = {
+            "menu_only": "always",
+            "gaming_and_menu": "always",
+            "games_only": "gaming_only",
+            "steamui_only": "always",
+            "steam_menu_only": "always"
+        }
+        current_display_mode = updated.get("overlay_display_mode")
+        if current_display_mode in display_mode_map:
+            updated["overlay_display_mode"] = display_mode_map[current_display_mode]
+            changed = True
+
+        # Migrate old position values to new schema
+        position_map = {
+            "top": "default",
+            "bottom": "default",
+            "left": "default",
+            "right": "default",
+            "top-bar": "default",
+            "bottom-bar": "default",
+            "top-right": "default",
+            "top-left": "default",
+            "bottom-right": "default",
+            "bottom-left": "default"
+        }
+        current_position = updated.get("overlay_position")
+        if current_position in position_map:
+            updated["overlay_position"] = position_map[current_position]
+            changed = True
+
+        if "overlay_custom_x" not in updated:
+            updated["overlay_custom_x"] = DEFAULT_SETTINGS["overlay_custom_x"]
+            changed = True
+
+        if "overlay_custom_y" not in updated:
+            updated["overlay_custom_y"] = DEFAULT_SETTINGS["overlay_custom_y"]
+            changed = True
+
+        for stale_key in (
+            "overlay_pixel_shift",
+            "overlay_pixel_shift_interval",
+            "overlay_pixel_shift_range",
+            "overlay_position_steamui"
+        ):
+            if stale_key in updated:
+                del updated[stale_key]
+                changed = True
+
+        if changed:
+            await self.settings_setSetting(SETTINGS_KEY_SETTINGS, updated)
+            await self.settings_commit()
+            decky.logger.info("AlarMe: Migrated overlay settings schema")
+
+    async def _migrate_timer_settings(self):
+        """Migrate legacy global timer defaults into per-timer properties."""
+        timers = await self._get_timers()
+        if not timers:
+            return
+
+        user_settings = await self._get_user_settings()
+        default_subtle = user_settings.get("timer_subtle_mode", False)
+        default_auto_suspend = user_settings.get("timer_auto_suspend", False)
+        changed = False
+
+        for timer in timers.values():
+            if "subtle_mode" not in timer:
+                timer["subtle_mode"] = default_subtle
+                changed = True
+
+            if "auto_suspend" not in timer:
+                timer["auto_suspend"] = default_auto_suspend
+                changed = True
+
+            if timer.get("auto_suspend") and not timer.get("subtle_mode"):
+                timer["subtle_mode"] = True
+                changed = True
+
+        if changed:
+            await self._save_timers(timers)
+            decky.logger.info("AlarMe: Migrated timers to per-timer subtle/auto suspend settings")
 
     # ==================== CORE SETTINGS METHODS ====================
 
@@ -1674,6 +1932,12 @@ class Plugin:
         only_while_gaming: if True, only tick down while a game is running
         reset_on_game_start: if True, reset timer loop when game starts
         """
+        # Check limit
+        reminders = await self._get_reminders()
+        if len(reminders) >= MAX_REMINDERS:
+            decky.logger.warning(f"AlarMe: Reminder limit reached ({MAX_REMINDERS})")
+            return None
+        
         reminder_id = str(uuid.uuid4())[:8]
         
         # Calculate first trigger time
@@ -1907,6 +2171,9 @@ class Plugin:
                              # Fall through to update next trigger, but SKIP emit
                         else:
                             # Trigger the reminder!
+                            if reminder.get("only_while_gaming") and not await self._is_game_running():
+                                continue
+
                             decky.logger.info(f"AlarMe: Triggering reminder {reminder_id}")
                             
                             user_settings = await self._get_user_settings()
@@ -2216,6 +2483,8 @@ class Plugin:
         self.timer_tasks = {}
         
         await self.settings_read()
+        await self._migrate_settings_schema()
+        await self._migrate_timer_settings()
         
         # Resume any active timers
         timers = await self._get_timers()

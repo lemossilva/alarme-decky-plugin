@@ -3,7 +3,8 @@ import {
     Focusable,
     PanelSection,
     PanelSectionRow,
-    ProgressBarWithInfo
+    ProgressBarWithInfo,
+    ToggleField
 } from "@decky/ui";
 import { FaPlay, FaStop, FaForward, FaCoffee, FaBrain } from "react-icons/fa";
 import { usePomodoro } from "../hooks/usePomodoro";
@@ -25,7 +26,7 @@ export function PomodoroPanel() {
         resetStats,
         stats
     } = usePomodoro();
-    const { settings } = useSettings();
+    const { settings, updateSetting } = useSettings();
 
     const workDuration = settings.pomodoro_work_duration * 60;
     const breakDuration = settings.pomodoro_break_duration * 60;
@@ -150,6 +151,16 @@ export function PomodoroPanel() {
                             </ButtonItem>
                         </Focusable>
                     )}
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaBrain />}
+                        label="Subtle Mode"
+                        description="Show a small toast instead of fullscreen popup"
+                        checked={settings.pomodoro_subtle_mode ?? false}
+                        onChange={(value) => updateSetting('pomodoro_subtle_mode', value)}
+                    />
                 </PanelSectionRow>
             </PanelSection>
 

@@ -3,8 +3,10 @@ import { addEventListener, removeEventListener, callable } from '@decky/api';
 import type { Timer, TimerTickEvent } from '../types';
 
 // Backend callables
-const createTimerCall = callable<[seconds: number, label: string], string>('create_timer');
+const createTimerCall = callable<[seconds: number, label: string, subtle_mode?: boolean, auto_suspend?: boolean], string>('create_timer');
 const cancelTimerCall = callable<[timer_id: string], boolean>('cancel_timer');
+const pauseTimerCall = callable<[timer_id: string], boolean>('pause_timer');
+const resumeTimerCall = callable<[timer_id: string], boolean>('resume_timer');
 const getActiveTimersCall = callable<[], Timer[]>('get_active_timers');
 const getRecentTimersCall = callable<[], RecentTimer[]>('get_recent_timers');
 
@@ -42,9 +44,14 @@ export function useTimers() {
     }, []);
 
     // Create a new timer
-    const createTimer = useCallback(async (seconds: number, label: string = '') => {
+    const createTimer = useCallback(async (
+        seconds: number,
+        label: string = '',
+        subtleMode?: boolean,
+        autoSuspend?: boolean
+    ) => {
         try {
-            await createTimerCall(seconds, label);
+            await createTimerCall(seconds, label, subtleMode, autoSuspend);
             // Reload recent timers after creating
             loadRecentTimers();
         } catch (e) {
@@ -58,6 +65,24 @@ export function useTimers() {
             await cancelTimerCall(timerId);
         } catch (e) {
             console.error('Failed to cancel timer:', e);
+        }
+    }, []);
+
+    // Pause a timer
+    const pauseTimer = useCallback(async (timerId: string) => {
+        try {
+            await pauseTimerCall(timerId);
+        } catch (e) {
+            console.error('Failed to pause timer:', e);
+        }
+    }, []);
+
+    // Resume a timer
+    const resumeTimer = useCallback(async (timerId: string) => {
+        try {
+            await resumeTimerCall(timerId);
+        } catch (e) {
+            console.error('Failed to resume timer:', e);
         }
     }, []);
 
@@ -94,6 +119,8 @@ export function useTimers() {
         loading,
         createTimer,
         cancelTimer,
+        pauseTimer,
+        resumeTimer,
         refresh: loadTimers,
         refreshRecent: loadRecentTimers
     };

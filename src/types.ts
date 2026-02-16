@@ -7,7 +7,11 @@ export interface Timer {
     seconds: number;
     end_time: number;
     created_at: number;
+    subtle_mode?: boolean;
+    auto_suspend?: boolean;
     remaining?: number;
+    paused?: boolean;
+    paused_remaining?: number;
 }
 
 // Alarm types
@@ -134,8 +138,9 @@ export interface UserSettings {
     // Overlay settings
     overlay_enabled: boolean;
     overlay_display_mode: OverlayDisplayMode;
-    overlay_position: OverlayPosition;          // Position for in-game (QAM/Steam Menu)
-    overlay_position_steamui: OverlayPosition;  // Position for SteamOS UI
+    overlay_position: OverlayPosition;
+    overlay_custom_x: number;
+    overlay_custom_y: number;
     overlay_text_size: number;
     overlay_opacity: number;
     overlay_max_alerts: number;
@@ -144,10 +149,11 @@ export interface UserSettings {
     overlay_show_alarms: boolean;
     overlay_show_pomodoros: boolean;
     overlay_show_reminders: boolean;
-    overlay_pixel_shift: boolean;       // OLED burn-in prevention
-    overlay_pixel_shift_interval: number; // seconds between shifts
-    overlay_pixel_shift_range: number;    // max px offset per axis
     // Legacy/deprecated (kept for migration)
+    overlay_position_steamui?: OverlayPosition;
+    overlay_pixel_shift?: boolean;
+    overlay_pixel_shift_interval?: number;
+    overlay_pixel_shift_range?: number;
     subtle_mode?: boolean;
     auto_suspend?: boolean;
     alarm_volume?: number;
@@ -204,9 +210,9 @@ export interface SnoozeEvent {
 }
 
 // Overlay types
-export type OverlayPosition = 'top-bar' | 'bottom-bar';
+export type OverlayPosition = 'default' | 'custom';
 
-export type OverlayDisplayMode = 'always' | 'games_only' | 'steamui_only';
+export type OverlayDisplayMode = 'always' | 'gaming_only';
 
 export type OverlayCategory = 'timer' | 'alarm' | 'pomodoro' | 'reminder';
 

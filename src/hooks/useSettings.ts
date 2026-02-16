@@ -36,8 +36,9 @@ const DEFAULT_SETTINGS: UserSettings = {
     // Overlay settings
     overlay_enabled: false,
     overlay_display_mode: 'always' as const,
-    overlay_position: 'bottom-bar' as const,          // In-game position (bottom bar when QAM open)
-    overlay_position_steamui: 'top-bar' as const,     // SteamOS UI position (top bar)
+    overlay_position: 'default' as const,
+    overlay_custom_x: 24,
+    overlay_custom_y: 0,
     overlay_text_size: 12,
     overlay_opacity: 0.6,
     overlay_max_alerts: 3,
@@ -45,10 +46,7 @@ const DEFAULT_SETTINGS: UserSettings = {
     overlay_show_timers: true,
     overlay_show_alarms: true,
     overlay_show_pomodoros: true,
-    overlay_show_reminders: true,
-    overlay_pixel_shift: true,
-    overlay_pixel_shift_interval: 45,
-    overlay_pixel_shift_range: 3
+    overlay_show_reminders: true
 };
 
 export function useSettings() {
