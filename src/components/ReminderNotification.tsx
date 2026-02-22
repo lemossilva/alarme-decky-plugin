@@ -3,6 +3,7 @@ import { FaRedo } from "react-icons/fa";
 import { useEffect, useRef, useState } from "react";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { useGameStatus } from "../hooks/useGameStatus";
+import { useSettings } from "../hooks/useSettings";
 import { formatTime } from "../utils/time";
 import type { Reminder } from "../types";
 
@@ -19,6 +20,7 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [canInteract, setCanInteract] = useState(false);
     const isGameRunning = useGameStatus();
+    const { settings } = useSettings();
 
     // Current time for display
     const getCurrentTime = () => {
@@ -53,10 +55,16 @@ export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, v
             return;
         }
 
+        const delay = settings.snooze_activation_delay ?? 2.0;
+        if (delay <= 0) {
+            setCanInteract(true);
+            return;
+        }
+
         setCanInteract(false);
-        const timer = setTimeout(() => setCanInteract(true), 2000);
+        const timer = setTimeout(() => setCanInteract(true), delay * 1000);
         return () => clearTimeout(timer);
-    }, [isGameRunning]);
+    }, [isGameRunning, settings.snooze_activation_delay]);
 
     const handleDismiss = () => {
         if (!canInteract) return;

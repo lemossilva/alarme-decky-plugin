@@ -278,6 +278,12 @@ export function PomodoroStatsPanel({
                                     </div>
                                     <div style={{ fontSize: 11, color: '#888888' }}>Sessions</div>
                                 </div>
+                                <div>
+                                    <div style={{ fontSize: 28, fontWeight: 'bold', color: '#aa8844' }}>
+                                        {stats?.daily_cycles || 0}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#888888' }}>Cycles</div>
+                                </div>
                             </div>
 
                             {/* Streak Info */}

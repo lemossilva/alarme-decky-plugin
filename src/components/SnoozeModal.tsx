@@ -18,6 +18,7 @@ interface SnoozeModalProps {
     volume?: number;
     defaultSnoozeDuration?: number;
     use24h?: boolean;
+    snoozeActivationDelay?: number;
     onSnooze: (minutes: number) => void;
     onDismiss: () => void;
     closeModal?: () => void;
@@ -62,7 +63,7 @@ const SnoozeButton = ({ label, onClick, isDefault }: SnoozeButtonProps) => {
     );
 };
 
-function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnoozeDuration, use24h = true, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
+function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnoozeDuration, use24h = true, snoozeActivationDelay = 2.0, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
     const [snoozeMinutes, setSnoozeMinutes] = useState(defaultSnoozeDuration ?? 5);
@@ -146,9 +147,9 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
         }
 
         setCanInteract(false);
-        const timer = setTimeout(() => setCanInteract(true), 2000);
+        const timer = setTimeout(() => setCanInteract(true), snoozeActivationDelay * 1000);
         return () => clearTimeout(timer);
-    }, [isGameRunning]);
+    }, [isGameRunning, snoozeActivationDelay]);
 
     const handleSnooze = () => {
         if (!canInteract) return;

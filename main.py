@@ -54,16 +54,18 @@ DEFAULT_SETTINGS = {
     "missed_alerts_window": 24,
     "reminder_suspend_behavior": "continue",
     "pomodoro_suspend_behavior": "continue",
+    # Display settings
+    "snooze_activation_delay": 2.0,
     # Overlay settings
     "overlay_enabled": False,
     "overlay_display_mode": "always",
     "overlay_position": "default",
-    "overlay_custom_x": 24,
-    "overlay_custom_y": 0,
-    "overlay_text_size": 12,
-    "overlay_opacity": 0.6,
-    "overlay_max_alerts": 3,
-    "overlay_time_window": 6,
+    "overlay_custom_x": 10,
+    "overlay_custom_y": 12,
+    "overlay_text_size": 13,
+    "overlay_opacity": 0.4,
+    "overlay_max_alerts": 2,
+    "overlay_time_window": 1,
     "overlay_show_timers": True,
     "overlay_show_alarms": True,
     "overlay_show_pomodoros": True,
@@ -207,7 +209,7 @@ class Plugin:
         await self._save_timers(timers)
         
         # Save to recent timers (for quick access)
-        await self._add_to_recent_timers(seconds, label)
+        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend)
         
         # Start the timer task
         self.timer_tasks[timer_id] = self.loop.create_task(
@@ -370,7 +372,8 @@ class Plugin:
                         "sound": timer_sound,
                         "volume": timer_volume,
                         "auto_suspend": timer_auto_suspend,
-                        "time_format_24h": user_settings.get("time_format_24h", True)
+                        "time_format_24h": user_settings.get("time_format_24h", True),
+                        "snooze_activation_delay": user_settings.get("snooze_activation_delay", 2.0)
                     })
                     decky.logger.info(f"AlarMe: Timer {timer_id} completed")
                     return
@@ -406,18 +409,25 @@ class Plugin:
         await self.settings_commit()
         return True
 
-    async def _add_to_recent_timers(self, seconds: int, label: str):
-        """Add a timer to the recent timers list (max 5, dedup by seconds+label)."""
+    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False):
+        """Add a timer to the recent timers list (max 5, dedup by seconds+label+modes)."""
         recent = await self.get_recent_timers()
         
         # Create new entry
         new_entry = {
             "seconds": seconds,
-            "label": label or f"{seconds // 60} min timer"
+            "label": label or f"{seconds // 60} min timer",
+            "subtle_mode": subtle_mode,
+            "auto_suspend": auto_suspend
         }
         
-        # Remove duplicates (same seconds and label)
-        recent = [r for r in recent if not (r["seconds"] == seconds and r["label"] == new_entry["label"])]
+        # Remove duplicates (same seconds, label, subtle_mode, and auto_suspend)
+        recent = [r for r in recent if not (
+            r.get("seconds") == seconds and 
+            r.get("label") == new_entry["label"] and
+            r.get("subtle_mode", False) == subtle_mode and
+            r.get("auto_suspend", False) == auto_suspend
+        )]
         
         # Add to front
         recent.insert(0, new_entry)
@@ -1034,23 +1044,6 @@ class Plugin:
                                 auto_suspend = alarm.get("auto_suspend", False)
                                 alarm_sound = alarm.get("sound", "alarm.mp3")
                                 alarm_volume = alarm.get("volume", 100)
-                                
-                                # Get global snooze duration
-                                user_settings = await self._get_user_settings()
-                                snooze_duration = user_settings.get("snooze_duration", 5)
-                                
-                                await decky.emit("alarme_alarm_triggered", {
-                                    "id": alarm_id,
-                                    "label": alarm.get("label", "Alarm"),
-                                    "subtle": subtle,
-                                    "sound": alarm_sound,
-                                    "volume": alarm_volume,
-                                    "snooze_duration": snooze_duration,
-                                    "auto_suspend": auto_suspend,
-                                    "time_format_24h": user_settings.get("time_format_24h", True)
-                                })
-                                
-                                # Handle one-time alarms - disable them
                                 if alarm.get("recurring") == "once":
                                     decky.logger.info(f"AlarMe: Disabling one-time alarm {alarm_id}")
                                     alarms[alarm_id]["enabled"] = False
@@ -1136,9 +1129,12 @@ class Plugin:
             current_state = await self._get_pomodoro_state()
             if current_state.get("active") and current_state.get("start_time"):
                 elapsed = time.time() - current_state.get("start_time")
+                is_break = current_state.get("is_break", False)
                 await self._update_pomodoro_stats(
-                    is_break=current_state.get("is_break", False),
-                    duration=elapsed
+                    is_break=is_break,
+                    duration=elapsed,
+                    completed_session=not is_break,
+                    completed_cycle=is_break and current_state.get("break_type") == "long"
                 )
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to update stats on stop: {e}")
@@ -1172,9 +1168,12 @@ class Plugin:
         try:
             if pomodoro_state.get("start_time"):
                 elapsed = time.time() - pomodoro_state.get("start_time")
+                is_break = pomodoro_state.get("is_break", False)
                 await self._update_pomodoro_stats(
-                    is_break=pomodoro_state.get("is_break", False),
-                    duration=elapsed
+                    is_break=is_break,
+                    duration=elapsed,
+                    completed_session=not is_break,
+                    completed_cycle=is_break and pomodoro_state.get("break_type") == "long"
                 )
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to update stats on skip: {e}")
@@ -1247,6 +1246,7 @@ class Plugin:
             "daily_focus_time": 0,
             "daily_break_time": 0,
             "daily_sessions": 0,
+            "daily_cycles": 0,
             "total_focus_time": 0,
             "total_break_time": 0,
             "total_sessions": 0,
@@ -1284,18 +1284,18 @@ class Plugin:
             
             # Check streak: was there activity YESTERDAY specifically?
             yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-            if last_date == yesterday:
-                # Last activity was yesterday - streak continues (will increment when user does session today)
+            
+            # Only keep streak if last activity was yesterday AND there was actual focus time
+            if last_date == yesterday and stats.get("daily_focus_time", 0) > 0:
                 pass
             else:
-                # Gap detected (last activity was 2+ days ago, or no previous activity)
-                # Reset streak to 0 - it will become 1 when user completes a session today
                 stats["current_streak"] = 0
             
             # Reset daily counters for the new day
             stats["daily_focus_time"] = 0
             stats["daily_break_time"] = 0
             stats["daily_sessions"] = 0
+            stats["daily_cycles"] = 0
             stats["last_active_date"] = today
             
         return stats
@@ -1313,20 +1313,20 @@ class Plugin:
             stats["daily_break_time"] += duration
             stats["total_break_time"] += duration
         else:
+            old_focus = stats.get("daily_focus_time", 0)
             stats["daily_focus_time"] += duration
             stats["total_focus_time"] += duration
+            
+            # Increment streak on the first focus time of the day
+            if old_focus == 0 and duration > 0:
+                stats["current_streak"] = stats.get("current_streak", 0) + 1
+                if stats["current_streak"] > stats.get("longest_streak", 0):
+                    stats["longest_streak"] = stats["current_streak"]
             
         if completed_session and not is_break:
             stats["total_sessions"] = stats.get("total_sessions", 0) + 1
             old_daily = stats.get("daily_sessions", 0)
             stats["daily_sessions"] = old_daily + 1
-            
-            # Increment streak on first session of the day
-            if old_daily == 0:
-                stats["current_streak"] = stats.get("current_streak", 0) + 1
-                # Update longest streak
-                if stats["current_streak"] > stats.get("longest_streak", 0):
-                    stats["longest_streak"] = stats["current_streak"]
             
         if completed_cycle:
             stats["total_cycles"] = stats.get("total_cycles", 0) + 1
@@ -1342,6 +1342,7 @@ class Plugin:
             "daily_focus_time": 0,
             "daily_break_time": 0,
             "daily_sessions": 0,
+            "daily_cycles": 0,
             "total_focus_time": 0,
             "total_break_time": 0,
             "total_sessions": 0,
@@ -1605,7 +1606,9 @@ class Plugin:
                         "category": "timer",
                         "label": timer.get("label", "Timer"),
                         "time": timer["end_time"],
-                        "remaining": remaining
+                        "remaining": remaining,
+                        "subtle_mode": timer.get("subtle_mode", False),
+                        "auto_suspend": timer.get("auto_suspend", False)
                     })
         
         # Alarms
@@ -1621,7 +1624,9 @@ class Plugin:
                         "category": "alarm",
                         "label": alarm.get("label", "Alarm"),
                         "time": next_trigger,
-                        "remaining": next_trigger - now
+                        "remaining": next_trigger - now,
+                        "subtle_mode": alarm.get("subtle_mode", False),
+                        "auto_suspend": alarm.get("auto_suspend", False)
                     })
         
         # Pomodoro
@@ -1637,7 +1642,9 @@ class Plugin:
                         "category": "pomodoro",
                         "label": f"{phase} #{session}",
                         "time": pomodoro["end_time"],
-                        "remaining": remaining
+                        "remaining": remaining,
+                        "subtle_mode": pomodoro.get("subtle_mode", user_settings.get("pomodoro_subtle_mode", False)),
+                        "auto_suspend": False
                     })
         
         # Reminders
@@ -1660,7 +1667,9 @@ class Plugin:
                             "category": "reminder",
                             "label": reminder.get("label", "Reminder"),
                             "time": next_ts,
-                            "remaining": next_ts - now
+                            "remaining": next_ts - now,
+                            "subtle_mode": reminder.get("subtle_mode", False),
+                            "auto_suspend": False
                         })
                 except:
                     continue
@@ -2182,7 +2191,8 @@ class Plugin:
                                 "sound": reminder.get("sound", "alarm.mp3"),
                                 "volume": reminder.get("volume", 100),
                                 "subtle_mode": reminder.get("subtle_mode", False),
-                                "time_format_24h": user_settings.get("time_format_24h", True)
+                                "time_format_24h": user_settings.get("time_format_24h", True),
+                                "snooze_activation_delay": user_settings.get("snooze_activation_delay", 2.0)
                             })
                         
                         # Update for next trigger
@@ -2580,6 +2590,7 @@ class Plugin:
                 "daily_focus_time": 0,
                 "daily_break_time": 0,
                 "daily_sessions": 0,
+                "daily_cycles": 0,
                 "total_focus_time": 0,
                 "total_break_time": 0,
                 "total_sessions": 0,

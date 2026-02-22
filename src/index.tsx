@@ -43,6 +43,8 @@ import type {
 
 // Backend callables
 const snoozeAlarm = callable<[alarm_id: string, minutes: number], boolean>('snooze_alarm');
+const snoozeTimerCall = callable<[timer_id: string, minutes: number], boolean>('snooze_timer');
+const cancelTimerCall = callable<[timer_id: string], boolean>('cancel_timer');
 const setGameRunning = callable<[is_running: boolean], void>('set_game_running');
 const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean>('toggle_reminder');
 const getMissedItems = callable<[], MissedItem[]>('get_missed_items');
@@ -330,8 +332,9 @@ export default definePlugin(() => {
                 sound: event.sound,
                 volume: event.volume,
                 use24h,
-                onSnooze: () => { }, // Timers don't snooze
-                onDismiss: () => { }
+                snoozeActivationDelay: event.snooze_activation_delay,
+                onSnooze: (minutes) => snoozeTimerCall(event.id, minutes),
+                onDismiss: () => cancelTimerCall(event.id),
             });
         }
     };
@@ -363,6 +366,7 @@ export default definePlugin(() => {
                 volume: event.volume,
                 defaultSnoozeDuration: event.snooze_duration,
                 use24h,
+                snoozeActivationDelay: event.snooze_activation_delay,
                 onSnooze: (minutes) => snoozeAlarm(event.id, minutes),
                 onDismiss: () => { }
             });

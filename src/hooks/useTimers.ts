@@ -14,6 +14,8 @@ const getRecentTimersCall = callable<[], RecentTimer[]>('get_recent_timers');
 export interface RecentTimer {
     seconds: number;
     label: string;
+    subtle_mode?: boolean;
+    auto_suspend?: boolean;
 }
 
 export function useTimers() {

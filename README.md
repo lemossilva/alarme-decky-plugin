@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.5.1-green)
+![Version](https://img.shields.io/badge/release-v1.5.2-green)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
 ![AlarMe Promo](assets/promo.png)
@@ -60,11 +60,10 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **24/12 hour format** - Choose your preferred time display
 - **Global volume control** - Per-feature volume settings
 
-### 🎮 In-Game Overlay (Beta)
-- **Native Integration** - Fits seamlessly into SteamOS UI's top and bottom black bars
+### 🎮 In-Game Overlay
+- **Easy check** - Quickly see your alarms and timers
+- **Native Integration** - Fits seamlessly into SteamOS UI
 - **Non-Intrusive** - Horizontal micro-alerts that won't block game UI
-- **Context Aware** - Automatically positions to avoid blocking Steam menus
-- **OLED Friendly** - Minimal brightness and pixel shift protection
 
 > **Note**: The overlay appears when you open the Quick Access Menu (•••) or Steam Menu. It uses the empty black bar space reserved by SteamOS to display your upcoming alarms and timers without obstructing any interface elements.
 

@@ -33,6 +33,8 @@ const DEFAULT_SETTINGS: UserSettings = {
     // Suspend Behavior
     reminder_suspend_behavior: 'continue', // 'continue' = missed alerts, 'pause' = shift schedule
     pomodoro_suspend_behavior: 'continue', // 'continue' = missed session, 'pause' = shift session
+    // Display settings
+    snooze_activation_delay: 2.0,
     // Overlay settings
     overlay_enabled: false,
     overlay_display_mode: 'always' as const,

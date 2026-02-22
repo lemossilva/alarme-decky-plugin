@@ -12,7 +12,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHourglassHalf, FaHistory, FaBellSlash } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -458,29 +458,52 @@ const DisplaySettingsPage = () => {
                 </PanelSectionRow>
 
                 <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaStopwatch />}
-                        label="Missed Alert Detection"
-                        description="Notify about alarms and timers missed while suspended"
-                        checked={settings.missed_alerts_enabled ?? true}
-                        onChange={(value) => updateSetting('missed_alerts_enabled', value)}
-                    />
+                        <ToggleField
+                            icon={<FaGamepad />}
+                            label="In-Game Alert Delay"
+                            description="Adds a brief delay before you can interact with alert popups while gaming, preventing accidental dismissals from controller input"
+                            checked={(settings.snooze_activation_delay ?? 2.0) > 0}
+                            onChange={(enabled) => updateSetting('snooze_activation_delay', enabled ? 2.0 : 0)}
+                        />
+                        {(settings.snooze_activation_delay ?? 2.0) > 0 && (
+                            <div style={{ paddingLeft: '40px', paddingTop: '8px' }}>
+                                <SliderField
+                                    label="Delay Duration"
+                                    description={`${settings.snooze_activation_delay?.toFixed(1) ?? '2.0'} seconds`}
+                                    value={settings.snooze_activation_delay ?? 2.0}
+                                    min={0.5}
+                                    max={5.0}
+                                    step={0.5}
+                                    onChange={(value) => updateSetting('snooze_activation_delay', value)}
+                                    icon={<FaHourglassHalf />}
+                                />
+                            </div>
+                        )}
                 </PanelSectionRow>
 
-                {settings.missed_alerts_enabled && (
-                    <PanelSectionRow>
-                        <SliderField
-                            label="Report Time Window"
-                            description={`${settings.missed_alerts_window ?? 24} hours`}
-                            value={settings.missed_alerts_window ?? 24}
-                            min={1}
-                            max={72}
-                            step={1}
-                            onChange={(value) => updateSetting('missed_alerts_window', value)}
-                            icon={<FaClock />}
+                <PanelSectionRow>
+                        <ToggleField
+                            icon={<FaBellSlash />}
+                            label="Missed Alert Detection"
+                            description="Notify about alarms and timers missed while suspended"
+                            checked={settings.missed_alerts_enabled ?? true}
+                            onChange={(value) => updateSetting('missed_alerts_enabled', value)}
                         />
-                    </PanelSectionRow>
-                )}
+                        {settings.missed_alerts_enabled && (
+                            <div style={{ paddingLeft: '40px', paddingTop: '8px' }}>
+                                <SliderField
+                                    label="Report Time Window"
+                                    description={`${settings.missed_alerts_window ?? 24} hours`}
+                                    value={settings.missed_alerts_window ?? 24}
+                                    min={1}
+                                    max={72}
+                                    step={1}
+                                    onChange={(value) => updateSetting('missed_alerts_window', value)}
+                                    icon={<FaHistory />}
+                                />
+                            </div>
+                        )}
+                </PanelSectionRow>
             </PanelSection>
         </ScrollableContent>
     );
@@ -924,7 +947,7 @@ const FactoryResetPage = () => {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.5.1
+                                <strong>AlarMe</strong> v1.5.2
                             </p>
                             <p>
                                 By Guilherme Lemos

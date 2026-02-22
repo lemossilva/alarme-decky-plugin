@@ -137,10 +137,16 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
             return;
         }
 
+        const delay = settings.snooze_activation_delay ?? 2.0;
+        if (delay <= 0) {
+            setCanInteract(true);
+            return;
+        }
+
         setCanInteract(false);
-        const timer = setTimeout(() => setCanInteract(true), 2000);
+        const timer = setTimeout(() => setCanInteract(true), delay * 1000);
         return () => clearTimeout(timer);
-    }, [isGameRunning]);
+    }, [isGameRunning, settings.snooze_activation_delay]);
 
     const workDuration = settings.pomodoro_work_duration * 60;
     const breakDuration = settings.pomodoro_break_duration * 60;

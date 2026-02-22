@@ -67,6 +67,7 @@ export interface PomodoroStats {
     daily_focus_time: number;
     daily_break_time: number;
     daily_sessions: number;
+    daily_cycles: number;
     total_focus_time: number;
     total_break_time: number;
     total_sessions: number;
@@ -135,6 +136,8 @@ export interface UserSettings {
     // Suspend Behavior
     reminder_suspend_behavior?: 'continue' | 'pause';
     pomodoro_suspend_behavior?: 'continue' | 'pause';
+    // Display settings
+    snooze_activation_delay: number;
     // Overlay settings
     overlay_enabled: boolean;
     overlay_display_mode: OverlayDisplayMode;
@@ -178,6 +181,7 @@ export interface TimerCompletedEvent {
     volume?: number;
     auto_suspend?: boolean;
     time_format_24h?: boolean;
+    snooze_activation_delay?: number;
 }
 
 export interface AlarmTriggeredEvent {
@@ -189,6 +193,7 @@ export interface AlarmTriggeredEvent {
     snooze_duration?: number;
     auto_suspend?: boolean;
     time_format_24h?: boolean;
+    snooze_activation_delay?: number;
 }
 
 export interface TimerTickEvent {
@@ -222,9 +227,9 @@ export interface OverlayAlert {
     label: string;
     time: number;       // UNIX timestamp of trigger/end
     remaining?: number; // seconds remaining (for timers/pomodoro)
+    subtle_mode?: boolean;
+    auto_suspend?: boolean;
 }
 
 // Tab types
 export type TabId = 'timers' | 'alarms' | 'pomodoro' | 'reminders' | 'settings';
-
-// SP_REACT is already declared by @decky/ui

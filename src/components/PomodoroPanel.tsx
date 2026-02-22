@@ -124,8 +124,8 @@ export function PomodoroPanel() {
                 )}
 
                 {/* Controls */}
-                <PanelSectionRow>
-                    {!isActive ? (
+                {!isActive ? (
+                    <PanelSectionRow>
                         <ButtonItem
                             layout="below"
                             onClick={startPomodoro}
@@ -133,8 +133,10 @@ export function PomodoroPanel() {
                             <FaPlay size={12} style={{ marginRight: 8 }} />
                             Start Focus Session
                         </ButtonItem>
-                    ) : (
-                        <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                    </PanelSectionRow>
+                ) : (
+                    <>
+                        <PanelSectionRow>
                             <ButtonItem
                                 layout="below"
                                 onClick={skipPhase}
@@ -142,6 +144,8 @@ export function PomodoroPanel() {
                                 <FaForward size={12} style={{ marginRight: 8 }} />
                                 {isBreak ? "Skip Break → Start Work" : "Skip Work → Take Break"}
                             </ButtonItem>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
                             <ButtonItem
                                 layout="below"
                                 onClick={stopPomodoro}
@@ -149,13 +153,13 @@ export function PomodoroPanel() {
                                 <FaStop size={12} style={{ marginRight: 8 }} />
                                 Stop Session
                             </ButtonItem>
-                        </Focusable>
-                    )}
-                </PanelSectionRow>
+                        </PanelSectionRow>
+                    </>
+                )}
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<FaBrain />}
+                        icon={<span style={{ fontSize: 14 }}>📵</span>}
                         label="Subtle Mode"
                         description="Show a small toast instead of fullscreen popup"
                         checked={settings.pomodoro_subtle_mode ?? false}

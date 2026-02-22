@@ -115,8 +115,11 @@ const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
                         display: 'flex',
                         gap: 8
                     }}>
-                        {timer.subtle_mode && <span>Subtle</span>}
-                        {timer.auto_suspend && <span>Auto-Suspend</span>}
+                        {timer.auto_suspend ? (
+                            <span>💤 Auto-Suspend</span>
+                        ) : (
+                            timer.subtle_mode && <span>📵 Subtle</span>
+                        )}
                     </div>
                 )}
             </div>
@@ -202,8 +205,15 @@ const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; 
             }}
         >
             <FaPlay size={10} />
-            <span style={{ flex: 1 }}>{displayLabel}</span>
-            <span style={{ color: '#888888', fontSize: 12 }}>{minutes}m</span>
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayLabel}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.7 }}>
+                {recent.auto_suspend ? (
+                    <span style={{ fontSize: 12 }}>💤</span>
+                ) : (
+                    recent.subtle_mode && <span style={{ fontSize: 12 }}>📵</span>
+                )}
+                <span style={{ color: '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
+            </div>
         </Focusable>
     );
 };
@@ -242,7 +252,10 @@ export function TimerPanel() {
 
     // Start from recent
     const handleRecentClick = async (recent: RecentTimer) => {
-        await createTimer(recent.seconds, recent.label, timerSubtleMode, timerAutoSuspend);
+        // Use the recent timer's saved settings, falling back to global settings if undefined
+        const subtleMode = recent.subtle_mode !== undefined ? recent.subtle_mode : timerSubtleMode;
+        const autoSuspend = recent.auto_suspend !== undefined ? recent.auto_suspend : timerAutoSuspend;
+        await createTimer(recent.seconds, recent.label, subtleMode, autoSuspend);
     };
 
     return (
@@ -359,7 +372,7 @@ export function TimerPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<FaPlay size={12} />}
+                        icon={<span style={{ fontSize: 14 }}>📵</span>}
                         label="Subtle Mode"
                         description={timerAutoSuspend
                             ? "Required when Auto-Suspend is enabled"
@@ -372,7 +385,7 @@ export function TimerPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<FaTimes size={12} />}
+                        icon={<span style={{ fontSize: 14 }}>💤</span>}
                         label="Auto-Suspend"
                         description="Suspend device when timer finishes (enables Subtle Mode)"
                         checked={timerAutoSuspend}
