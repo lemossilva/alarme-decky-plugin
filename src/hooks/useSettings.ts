@@ -48,7 +48,14 @@ const DEFAULT_SETTINGS: UserSettings = {
     overlay_show_timers: true,
     overlay_show_alarms: true,
     overlay_show_pomodoros: true,
-    overlay_show_reminders: true
+    overlay_show_reminders: true,
+    // Prevent Sleep settings
+    prevent_sleep_enabled: false,
+    prevent_sleep_timers: true,
+    prevent_sleep_pomodoro: true,
+    prevent_sleep_alarms: false,
+    prevent_sleep_alarms_window: 60,  // default 1 hour
+    prevent_sleep_reminders: false
 };
 
 export function useSettings() {

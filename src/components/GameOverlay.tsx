@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaMoon, FaVolumeMute } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaBed, FaMoon, FaVolumeMute } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
+import { useSleepInhibitor } from "../hooks/useSleepInhibitor";
 import { formatDuration, formatTime } from "../utils/time";
 import type { OverlayAlert } from "../types";
 
@@ -131,6 +132,7 @@ export const GameOverlay = () => {
     const { settings } = useSettings();
     const isGameRunning = useGameStatus();
     const alerts = useOverlayData(settings, isGameRunning);
+    const { isActive: sleepInhibitorActive } = useSleepInhibitor();
 
     const positionStyle = useMemo(() => {
         const isCustom = settings.overlay_position === 'custom';
@@ -144,8 +146,8 @@ export const GameOverlay = () => {
         return DEFAULT_POSITION_STYLE;
     }, [settings.overlay_position, settings.overlay_custom_x, settings.overlay_custom_y]);
 
-    // Don't render if disabled or no alerts
-    if (!settings.overlay_enabled || alerts.length === 0) {
+    // Don't render if disabled or (no alerts AND no sleep inhibitor)
+    if (!settings.overlay_enabled || (alerts.length === 0 && !sleepInhibitorActive)) {
         return null;
     }
 
@@ -170,6 +172,17 @@ export const GameOverlay = () => {
             alignItems: 'center',
             gap: 12
         }}>
+            {/* Sleep Inhibitor Indicator */}
+            {sleepInhibitorActive && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    color: '#4a90d9'
+                }}>
+                    <FaBed size={settings.overlay_text_size ?? 11} />
+                </div>
+            )}
             {/* Horizontal bar layout - alerts separated by dots */}
             {alerts.map((alert, index) => (
                 <div key={alert.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

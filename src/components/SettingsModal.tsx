@@ -12,7 +12,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHourglassHalf, FaHistory, FaBellSlash } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHourglassHalf, FaHistory, FaBellSlash, FaBed } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -504,6 +504,63 @@ const DisplaySettingsPage = () => {
                             </div>
                         )}
                 </PanelSectionRow>
+
+                <PanelSectionRow>
+                        <ToggleField
+                            icon={<FaBed />}
+                            label="Prevent Sleep While Active"
+                            description="Block automatic sleep by inactivity while selected features are running. Manual sleep (button/menu) always works."
+                            checked={settings.prevent_sleep_enabled ?? false}
+                            onChange={(value) => updateSetting('prevent_sleep_enabled', value)}
+                        />
+                        {settings.prevent_sleep_enabled && (
+                            <div style={{ paddingLeft: '40px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <ToggleField
+                                    label="Timers"
+                                    description="Keep awake while any timer is running"
+                                    checked={settings.prevent_sleep_timers ?? true}
+                                    onChange={(value) => updateSetting('prevent_sleep_timers', value)}
+                                />
+                                <ToggleField
+                                    label="Pomodoro"
+                                    description="Keep awake during focus sessions"
+                                    checked={settings.prevent_sleep_pomodoro ?? true}
+                                    onChange={(value) => updateSetting('prevent_sleep_pomodoro', value)}
+                                />
+                                <ToggleField
+                                    label="Alarms"
+                                    description="Keep awake when alarm is due soon"
+                                    checked={settings.prevent_sleep_alarms ?? false}
+                                    onChange={(value) => updateSetting('prevent_sleep_alarms', value)}
+                                />
+                                {settings.prevent_sleep_alarms && (
+                                    <div style={{ paddingLeft: '20px' }}>
+                                        <Dropdown
+                                            rgOptions={[
+                                                { data: 15, label: '15 minutes before' },
+                                                { data: 30, label: '30 minutes before' },
+                                                { data: 45, label: '45 minutes before' },
+                                                { data: 60, label: '1 hour before' },
+                                                { data: 120, label: '2 hours before' },
+                                                { data: 180, label: '3 hours before' },
+                                                { data: 360, label: '6 hours before' },
+                                                { data: 720, label: '12 hours before' },
+                                                { data: 1440, label: '24 hours before' }
+                                            ]}
+                                            selectedOption={settings.prevent_sleep_alarms_window ?? 60}
+                                            onChange={(option) => updateSetting('prevent_sleep_alarms_window', option.data)}
+                                        />
+                                    </div>
+                                )}
+                                <ToggleField
+                                    label="Reminders"
+                                    description="Keep awake while reminders are enabled"
+                                    checked={settings.prevent_sleep_reminders ?? false}
+                                    onChange={(value) => updateSetting('prevent_sleep_reminders', value)}
+                                />
+                            </div>
+                        )}
+                </PanelSectionRow>
             </PanelSection>
         </ScrollableContent>
     );
@@ -947,7 +1004,7 @@ const FactoryResetPage = () => {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.5.2
+                                <strong>AlarMe</strong> v1.5.3
                             </p>
                             <p>
                                 By Guilherme Lemos

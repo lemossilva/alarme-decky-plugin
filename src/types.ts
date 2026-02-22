@@ -152,6 +152,13 @@ export interface UserSettings {
     overlay_show_alarms: boolean;
     overlay_show_pomodoros: boolean;
     overlay_show_reminders: boolean;
+    // Prevent Sleep settings
+    prevent_sleep_enabled: boolean;
+    prevent_sleep_timers: boolean;
+    prevent_sleep_pomodoro: boolean;
+    prevent_sleep_alarms: boolean;
+    prevent_sleep_alarms_window: number;  // minutes before alarm to keep awake
+    prevent_sleep_reminders: boolean;
     // Legacy/deprecated (kept for migration)
     overlay_position_steamui?: OverlayPosition;
     overlay_pixel_shift?: boolean;
@@ -161,6 +168,12 @@ export interface UserSettings {
     auto_suspend?: boolean;
     alarm_volume?: number;
     alarm_sound?: string;
+}
+
+// Sleep inhibitor status
+export interface SleepInhibitorStatus {
+    active: boolean;
+    reason?: string;
 }
 
 export interface MissedItem {

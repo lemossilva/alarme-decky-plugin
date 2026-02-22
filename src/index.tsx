@@ -13,7 +13,7 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes, FaBed } from "react-icons/fa";
 import { useState, useEffect, useRef } from "react";
 
 // Components
@@ -32,6 +32,7 @@ import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
 import { useSettings } from "./hooks/useSettings";
+import { useSleepInhibitor } from "./hooks/useSleepInhibitor";
 
 // Types
 import type {
@@ -108,6 +109,7 @@ function Content() {
     const [activeTab, setActiveTab] = useState<TabId>('timers');
     const [missedItems, setMissedItems] = useState<MissedItem[]>([]);
     const { settings: userSettings } = useSettings();
+    const { isActive: sleepInhibitorActive } = useSleepInhibitor();
     const use24h = userSettings.time_format_24h;
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -252,6 +254,26 @@ function Content() {
                             >
                                 <FaTimes size={14} />
                             </Focusable>
+                        </div>
+                    </PanelSectionRow>
+                </PanelSection>
+            )}
+
+            {/* Sleep Inhibitor Status Badge */}
+            {sleepInhibitorActive && (
+                <PanelSection>
+                    <PanelSectionRow>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 12px',
+                            backgroundColor: '#4a90d922',
+                            borderRadius: 8,
+                            border: '1px solid #4a90d944'
+                        }}>
+                            <FaBed style={{ color: '#4a90d9' }} />
+                            <span style={{ fontSize: 12, color: '#4a90d9' }}>Sleep blocked</span>
                         </div>
                     </PanelSectionRow>
                 </PanelSection>

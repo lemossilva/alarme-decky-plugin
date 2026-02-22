@@ -9,6 +9,9 @@ import decky  # type: ignore
 import asyncio
 import uuid
 import json
+import subprocess
+import fcntl
+import struct
 
 # Initialize settings
 settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
@@ -97,6 +100,10 @@ class Plugin:
     missed_items: list = []
     last_tick: float = 0
 
+    # Sleep Inhibitor State
+    _sleep_inhibitor_active: bool = False
+    _uinput_fd = -1
+    _jiggler_task = None
 
     # ==================== MISSED ITEMS METHODS ====================
 
@@ -152,10 +159,206 @@ class Plugin:
         # Notify frontend
         await self._emit_missed_update()
 
+    # ==================== SLEEP INHIBITOR METHODS ====================
+
+    async def _update_sleep_inhibitor(self):
+        """Update the sleep inhibitor based on current state and settings."""
+        user_settings = await self._get_user_settings()
+        
+        # Check if feature is enabled
+        if not user_settings.get("prevent_sleep_enabled", False):
+            await self._release_sleep_inhibitor()
+            return
+        
+        # Check if any monitored category is active
+        should_inhibit = False
+        reason_parts = []
+        
+        # Check timers
+        if user_settings.get("prevent_sleep_timers", True):
+            timers = await self._get_timers()
+            active_timers = [t for t in timers.values() if not t.get("paused", False)]
+            if active_timers:
+                should_inhibit = True
+                reason_parts.append(f"{len(active_timers)} timer(s)")
+        
+        # Check pomodoro
+        if user_settings.get("prevent_sleep_pomodoro", True):
+            pomodoro = await self._get_pomodoro_state()
+            if pomodoro.get("active", False):
+                should_inhibit = True
+                reason_parts.append("Pomodoro")
+        
+        # Check alarms (if any are due within the configured time window)
+        if user_settings.get("prevent_sleep_alarms", False):
+            alarms = await self._get_alarms()
+            window_minutes = user_settings.get("prevent_sleep_alarms_window", 60)
+            window_seconds = window_minutes * 60
+            now = time.time()
+            
+            upcoming_alarms = []
+            for alarm in alarms.values():
+                if not alarm.get("enabled", False):
+                    continue
+                next_time = alarm.get("next_time")
+                if next_time and 0 < (next_time - now) <= window_seconds:
+                    upcoming_alarms.append(alarm)
+            
+            if upcoming_alarms:
+                should_inhibit = True
+                reason_parts.append(f"{len(upcoming_alarms)} alarm(s) within {window_minutes}m")
+        
+        # Check reminders (if any are active/enabled)
+        if user_settings.get("prevent_sleep_reminders", False):
+            reminders = await self._get_reminders()
+            active_reminders = [r for r in reminders.values() if r.get("enabled", False)]
+            if active_reminders:
+                should_inhibit = True
+                reason_parts.append(f"{len(active_reminders)} reminder(s)")
+        
+        if should_inhibit:
+            reason = "AlarMe: " + ", ".join(reason_parts) + " active"
+            await self._acquire_sleep_inhibitor(reason)
+        else:
+            await self._release_sleep_inhibitor()
+
+    async def _jiggler_loop(self):
+        """Simulate activity periodically to prevent sleep using uinput keyboard events."""
+        decky.logger.info("AlarMe: Sleep inhibitor jiggler started")
+        
+        # KEY_UNKNOWN (240) - a key code that doesn't map to any real key
+        # This resets idle timers without affecting games or triggering any action
+        KEY_UNKNOWN = 240
+        EV_KEY = 1
+        EV_SYN = 0
+        
+        try:
+            while self._sleep_inhibitor_active:
+                # Use uinput keyboard device if available (most reliable for Game Mode)
+                if self._uinput_fd > 0:
+                    try:
+                        now = time.time()
+                        sec = int(now)
+                        usec = int((now - sec) * 1000000)
+                        
+                        # struct input_event: 'llHHi' = timeval(16) + type(2) + code(2) + value(4) = 24 bytes
+                        # Send KEY_UNKNOWN press (value=1) then release (value=0)
+                        key_press = struct.pack('llHHi', sec, usec, EV_KEY, KEY_UNKNOWN, 1)
+                        os.write(self._uinput_fd, key_press)
+                        
+                        # SYN_REPORT
+                        syn = struct.pack('llHHi', sec, usec, EV_SYN, 0, 0)
+                        os.write(self._uinput_fd, syn)
+                        
+                        # Key release
+                        key_release = struct.pack('llHHi', sec, usec, EV_KEY, KEY_UNKNOWN, 0)
+                        os.write(self._uinput_fd, key_release)
+                        os.write(self._uinput_fd, syn)
+                        
+                        decky.logger.debug("AlarMe: uinput key event sent")
+                    except Exception as e:
+                        decky.logger.warning(f"AlarMe: uinput write error: {e}")
+                    
+                # Wait 30 seconds (well under typical sleep timeouts)
+                await asyncio.sleep(30)
+                
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Jiggler loop error: {e}")
+            self._sleep_inhibitor_active = False
+
+    async def _acquire_sleep_inhibitor(self, reason: str):
+        """Acquire the sleep inhibitor using uinput virtual keyboard."""
+        if self._sleep_inhibitor_active:
+            return  # Already active
+        
+        try:
+            # Create uinput virtual keyboard device for Game Mode sleep prevention
+            # Using keyboard KEY_UNKNOWN to avoid interfering with gamepad input
+            try:
+                # ioctl constants for uinput
+                UI_SET_EVBIT = 0x40045564
+                UI_SET_KEYBIT = 0x40045565
+                UI_DEV_CREATE = 0x5501
+                
+                fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
+                
+                # Enable EV_KEY (keyboard events) and KEY_UNKNOWN (240)
+                fcntl.ioctl(fd, UI_SET_EVBIT, 1)  # EV_KEY
+                fcntl.ioctl(fd, UI_SET_KEYBIT, 240)  # KEY_UNKNOWN - doesn't map to any real key
+                
+                # Build uinput_user_dev struct (size 1116 on Steam Deck)
+                name = b'AlarMe Sleep Inhibitor'.ljust(80, b'\x00')
+                input_id = struct.pack('HHHH', 3, 1, 1, 1)  # bustype, vendor, product, version
+                total_size = 1116  # Confirmed working size on Steam Deck
+                payload = name + input_id + (b'\x00' * (total_size - len(name) - len(input_id)))
+                
+                os.write(fd, payload)
+                fcntl.ioctl(fd, UI_DEV_CREATE)
+                
+                self._uinput_fd = fd
+                decky.logger.info("AlarMe: Created uinput keyboard device successfully")
+            except Exception as e:
+                decky.logger.error(f"AlarMe: Failed to setup uinput: {e}")
+                self._uinput_fd = -1
+                return  # Cannot proceed without uinput
+            
+            # Start jiggler task
+            if self.loop and self._uinput_fd > 0:
+                self._sleep_inhibitor_active = True
+                self._jiggler_task = self.loop.create_task(self._jiggler_loop())
+                decky.logger.info(f"AlarMe: Sleep inhibitor active - {reason}")
+                await decky.emit("alarme_sleep_inhibitor_updated", {"active": True, "reason": reason})
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to acquire sleep inhibitor: {e}")
+
+    async def _release_sleep_inhibitor(self):
+        """Release the sleep inhibitor."""
+        if not self._sleep_inhibitor_active:
+            return  # Not active
+        
+        try:
+            # Release jiggler task
+            if self._jiggler_task:
+                self._jiggler_task.cancel()
+                self._jiggler_task = None
+            
+            # Destroy and close uinput device
+            if self._uinput_fd > 0:
+                try:
+                    UI_DEV_DESTROY = 0x5502
+                    fcntl.ioctl(self._uinput_fd, UI_DEV_DESTROY)
+                    os.close(self._uinput_fd)
+                    decky.logger.info("AlarMe: uinput device destroyed")
+                except Exception as e:
+                    decky.logger.warning(f"AlarMe: Error closing uinput: {e}")
+                self._uinput_fd = -1
+                
+            self._sleep_inhibitor_active = False
+            decky.logger.info("AlarMe: Sleep inhibitor released")
+            await decky.emit("alarme_sleep_inhibitor_updated", {"active": False})
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to release sleep inhibitor: {e}")
+            # Force cleanup
+            if self._uinput_fd > 0:
+                try:
+                    os.close(self._uinput_fd)
+                except:
+                    pass
+                self._uinput_fd = -1
+            self._jiggler_task = None
+            self._sleep_inhibitor_active = False
+
+    async def get_sleep_inhibitor_status(self) -> dict:
+        """Get current sleep inhibitor status."""
+        return {
+            "active": self._sleep_inhibitor_active
+        }
+
     # ==================== TIMER METHODS ====================
 
     def _format_timer_label(self, seconds: int) -> str:
-        """Generate a human-readable label from duration (e.g., '5 min timer', '1h 30 min timer')."""
         hours = seconds // 3600
         minutes = (seconds % 3600) // 60
         
@@ -220,6 +423,9 @@ class Plugin:
         await decky.emit("alarme_timer_created", timer_data)
         await self._emit_all_timers()
         
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
+        
         return timer_id
 
     async def cancel_timer(self, timer_id: str) -> bool:
@@ -235,6 +441,8 @@ class Plugin:
             decky.logger.info(f"AlarMe: Cancelled timer {timer_id}")
             await decky.emit("alarme_timer_cancelled", timer_id)
             await self._emit_all_timers()
+            # Update sleep inhibitor
+            await self._update_sleep_inhibitor()
             return True
         return False
 
@@ -262,6 +470,8 @@ class Plugin:
         decky.logger.info(f"AlarMe: Paused timer {timer_id} with {remaining:.0f}s remaining")
         await decky.emit("alarme_timer_paused", {"id": timer_id, "remaining": remaining})
         await self._emit_all_timers()
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         return True
 
     async def resume_timer(self, timer_id: str) -> bool:
@@ -292,6 +502,8 @@ class Plugin:
         decky.logger.info(f"AlarMe: Resumed timer {timer_id} with {remaining:.0f}s remaining")
         await decky.emit("alarme_timer_resumed", {"id": timer_id, "remaining": remaining})
         await self._emit_all_timers()
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         return True
 
     async def update_timer(self, timer_id: str, label: str = None,
@@ -1116,6 +1328,8 @@ class Plugin:
         state["stats"] = await self._get_pomodoro_stats()
         
         await decky.emit("alarme_pomodoro_started", state)
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         return state
 
     async def stop_pomodoro(self) -> bool:
@@ -1155,6 +1369,8 @@ class Plugin:
         state["stats"] = await self._get_pomodoro_stats()
         
         await decky.emit("alarme_pomodoro_stopped", state)
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         return True
 
     async def skip_pomodoro_phase(self) -> dict:
