@@ -2340,6 +2340,10 @@ class Plugin:
             # "Now" means start counting from now
             next_trigger = (datetime.now() + timedelta(minutes=frequency_minutes)).isoformat()
         
+        #Force disable prevent_sleep if only_while_gaming is active
+        if only_while_gaming:
+            prevent_sleep = False
+            
         reminder_data = {
             "id": reminder_id,
             "label": label or f"Reminder every {frequency_minutes} min",
@@ -2393,6 +2397,10 @@ class Plugin:
         reminder["volume"] = volume
         reminder["subtle_mode"] = subtle_mode
         reminder["prevent_sleep"] = prevent_sleep
+        
+        #Force disable prevent_sleep if only_while_gaming is active
+        if only_while_gaming:
+            reminder["prevent_sleep"] = False
         
         # Recalculate next trigger if frequency changed
         if start_time:

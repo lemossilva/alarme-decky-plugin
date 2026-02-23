@@ -218,7 +218,8 @@ const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                marginBottom: 4
+                marginBottom: 4,
+                width: '100%'
             }}
             flow-children="horizontal"
         >
@@ -235,18 +236,37 @@ const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps
                     borderRadius: 8,
                     border: focused ? '2px solid white' : '2px solid transparent',
                     flex: 1,
+                    minWidth: 0, // Allow flex child to shrink
                     opacity: disabled ? 0.5 : 1
                 }}
             >
-                <FaPlay size={10} />
-                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <FaPlay size={10} style={{ minWidth: 10 }} />
+                
+                {/* Timer Label - Truncated */}
+                <span style={{ 
+                    flex: 1, 
+                    whiteSpace: 'nowrap', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis',
+                    marginRight: 4
+                }}>
                     {preset.label}
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.7 }}>
+
+                {/* Info Section - Always visible */}
+                <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 6, 
+                    opacity: 0.7,
+                    flexShrink: 0 // Prevent shrinking
+                }}>
                     {preset.auto_suspend && <span style={{ fontSize: 12 }}>💤</span>}
                     {preset.subtle_mode && !preset.auto_suspend && <span style={{ fontSize: 12 }}>📵</span>}
                     {preset.prevent_sleep && <span style={{ fontSize: 12, color: '#e69900' }}>🛡️</span>}
-                    <span style={{ color: '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
+                    <span style={{ color: '#888888', fontSize: 12, marginLeft: 2, minWidth: 35, textAlign: 'right' }}>
+                        {minutes}m
+                    </span>
                 </div>
             </Focusable>
             <Focusable

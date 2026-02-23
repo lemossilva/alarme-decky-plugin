@@ -98,6 +98,13 @@ function ReminderEditorModalContent({
     const [subtleMode, setSubtleMode] = useState(reminder?.subtle_mode ?? false);
     const [preventSleep, setPreventSleep] = useState(reminder?.prevent_sleep ?? false);
 
+    // Force disable Prevent Sleep if Only While Gaming is active
+    useEffect(() => {
+        if (onlyWhileGaming) {
+            setPreventSleep(false);
+        }
+    }, [onlyWhileGaming]);
+
     // Initial time parsing
     const getInitialTime = () => {
         if (reminder?.start_time) {
@@ -647,9 +654,10 @@ function ReminderEditorModalContent({
                 <ToggleField
                     icon={<span style={{ fontSize: 14 }}>🛡️</span>}
                     label="Prevent sleep"
-                    description="Keep device awake while reminder is active. Use with caution - may drain battery."
+                    description={onlyWhileGaming ? "Disabled because 'Only while gaming' is active" : "Keep device awake while reminder is active. Use with caution - may drain battery."}
                     checked={preventSleep}
                     onChange={setPreventSleep}
+                    disabled={onlyWhileGaming}
                 />
 
                 {/* Delete Button (only when editing) */}
