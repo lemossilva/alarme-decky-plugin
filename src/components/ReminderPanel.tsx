@@ -69,12 +69,15 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 8
-        }}>
+        <Focusable
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8
+            }}
+            flow-children="horizontal"
+        >
             {/* Toggle - separate from the clickable card */}
             <div
                 onClick={handleToggleClick}
@@ -138,6 +141,9 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                         {reminder.subtle_mode && (
                             <span style={{ color: '#88aa88' }}>📵 Subtle</span>
                         )}
+                        {reminder.prevent_sleep && (
+                            <span style={{ color: '#e69900' }}>🛡️ Prevent Sleep</span>
+                        )}
                     </div>
                     {reminder.next_trigger && isActive && triggersRemaining !== 0 && (
                         <div style={{ fontSize: 10, color: '#666666', marginTop: 2 }}>
@@ -149,7 +155,7 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                 {/* Edit indicator */}
                 <FaChevronRight size={12} color={cardFocused ? '#ffffff' : '#666666'} />
             </Focusable>
-        </div>
+        </Focusable>
     );
 };
 
@@ -170,9 +176,10 @@ export function ReminderPanel() {
                 resetOnGameStart: boolean,
                 sound: string,
                 volume: number,
-                subtleMode: boolean
+                subtleMode: boolean,
+                preventSleep: boolean
             ) => {
-                await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode);
+                await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep);
             },
             getSounds,
             use24h,
@@ -192,9 +199,10 @@ export function ReminderPanel() {
                 resetOnGameStart: boolean,
                 sound: string,
                 volume: number,
-                subtleMode: boolean
+                subtleMode: boolean,
+                preventSleep: boolean
             ) => {
-                await updateReminder(reminder.id, label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode);
+                await updateReminder(reminder.id, label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep);
             },
             onDelete: async () => {
                 await deleteReminder(reminder.id);

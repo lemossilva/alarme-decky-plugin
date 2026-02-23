@@ -3,7 +3,7 @@ import { addEventListener, removeEventListener, callable } from '@decky/api';
 import type { Timer, TimerTickEvent } from '../types';
 
 // Backend callables
-const createTimerCall = callable<[seconds: number, label: string, subtle_mode?: boolean, auto_suspend?: boolean], string>('create_timer');
+const createTimerCall = callable<[seconds: number, label: string, subtle_mode?: boolean, auto_suspend?: boolean, prevent_sleep?: boolean], string>('create_timer');
 const cancelTimerCall = callable<[timer_id: string], boolean>('cancel_timer');
 const pauseTimerCall = callable<[timer_id: string], boolean>('pause_timer');
 const resumeTimerCall = callable<[timer_id: string], boolean>('resume_timer');
@@ -16,6 +16,7 @@ export interface RecentTimer {
     label: string;
     subtle_mode?: boolean;
     auto_suspend?: boolean;
+    prevent_sleep?: boolean;
 }
 
 export function useTimers() {
@@ -50,10 +51,11 @@ export function useTimers() {
         seconds: number,
         label: string = '',
         subtleMode?: boolean,
-        autoSuspend?: boolean
+        autoSuspend?: boolean,
+        preventSleep?: boolean
     ) => {
         try {
-            await createTimerCall(seconds, label, subtleMode, autoSuspend);
+            await createTimerCall(seconds, label, subtleMode, autoSuspend, preventSleep);
             // Reload recent timers after creating
             loadRecentTimers();
         } catch (e) {

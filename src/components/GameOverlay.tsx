@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaBed, FaMoon, FaVolumeMute } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
@@ -98,13 +98,16 @@ const OverlayAlertItem = ({
             }}>
                 {alert.label}
             </span>
-            {(alert.subtle_mode || alert.auto_suspend) && (
+            {(alert.subtle_mode || alert.auto_suspend || alert.prevent_sleep) && (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 2,
                     opacity: 0.8
                 }}>
+                    {alert.prevent_sleep && (
+                        <FaShieldAlt size={Math.max(8, textSize - 2)} color="#e69900" />
+                    )}
                     {alert.auto_suspend ? (
                         <FaMoon size={Math.max(8, textSize - 2)} />
                     ) : (
@@ -178,9 +181,9 @@ export const GameOverlay = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4,
-                    color: '#4a90d9'
+                    color: '#e69900' // Elegant yellow-orange hue
                 }}>
-                    <FaBed size={settings.overlay_text_size ?? 11} />
+                    <FaShieldAlt size={settings.overlay_text_size ?? 11} />
                 </div>
             )}
             {/* Horizontal bar layout - alerts separated by dots */}

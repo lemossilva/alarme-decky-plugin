@@ -9,6 +9,7 @@ export interface Timer {
     created_at: number;
     subtle_mode?: boolean;
     auto_suspend?: boolean;
+    prevent_sleep?: boolean;
     remaining?: number;
     paused?: boolean;
     paused_remaining?: number;
@@ -31,6 +32,8 @@ export interface Alarm {
     volume?: number;          // 0-100, per-alarm volume override
     subtle_mode?: boolean;    // per-alarm subtle mode override
     auto_suspend?: boolean;   // per-alarm auto suspend override
+    prevent_sleep?: boolean;  // per-alarm prevent sleep override
+    prevent_sleep_window?: number; // minutes before alarm to start preventing sleep
 }
 
 // Sound file types
@@ -44,6 +47,9 @@ export interface Preset {
     id: string;
     seconds: number;
     label: string;
+    subtle_mode?: boolean;
+    auto_suspend?: boolean;
+    prevent_sleep?: boolean;
 }
 
 // Pomodoro types
@@ -60,6 +66,7 @@ export interface PomodoroState {
     sound?: string;
     volume?: number;
     subtle_mode?: boolean;
+    prevent_sleep?: boolean;
     stats?: PomodoroStats;
 }
 
@@ -96,6 +103,7 @@ export interface Reminder {
     sound: string;
     volume: number;
     subtle_mode: boolean;
+    prevent_sleep?: boolean;    // per-reminder prevent sleep
     enabled: boolean;
     created_at: number;
     // Runtime state (read-only from backend)
@@ -120,10 +128,12 @@ export interface UserSettings {
     timer_volume: number;
     timer_subtle_mode: boolean;
     timer_auto_suspend: boolean;
+    timer_prevent_sleep: boolean;
     // Pomodoro settings
     pomodoro_sound: string;
     pomodoro_volume: number;
     pomodoro_subtle_mode: boolean;
+    pomodoro_prevent_sleep: boolean;
     pomodoro_work_duration: number;
     pomodoro_break_duration: number;
     pomodoro_long_break_duration: number;
@@ -152,13 +162,16 @@ export interface UserSettings {
     overlay_show_alarms: boolean;
     overlay_show_pomodoros: boolean;
     overlay_show_reminders: boolean;
-    // Prevent Sleep settings
-    prevent_sleep_enabled: boolean;
-    prevent_sleep_timers: boolean;
-    prevent_sleep_pomodoro: boolean;
-    prevent_sleep_alarms: boolean;
-    prevent_sleep_alarms_window: number;  // minutes before alarm to keep awake
-    prevent_sleep_reminders: boolean;
+    // Legacy Prevent Sleep settings (deprecated - now per-item)
+    prevent_sleep_enabled?: boolean;
+    prevent_sleep_timers?: boolean;
+    prevent_sleep_pomodoro?: boolean;
+    prevent_sleep_alarms?: boolean;
+    prevent_sleep_alarms_window?: number;  // minutes before alarm to keep awake
+    prevent_sleep_reminders?: boolean;
+    // Timer presets settings
+    presets_enabled: boolean;
+    presets_max_visible: number;
     // Legacy/deprecated (kept for migration)
     overlay_position_steamui?: OverlayPosition;
     overlay_pixel_shift?: boolean;
@@ -242,6 +255,7 @@ export interface OverlayAlert {
     remaining?: number; // seconds remaining (for timers/pomodoro)
     subtle_mode?: boolean;
     auto_suspend?: boolean;
+    prevent_sleep?: boolean;
 }
 
 // Tab types

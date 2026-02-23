@@ -166,6 +166,16 @@ export function PomodoroPanel() {
                         onChange={(value) => updateSetting('pomodoro_subtle_mode', value)}
                     />
                 </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                        label="Prevent Sleep"
+                        description="Keep device awake during sessions. Use with caution - may drain battery."
+                        checked={settings.pomodoro_prevent_sleep ?? false}
+                        onChange={(value) => updateSetting('pomodoro_prevent_sleep', value)}
+                    />
+                </PanelSectionRow>
             </PanelSection>
 
             {/* Pomodoro Info */}

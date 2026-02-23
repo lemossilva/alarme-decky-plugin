@@ -6,7 +6,8 @@ import type { UserSettings, Preset } from '../types';
 const getSettingsCall = callable<[], UserSettings>('get_settings');
 const updateSettingsCall = callable<[settings: Partial<UserSettings>], UserSettings>('update_settings');
 const getPresetsCall = callable<[], Preset[]>('get_presets');
-const savePresetCall = callable<[seconds: number, label: string], Preset>('save_preset');
+const savePresetCall = callable<[seconds: number, label: string, subtle_mode?: boolean, auto_suspend?: boolean], Preset>('save_preset');
+const savePresetFromTimerCall = callable<[timer_id: string], Preset>('save_preset_from_timer');
 const removePresetCall = callable<[preset_id: string], boolean>('remove_preset');
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -17,10 +18,12 @@ const DEFAULT_SETTINGS: UserSettings = {
     timer_volume: 100,
     timer_subtle_mode: false,
     timer_auto_suspend: false,
+    timer_prevent_sleep: false,
     // Pomodoro settings
     pomodoro_sound: 'alarm.mp3',
     pomodoro_volume: 100,
     pomodoro_subtle_mode: false,
+    pomodoro_prevent_sleep: false,
     pomodoro_work_duration: 25,
     pomodoro_break_duration: 5,
     pomodoro_long_break_duration: 15,
@@ -55,7 +58,10 @@ const DEFAULT_SETTINGS: UserSettings = {
     prevent_sleep_pomodoro: true,
     prevent_sleep_alarms: false,
     prevent_sleep_alarms_window: 60,  // default 1 hour
-    prevent_sleep_reminders: false
+    prevent_sleep_reminders: false,
+    // Timer presets settings
+    presets_enabled: true,
+    presets_max_visible: 5
 };
 
 export function useSettings() {
@@ -103,11 +109,25 @@ export function useSettings() {
     }, []);
 
     // Save a new preset
-    const savePreset = useCallback(async (seconds: number, label: string) => {
+    const savePreset = useCallback(async (
+        seconds: number, 
+        label: string, 
+        subtleMode?: boolean, 
+        autoSuspend?: boolean
+    ) => {
         try {
-            await savePresetCall(seconds, label);
+            await savePresetCall(seconds, label, subtleMode, autoSuspend);
         } catch (e) {
             console.error('Failed to save preset:', e);
+        }
+    }, []);
+
+    // Save preset from an active timer
+    const savePresetFromTimer = useCallback(async (timerId: string) => {
+        try {
+            await savePresetFromTimerCall(timerId);
+        } catch (e) {
+            console.error('Failed to save preset from timer:', e);
         }
     }, []);
 
@@ -149,6 +169,7 @@ export function useSettings() {
         updateSetting,
         updateSettings,
         savePreset,
+        savePresetFromTimer,
         removePreset,
         refresh: loadData
     };
