@@ -234,18 +234,20 @@ const TimerSettingsPage = () => {
                     </div>
                 </PanelSectionRow>
 
-                <PanelSectionRow>
-                    <SliderField
-                        label="Volume"
-                        description={`${settings.timer_volume ?? 100}%`}
-                        value={settings.timer_volume ?? 100}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={(value) => updateSetting('timer_volume', value)}
-                        icon={<FaVolumeUp />}
-                    />
-                </PanelSectionRow>
+                {settings.timer_sound !== 'soundless' && (
+                    <PanelSectionRow>
+                        <SliderField
+                            label="Volume"
+                            description={`${settings.timer_volume ?? 100}%`}
+                            value={settings.timer_volume ?? 100}
+                            min={0}
+                            max={100}
+                            step={5}
+                            onChange={(value) => updateSetting('timer_volume', value)}
+                            icon={<FaVolumeUp />}
+                        />
+                    </PanelSectionRow>
+                )}
 
                 <PanelSectionRow>
                     <ToggleField
@@ -358,22 +360,26 @@ const PomodoroSettingsPage = () => {
                                 strDefaultLabel="Select Sound"
                             />
                         </div>
-                        <SoundPreviewButton soundFile={settings.pomodoro_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
+                        {settings.pomodoro_sound !== 'soundless' && (
+                            <SoundPreviewButton soundFile={settings.pomodoro_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
+                        )}
                     </div>
                 </PanelSectionRow>
 
-                <PanelSectionRow>
-                    <SliderField
-                        label="Volume"
-                        description={`${settings.pomodoro_volume ?? 100}%`}
-                        value={settings.pomodoro_volume ?? 100}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={(value) => updateSetting('pomodoro_volume', value)}
-                        icon={<FaVolumeUp />}
-                    />
-                </PanelSectionRow>
+                {settings.pomodoro_sound !== 'soundless' && (
+                    <PanelSectionRow>
+                        <SliderField
+                            label="Volume"
+                            description={`${settings.pomodoro_volume ?? 100}%`}
+                            value={settings.pomodoro_volume ?? 100}
+                            min={0}
+                            max={100}
+                            step={5}
+                            onChange={(value) => updateSetting('pomodoro_volume', value)}
+                            icon={<FaVolumeUp />}
+                        />
+                    </PanelSectionRow>
+                )}
 
                 <PanelSectionRow>
                     <SliderField
@@ -1057,3 +1063,4 @@ export function navigateToSettings() {
     Navigation.CloseSideMenus();
     Navigation.Navigate(SETTINGS_ROUTE);
 }
+

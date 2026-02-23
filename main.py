@@ -1496,6 +1496,9 @@ class Plugin:
             self.pomodoro_task.cancel()
         self.pomodoro_task = self.loop.create_task(self._pomodoro_handler())
         
+        # Inject stats for frontend
+        state["stats"] = await self._get_pomodoro_stats()
+        
         await decky.emit("alarme_pomodoro_phase_changed", state)
         return state
 
@@ -1558,6 +1561,11 @@ class Plugin:
             stats["daily_sessions"] = 0
             stats["daily_cycles"] = 0
             stats["last_active_date"] = today
+            
+            # Save reset stats immediately to prevent zeroed stats on next read
+            settings["pomodoro_stats"] = stats
+            await self.settings_setSetting(SETTINGS_KEY_SETTINGS, settings)
+            await self.settings_commit()
             
         return stats
 
@@ -1723,7 +1731,8 @@ class Plugin:
                             "end_time": time.time() + work_duration,
                             "duration": work_duration,
                             "sound": pomodoro_sound,
-                            "subtle_mode": is_subtle
+                            "subtle_mode": is_subtle,
+                            "stats": await self._get_pomodoro_stats()
                         }
                         await decky.emit("alarme_pomodoro_break_ended", new_state)
                     else:
@@ -1746,7 +1755,8 @@ class Plugin:
                             "duration": break_duration,
                             "break_type": break_type,
                             "sound": user_settings.get("pomodoro_sound", "alarm.mp3"),
-                            "subtle_mode": user_settings.get("pomodoro_subtle_mode", False)
+                            "subtle_mode": user_settings.get("pomodoro_subtle_mode", False),
+                            "stats": await self._get_pomodoro_stats()
                         }
                         await decky.emit("alarme_pomodoro_work_ended", new_state)
                     
@@ -2000,7 +2010,7 @@ class Plugin:
                     "label": f"{phase} #{session}",
                     "time": pomodoro["end_time"],
                     "remaining": remaining,
-                    "subtle_mode": pomodoro.get("subtle_mode", user_settings.get("pomodoro_subtle_mode", False)),
+                    "subtle_mode": user_settings.get("pomodoro_subtle_mode", False),
                     "auto_suspend": False,
                     "prevent_sleep": is_preventing
                 }

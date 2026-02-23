@@ -58,13 +58,17 @@ function formatAlertTime(alert: OverlayAlert, use24h: boolean): string {
 const OverlayAlertItem = ({
     alert,
     textSize,
-    use24h
+    use24h,
+    hideShield
 }: {
     alert: OverlayAlert;
     textSize: number;
     use24h: boolean;
+    hideShield?: boolean;
 }) => {
     const iconSize = Math.max(8, textSize - 1);
+
+    const hasAnyIcon = alert.subtle_mode || alert.auto_suspend || (alert.prevent_sleep && !hideShield);
 
     return (
         <div style={{
@@ -98,14 +102,14 @@ const OverlayAlertItem = ({
             }}>
                 {alert.label}
             </span>
-            {(alert.subtle_mode || alert.auto_suspend || alert.prevent_sleep) && (
+            {hasAnyIcon && (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 2,
                     opacity: 0.8
                 }}>
-                    {alert.prevent_sleep && (
+                    {alert.prevent_sleep && !hideShield && (
                         <FaShieldAlt size={Math.max(8, textSize - 2)} color="#e69900" />
                     )}
                     {alert.auto_suspend ? (
@@ -204,6 +208,7 @@ export const GameOverlay = () => {
                         alert={alert}
                         textSize={settings.overlay_text_size ?? 11}
                         use24h={settings.time_format_24h}
+                        hideShield={alerts.length === 1 && alert.prevent_sleep}
                     />
                 </div>
             ))}

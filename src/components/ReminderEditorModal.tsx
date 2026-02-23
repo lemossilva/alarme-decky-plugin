@@ -597,49 +597,53 @@ function ReminderEditorModalContent({
                                 onChange={(option: DropdownOption) => setSound(option.data as string)}
                             />
                         </div>
-                        <Focusable
-                            onActivate={toggleSoundPreview}
-                            style={{
-                                padding: '8px 12px',
-                                backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
-                                borderRadius: 4,
-                                cursor: 'pointer',
-                                minWidth: 80,
-                                textAlign: 'center'
-                            }}
-                        >
-                            {isPlaying ? (
-                                <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
-                            ) : (
-                                <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
-                            )}
-                        </Focusable>
+                        {sound !== 'soundless' && (
+                            <Focusable
+                                onActivate={toggleSoundPreview}
+                                style={{
+                                    padding: '8px 12px',
+                                    backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    minWidth: 80,
+                                    textAlign: 'center'
+                                }}
+                            >
+                                {isPlaying ? (
+                                    <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
+                                ) : (
+                                    <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
+                                )}
+                            </Focusable>
+                        )}
                     </div>
                 </div>
 
                 {/* Volume Slider */}
-                <div>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 8
-                    }}>
-                        <FaVolumeUp size={14} color="#aaaaaa" />
-                        <span style={{ fontSize: 14, fontWeight: 'bold', color: '#ccc' }}>
-                            Volume: {volume}%
-                        </span>
+                {sound !== 'soundless' && (
+                    <div>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 8
+                        }}>
+                            <FaVolumeUp size={14} color="#aaaaaa" />
+                            <span style={{ fontSize: 14, fontWeight: 'bold', color: '#ccc' }}>
+                                Volume: {volume}%
+                            </span>
+                        </div>
+                        <SliderField
+                            value={volume}
+                            min={0}
+                            max={100}
+                            step={5}
+                            onChange={setVolume}
+                            label=""
+                            showValue={false}
+                        />
                     </div>
-                    <SliderField
-                        value={volume}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={setVolume}
-                        label=""
-                        showValue={false}
-                    />
-                </div>
+                )}
 
                 {/* Subtle Mode Toggle */}
                 <ToggleField

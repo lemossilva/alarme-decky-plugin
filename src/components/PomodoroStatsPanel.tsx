@@ -131,6 +131,7 @@ export function PomodoroStatsPanel({
         const barWidth = 28;
         const gap = 8;
         const labelOffset = 14; // Space for data labels above bars
+        const topPadding = 12; // Extra padding to prevent top label clipping
 
         // Format value for display (compact format)
         const formatLabel = (seconds: number): string => {
@@ -145,13 +146,13 @@ export function PomodoroStatsPanel({
 
         return (
             <div style={{ padding: '8px 0' }}>
-                <svg width="100%" height={chartHeight + 20} viewBox={`0 0 ${data.length * (barWidth + gap)} ${chartHeight + 20}`}>
+                <svg width="100%" height={chartHeight + 20 + topPadding} viewBox={`0 0 ${data.length * (barWidth + gap)} ${chartHeight + 20 + topPadding}`}>
                     {data.map((d, i) => {
                         const barHeight = maxVal > 0 ? (d.value / maxVal) * (chartHeight - labelOffset) : 0;
                         const isToday = i === data.length - 1;
                         const labelText = formatLabel(d.value);
                         return (
-                            <g key={i} transform={`translate(${i * (barWidth + gap)}, 0)`}>
+                            <g key={i} transform={`translate(${i * (barWidth + gap)}, ${topPadding})`}>
                                 {/* Data label above bar */}
                                 {labelText && (
                                     <text

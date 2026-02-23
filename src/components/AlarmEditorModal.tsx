@@ -572,47 +572,51 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                 strDefaultLabel="Select sound"
                             />
                         </div>
-                        <Focusable
-                            onActivate={toggleSoundPreview}
-                            style={{
-                                padding: '8px 12px',
-                                backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
-                                borderRadius: 4,
-                                cursor: 'pointer',
-                                minWidth: 80,
-                                textAlign: 'center'
-                            }}
-                        >
-                            {isPlaying ? (
-                                <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
-                            ) : (
-                                <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
-                            )}
-                        </Focusable>
+                        {selectedSound !== 'soundless' && (
+                            <Focusable
+                                onActivate={toggleSoundPreview}
+                                style={{
+                                    padding: '8px 12px',
+                                    backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    minWidth: 80,
+                                    textAlign: 'center'
+                                }}
+                            >
+                                {isPlaying ? (
+                                    <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
+                                ) : (
+                                    <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
+                                )}
+                            </Focusable>
+                        )}
                     </Focusable>
                 </div>
 
                 {/* Volume */}
-                <div>
-                    <div style={{
-                        fontSize: 13,
-                        color: '#888888',
-                        marginBottom: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                    }}>
-                        <FaVolumeUp size={12} /> Volume
+                {selectedSound !== 'soundless' && (
+                    <div>
+                        <div style={{
+                            fontSize: 13,
+                            color: '#888888',
+                            marginBottom: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                        }}>
+                            <FaVolumeUp size={12} /> Volume
+                        </div>
+                        <SliderField
+                            value={volume}
+                            min={0}
+                            max={100}
+                            step={5}
+                            onChange={setVolume}
+                            showValue
+                        />
                     </div>
-                    <SliderField
-                        value={volume}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={setVolume}
-                        showValue
-                    />
-                </div>
+                )}
 
 
 
