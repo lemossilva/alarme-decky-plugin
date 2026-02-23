@@ -28,7 +28,7 @@ const QUICK_RECURRING_OPTIONS: DropdownOption[] = [
 interface AlarmEditorModalProps {
     // If provided, we're editing an existing alarm
     alarm?: Alarm;
-    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean) => Promise<void>;
+    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean, preventSleep?: boolean, preventSleepWindow?: number) => Promise<void>;
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
     closeModal?: () => void;
@@ -146,6 +146,8 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
     // Per-alarm behavior settings
     const [subtleMode, setSubtleMode] = useState(alarm?.subtle_mode ?? false);
     const [autoSuspend, setAutoSuspend] = useState(alarm?.auto_suspend ?? false);
+    const [preventSleep, setPreventSleep] = useState(alarm?.prevent_sleep ?? false);
+    const [preventSleepWindow, setPreventSleepWindow] = useState(alarm?.prevent_sleep_window ?? 60);
     const [volume, setVolume] = useState(alarm?.volume ?? 100);
 
     // Sound preview
@@ -344,7 +346,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
             recurring = quickRecurring as RecurringType;
         }
 
-        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend);
+        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow);
         closeModal?.();
     };
 
@@ -714,6 +716,68 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                 }} />
                             </div>
                         </Focusable>
+                        <Focusable
+                            onActivate={() => setPreventSleep(!preventSleep)}
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '8px 12px',
+                                backgroundColor: '#ffffff11',
+                                borderRadius: 6
+                            }}
+                        >
+                            <div>
+                                <div style={{ fontSize: 13 }}>🛡️ Prevent Sleep</div>
+                                <div style={{ fontSize: 11, color: '#888888' }}>
+                                    Keep device awake before alarm. Use with caution - may drain battery.
+                                </div>
+                            </div>
+                            <div style={{
+                                width: 40,
+                                height: 22,
+                                backgroundColor: preventSleep ? '#44aa44' : '#ffffff33',
+                                borderRadius: 11,
+                                position: 'relative',
+                                transition: 'all 0.2s'
+                            }}>
+                                <div style={{
+                                    width: 18,
+                                    height: 18,
+                                    backgroundColor: '#ffffff',
+                                    borderRadius: 9,
+                                    position: 'absolute',
+                                    top: 2,
+                                    left: preventSleep ? 20 : 2,
+                                    transition: 'all 0.2s'
+                                }} />
+                            </div>
+                        </Focusable>
+                        {preventSleep && (
+                            <div style={{ paddingLeft: 12, paddingTop: 8 }}>
+                                <div style={{ fontSize: 11, color: '#888888', marginBottom: 6 }}>
+                                    Start preventing sleep:
+                                </div>
+                                <Dropdown
+                                    rgOptions={[
+                                        { data: 15, label: '15 minutes before' },
+                                        { data: 30, label: '30 minutes before' },
+                                        { data: 45, label: '45 minutes before' },
+                                        { data: 60, label: '1 hour before' },
+                                        { data: 120, label: '2 hours before' },
+                                        { data: 180, label: '3 hours before' },
+                                        { data: 360, label: '6 hours before' },
+                                        { data: 720, label: '12 hours before' },
+                                        { data: 1440, label: '24 hours before' }
+                                    ]}
+                                    selectedOption={preventSleepWindow}
+                                    onChange={(option) => setPreventSleepWindow(option.data as number)}
+                                />
+                                <div style={{ fontSize: 10, color: '#666666', marginTop: 4 }}>
+                                    Device will stay awake starting this long before the alarm is due.
+                                </div>
+                            </div>
+                        )}
                     </Focusable>
                 </div>
 

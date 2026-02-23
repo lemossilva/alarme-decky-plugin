@@ -1,11 +1,14 @@
 import {
     ButtonItem,
+    ConfirmModal,
     Focusable,
     PanelSection,
     PanelSectionRow,
+    showModal,
     ToggleField
 } from "@decky/ui";
-import { FaPlus, FaMinus, FaTimes, FaPlay, FaEdit, FaPause } from "react-icons/fa";
+import { toaster } from "@decky/api";
+import { FaPlus, FaMinus, FaTimes, FaPlay, FaEdit, FaPause, FaStar, FaTrash } from "react-icons/fa";
 import { useState, useCallback } from "react";
 
 import { useTimers, RecentTimer } from "../hooks/useTimers";
@@ -64,11 +67,14 @@ interface TimerItemProps {
     onCancel: (id: string) => void;
     onPause: (id: string) => void;
     onResume: (id: string) => void;
+    onSaveAsPreset: (id: string) => void;
+    showSavePreset: boolean;
 }
 
-const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
+const TimerItem = ({ timer, onCancel, onPause, onResume, onSaveAsPreset, showSavePreset }: TimerItemProps) => {
     const [cancelFocused, setCancelFocused] = useState(false);
     const [pauseFocused, setPauseFocused] = useState(false);
+    const [saveFocused, setSaveFocused] = useState(false);
     const remaining = timer.remaining ?? 0;
     const isUrgent = remaining < 60 && !timer.paused;
     const isPaused = timer.paused ?? false;
@@ -84,6 +90,10 @@ const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
             onPause(timer.id);
         }
     }, [isPaused, onPause, onResume, timer.id]);
+
+    const handleSaveAsPreset = useCallback(() => {
+        onSaveAsPreset(timer.id);
+    }, [onSaveAsPreset, timer.id]);
 
     return (
         <div style={{
@@ -107,7 +117,7 @@ const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
                 }}>
                     {formatDuration(remaining)}
                 </div>
-                {(timer.subtle_mode || timer.auto_suspend) && (
+                {(timer.subtle_mode || timer.auto_suspend || timer.prevent_sleep) && (
                     <div style={{
                         fontSize: 11,
                         color: '#bbbbbb',
@@ -115,15 +125,31 @@ const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
                         display: 'flex',
                         gap: 8
                     }}>
-                        {timer.auto_suspend ? (
-                            <span>💤 Auto-Suspend</span>
-                        ) : (
-                            timer.subtle_mode && <span>📵 Subtle</span>
-                        )}
+                        {timer.auto_suspend && <span>💤 Auto-Suspend</span>}
+                        {timer.subtle_mode && !timer.auto_suspend && <span>📵 Subtle</span>}
+                        {timer.prevent_sleep && <span style={{ color: '#e69900' }}>🛡️ Prevent Sleep</span>}
                     </div>
                 )}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <Focusable style={{ display: 'flex', gap: 8 }} flow-children="horizontal">
+                {showSavePreset && (
+                    <Focusable
+                        onActivate={handleSaveAsPreset}
+                        onFocus={() => setSaveFocused(true)}
+                        onBlur={() => setSaveFocused(false)}
+                        style={{
+                            padding: 8,
+                            backgroundColor: saveFocused ? '#ddaa00' : '#aa880088',
+                            borderRadius: 8,
+                            border: saveFocused ? '2px solid white' : '2px solid transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        <FaStar size={16} />
+                    </Focusable>
+                )}
                 <Focusable
                     onActivate={handlePauseResume}
                     onFocus={() => setPauseFocused(true)}
@@ -156,22 +182,92 @@ const TimerItem = ({ timer, onCancel, onPause, onResume }: TimerItemProps) => {
                 >
                     <FaTimes size={16} />
                 </Focusable>
-            </div>
+            </Focusable>
         </div>
     );
 };
 
 
-const PresetButton = ({ preset, onClick, disabled }: { preset: Preset; onClick: () => void; disabled: boolean }) => (
-    <ButtonItem
-        disabled={disabled}
-        layout="below"
-        onClick={onClick}
-    >
-        <FaPlay size={10} style={{ marginRight: 8 }} />
-        {preset.label}
-    </ButtonItem>
-);
+interface PresetButtonProps {
+    preset: Preset;
+    onClick: () => void;
+    onDelete: () => void;
+    disabled: boolean;
+}
+
+const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps) => {
+    const [focused, setFocused] = useState(false);
+    const [deleteFocused, setDeleteFocused] = useState(false);
+    const minutes = Math.floor(preset.seconds / 60);
+
+    const handleDelete = () => {
+        showModal(
+            <ConfirmModal
+                strTitle="Delete Preset?"
+                strDescription={`Are you sure you want to delete "${preset.label}"?`}
+                strOKButtonText="Delete"
+                strCancelButtonText="Cancel"
+                onOK={onDelete}
+            />
+        );
+    };
+
+    return (
+        <Focusable
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 4
+            }}
+            flow-children="horizontal"
+        >
+            <Focusable
+                onActivate={disabled ? undefined : onClick}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    backgroundColor: focused ? '#4488aa' : '#ffffff11',
+                    borderRadius: 8,
+                    border: focused ? '2px solid white' : '2px solid transparent',
+                    flex: 1,
+                    opacity: disabled ? 0.5 : 1
+                }}
+            >
+                <FaPlay size={10} />
+                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {preset.label}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.7 }}>
+                    {preset.auto_suspend && <span style={{ fontSize: 12 }}>💤</span>}
+                    {preset.subtle_mode && !preset.auto_suspend && <span style={{ fontSize: 12 }}>📵</span>}
+                    {preset.prevent_sleep && <span style={{ fontSize: 12, color: '#e69900' }}>🛡️</span>}
+                    <span style={{ color: '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
+                </div>
+            </Focusable>
+            <Focusable
+                onActivate={handleDelete}
+                onFocus={() => setDeleteFocused(true)}
+                onBlur={() => setDeleteFocused(false)}
+                style={{
+                    padding: 8,
+                    backgroundColor: deleteFocused ? '#ff6666' : '#aa444488',
+                    borderRadius: 8,
+                    border: deleteFocused ? '2px solid white' : '2px solid transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+            >
+                <FaTrash size={14} />
+            </Focusable>
+        </Focusable>
+    );
+};
 
 const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; onClick: () => void; isFirst?: boolean }) => {
     const [focused, setFocused] = useState(false);
@@ -207,11 +303,9 @@ const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; 
             <FaPlay size={10} />
             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayLabel}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.7 }}>
-                {recent.auto_suspend ? (
-                    <span style={{ fontSize: 12 }}>💤</span>
-                ) : (
-                    recent.subtle_mode && <span style={{ fontSize: 12 }}>📵</span>
-                )}
+                {recent.auto_suspend && <span style={{ fontSize: 12 }}>💤</span>}
+                {recent.subtle_mode && !recent.auto_suspend && <span style={{ fontSize: 12 }}>📵</span>}
+                {recent.prevent_sleep && <span style={{ fontSize: 12, color: '#e69900' }}>🛡️</span>}
                 <span style={{ color: '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
             </div>
         </Focusable>
@@ -220,19 +314,20 @@ const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; 
 
 export function TimerPanel() {
     const { timers, recentTimers, createTimer, cancelTimer, pauseTimer, resumeTimer } = useTimers();
-    const { presets, settings, updateSetting } = useSettings();
+    const { presets, settings, updateSetting, savePresetFromTimer, removePreset } = useSettings();
     const [timerMinutes, setTimerMinutes] = useState(5);
 
     // Use settings directly for persistence
     const timerSubtleMode = settings.timer_subtle_mode ?? false;
     const timerAutoSuspend = settings.timer_auto_suspend ?? false;
+    const timerPreventSleep = settings.timer_prevent_sleep ?? false;
 
     const hasActiveTimers = timers.length > 0;
     const hasRecentTimers = recentTimers.length > 0;
 
     // Quick start timer (no label)
     const handleQuickStart = async () => {
-        await createTimer(timerMinutes * 60, '', timerSubtleMode, timerAutoSuspend);
+        await createTimer(timerMinutes * 60, '', timerSubtleMode, timerAutoSuspend, timerPreventSleep);
     };
 
     // Open modal for labeled timer
@@ -240,14 +335,17 @@ export function TimerPanel() {
         showTimerLabelModal({
             seconds: timerMinutes * 60,
             onStart: async (seconds, label) => {
-                await createTimer(seconds, label, timerSubtleMode, timerAutoSuspend);
+                await createTimer(seconds, label, timerSubtleMode, timerAutoSuspend, timerPreventSleep);
             }
         });
     };
 
-    // Start from preset
+    // Start from preset (use preset's saved settings)
     const handlePresetClick = async (preset: Preset) => {
-        await createTimer(preset.seconds, preset.label, timerSubtleMode, timerAutoSuspend);
+        const subtleMode = preset.subtle_mode !== undefined ? preset.subtle_mode : timerSubtleMode;
+        const autoSuspend = preset.auto_suspend !== undefined ? preset.auto_suspend : timerAutoSuspend;
+        const preventSleep = preset.prevent_sleep !== undefined ? preset.prevent_sleep : timerPreventSleep;
+        await createTimer(preset.seconds, preset.label, subtleMode, autoSuspend, preventSleep);
     };
 
     // Start from recent
@@ -255,7 +353,19 @@ export function TimerPanel() {
         // Use the recent timer's saved settings, falling back to global settings if undefined
         const subtleMode = recent.subtle_mode !== undefined ? recent.subtle_mode : timerSubtleMode;
         const autoSuspend = recent.auto_suspend !== undefined ? recent.auto_suspend : timerAutoSuspend;
-        await createTimer(recent.seconds, recent.label, subtleMode, autoSuspend);
+        const preventSleep = recent.prevent_sleep !== undefined ? recent.prevent_sleep : timerPreventSleep;
+        await createTimer(recent.seconds, recent.label, subtleMode, autoSuspend, preventSleep);
+    };
+
+    // Save active timer as preset
+    const handleSaveAsPreset = async (timerId: string) => {
+        await savePresetFromTimer(timerId);
+        toaster.toast({ title: "Preset Saved", body: "Timer saved to Saved Presets" });
+    };
+
+    // Delete a preset
+    const handleDeletePreset = async (presetId: string) => {
+        await removePreset(presetId);
     };
 
     return (
@@ -270,6 +380,8 @@ export function TimerPanel() {
                             onCancel={cancelTimer}
                             onPause={pauseTimer}
                             onResume={resumeTimer}
+                            onSaveAsPreset={handleSaveAsPreset}
+                            showSavePreset={settings.presets_enabled ?? true}
                         />
                     ))}
                 </PanelSection>
@@ -397,6 +509,16 @@ export function TimerPanel() {
                         }}
                     />
                 </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                        label="Prevent Sleep"
+                        description="Keep device awake while timer runs. Use with caution - may drain battery."
+                        checked={settings.timer_prevent_sleep ?? false}
+                        onChange={(value) => updateSetting('timer_prevent_sleep', value)}
+                    />
+                </PanelSectionRow>
             </PanelSection>
 
             {/* Recent Timers */}
@@ -417,16 +539,17 @@ export function TimerPanel() {
                 </PanelSection>
             )}
 
-            {/* Quick Presets */}
-            {presets.length > 0 && (
-                <PanelSection title="Quick Presets">
+            {/* Saved Presets */}
+            {settings.presets_enabled && presets.length > 0 && (
+                <PanelSection title="Saved Presets">
                     <PanelSectionRow>
                         <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
-                            {presets.slice(0, 5).map(preset => (
+                            {presets.slice(0, settings.presets_max_visible ?? 5).map(preset => (
                                 <PresetButton
                                     key={preset.id}
                                     preset={preset}
                                     onClick={() => handlePresetClick(preset)}
+                                    onDelete={() => handleDeletePreset(preset.id)}
                                     disabled={false}
                                 />
                             ))}

@@ -6,13 +6,13 @@ import type { Reminder, SoundFile } from '../types';
 const createReminderCall = callable<
     [label: string, frequency_minutes: number, start_time: string | null,
         recurrences: number, only_while_gaming: boolean, reset_on_game_start: boolean,
-        sound: string, volume: number, subtle_mode: boolean], Reminder
+        sound: string, volume: number, subtle_mode: boolean, prevent_sleep: boolean], Reminder
 >('create_reminder');
 
 const updateReminderCall = callable<
     [reminder_id: string, label: string, frequency_minutes: number,
         start_time: string | null, recurrences: number, only_while_gaming: boolean,
-        reset_on_game_start: boolean, sound: string, volume: number, subtle_mode: boolean], Reminder | null
+        reset_on_game_start: boolean, sound: string, volume: number, subtle_mode: boolean, prevent_sleep: boolean], Reminder | null
 >('update_reminder');
 
 const deleteReminderCall = callable<[reminder_id: string], boolean>('delete_reminder');
@@ -46,12 +46,13 @@ export function useReminders() {
         resetOnGameStart: boolean = false,
         sound: string = 'alarm.mp3',
         volume: number = 100,
-        subtleMode: boolean = false
+        subtleMode: boolean = false,
+        preventSleep: boolean = false
     ): Promise<Reminder | null> => {
         try {
             return await createReminderCall(
                 label, frequencyMinutes, startTime, recurrences,
-                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode
+                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep
             );
         } catch (e) {
             console.error('Failed to create reminder:', e);
@@ -70,12 +71,13 @@ export function useReminders() {
         resetOnGameStart: boolean = false,
         sound: string = 'alarm.mp3',
         volume: number = 100,
-        subtleMode: boolean = false
+        subtleMode: boolean = false,
+        preventSleep: boolean = false
     ): Promise<Reminder | null> => {
         try {
             return await updateReminderCall(
                 reminderId, label, frequencyMinutes, startTime, recurrences,
-                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode
+                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep
             );
         } catch (e) {
             console.error('Failed to update reminder:', e);

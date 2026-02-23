@@ -60,7 +60,8 @@ interface ReminderEditorModalProps {
         resetOnGameStart: boolean,
         sound: string,
         volume: number,
-        subtleMode: boolean
+        subtleMode: boolean,
+        preventSleep: boolean
     ) => Promise<void>;
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
@@ -95,6 +96,7 @@ function ReminderEditorModalContent({
     const [sound, setSound] = useState(reminder?.sound || 'alarm.mp3');
     const [volume, setVolume] = useState(reminder?.volume ?? 100);
     const [subtleMode, setSubtleMode] = useState(reminder?.subtle_mode ?? false);
+    const [preventSleep, setPreventSleep] = useState(reminder?.prevent_sleep ?? false);
 
     // Initial time parsing
     const getInitialTime = () => {
@@ -231,7 +233,8 @@ function ReminderEditorModalContent({
             resetOnGameStart,
             sound,
             volume,
-            subtleMode
+            subtleMode,
+            preventSleep
         );
         closeModal?.();
     };
@@ -267,7 +270,10 @@ function ReminderEditorModalContent({
                     <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#ccc' }}>
                         Label
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Focusable
+                        style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+                        flow-children="horizontal"
+                    >
                         <div style={{ flex: 1 }}>
                             <TextField
                                 value={label}
@@ -285,7 +291,7 @@ function ReminderEditorModalContent({
                         >
                             Presets
                         </Focusable>
-                    </div>
+                    </Focusable>
                     {showLabelPresets && (
                         <div style={{
                             display: 'flex',
@@ -629,24 +635,22 @@ function ReminderEditorModalContent({
                 </div>
 
                 {/* Subtle Mode Toggle */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    backgroundColor: '#ffffff11',
-                    borderRadius: 8
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>📵</span>
-                        <span>Subtle mode</span>
-                    </div>
-                    <ToggleField
-                        checked={subtleMode}
-                        onChange={setSubtleMode}
-                        label=""
-                    />
-                </div>
+                <ToggleField
+                    icon={<span style={{ fontSize: 14 }}>📵</span>}
+                    label="Subtle mode"
+                    description="Show only a toast notification, no sound"
+                    checked={subtleMode}
+                    onChange={setSubtleMode}
+                />
+
+                {/* Prevent Sleep Toggle */}
+                <ToggleField
+                    icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                    label="Prevent sleep"
+                    description="Keep device awake while reminder is active. Use with caution - may drain battery."
+                    checked={preventSleep}
+                    onChange={setPreventSleep}
+                />
 
                 {/* Delete Button (only when editing) */}
                 {isEditing && onDelete && (

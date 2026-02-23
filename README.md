@@ -12,7 +12,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ### ⏱️ Timers
 - **Multiple concurrent timers** - Run several timers at once
-- **Quick presets** - Start timers with one click (5, 10, 15, 30, 60 minutes)
+- **Saved presets** - Save any timer as a custom preset, manage your list, and start timers with one click
 - **Custom labels** - Name your timers for easy identification
 - **Recent timers** - Quick access to your last 5 used timers
 - **Persistent** - Timers survive Decky Loader restarts
@@ -110,7 +110,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ## Installation
 
-### From Decky Store (Soon!)
+### From Decky Store
 1. Open Decky Loader on your Steam Deck
 2. Go to the Store tab
 3. Search for "AlarMe"

@@ -13,7 +13,7 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes, FaBed } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes, FaShieldAlt } from "react-icons/fa";
 import { useState, useEffect, useRef } from "react";
 
 // Components
@@ -268,12 +268,12 @@ function Content() {
                             alignItems: 'center',
                             gap: 8,
                             padding: '6px 12px',
-                            backgroundColor: '#4a90d922',
+                            backgroundColor: '#e6990022',
                             borderRadius: 8,
-                            border: '1px solid #4a90d944'
+                            border: '1px solid #e6990044'
                         }}>
-                            <FaBed style={{ color: '#4a90d9' }} />
-                            <span style={{ fontSize: 12, color: '#4a90d9' }}>Sleep blocked</span>
+                            <FaShieldAlt style={{ color: '#e69900' }} />
+                            <span style={{ fontSize: 12, color: '#e69900' }}>Sleep blocked</span>
                         </div>
                     </PanelSectionRow>
                 </PanelSection>
@@ -502,7 +502,7 @@ export default definePlugin(() => {
     // Register settings route
     routerHook.addRoute(SETTINGS_ROUTE, () => <SettingsPage />);
 
-    // Register in-game overlay (Issue #18) using Decky's global component system
+    // Register in-game overlay using Decky's global component system
     // This API injects components into both Steam UI and game overlay
     const OVERLAY_COMPONENT_NAME = 'AlarMeGameOverlay';
     routerHook.addGlobalComponent(OVERLAY_COMPONENT_NAME, GameOverlay);

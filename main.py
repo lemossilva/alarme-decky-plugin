@@ -44,10 +44,12 @@ DEFAULT_SETTINGS = {
     "timer_volume": 100,
     "timer_subtle_mode": False,
     "timer_auto_suspend": False,
+    "timer_prevent_sleep": False,
     # Pomodoro settings
     "pomodoro_sound": "alarm.mp3",
     "pomodoro_volume": 100,
     "pomodoro_subtle_mode": False,
+    "pomodoro_prevent_sleep": False,
     "pomodoro_work_duration": 25,  # minutes
     "pomodoro_break_duration": 5,  # minutes
     "pomodoro_long_break_duration": 15,  # minutes
@@ -72,16 +74,19 @@ DEFAULT_SETTINGS = {
     "overlay_show_timers": True,
     "overlay_show_alarms": True,
     "overlay_show_pomodoros": True,
-    "overlay_show_reminders": True
+    "overlay_show_reminders": True,
+    # Timer presets settings
+    "presets_enabled": True,
+    "presets_max_visible": 5
 }
 
 # Default presets
 DEFAULT_PRESETS = [
-    {"id": "preset-5", "seconds": 300, "label": "5 minutes"},
-    {"id": "preset-10", "seconds": 600, "label": "10 minutes"},
-    {"id": "preset-15", "seconds": 900, "label": "15 minutes"},
-    {"id": "preset-30", "seconds": 1800, "label": "30 minutes"},
-    {"id": "preset-60", "seconds": 3600, "label": "1 hour"},
+    {"id": "preset-5", "seconds": 300, "label": "5 minutes", "subtle_mode": False, "auto_suspend": False},
+    {"id": "preset-10", "seconds": 600, "label": "10 minutes", "subtle_mode": False, "auto_suspend": False},
+    {"id": "preset-15", "seconds": 900, "label": "15 minutes", "subtle_mode": False, "auto_suspend": False},
+    {"id": "preset-30", "seconds": 1800, "label": "30 minutes", "subtle_mode": False, "auto_suspend": False},
+    {"id": "preset-60", "seconds": 3600, "label": "1 hour", "subtle_mode": False, "auto_suspend": False},
 ]
 
 
@@ -162,65 +167,64 @@ class Plugin:
     # ==================== SLEEP INHIBITOR METHODS ====================
 
     async def _update_sleep_inhibitor(self):
-        """Update the sleep inhibitor based on current state and settings."""
-        user_settings = await self._get_user_settings()
-        
-        # Check if feature is enabled
-        if not user_settings.get("prevent_sleep_enabled", False):
-            await self._release_sleep_inhibitor()
-            return
-        
-        # Check if any monitored category is active
+        """Update the sleep inhibitor based on per-item prevent_sleep flags."""
         should_inhibit = False
         reason_parts = []
+        inhibiting_items = []
         
-        # Check timers
-        if user_settings.get("prevent_sleep_timers", True):
-            timers = await self._get_timers()
-            active_timers = [t for t in timers.values() if not t.get("paused", False)]
-            if active_timers:
+        # Check timers with prevent_sleep=True
+        timers = await self._get_timers()
+        for timer_id, timer in timers.items():
+            if not timer.get("paused", False) and timer.get("prevent_sleep", False):
                 should_inhibit = True
-                reason_parts.append(f"{len(active_timers)} timer(s)")
+                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer")})
+        if inhibiting_items:
+            reason_parts.append(f"{len(inhibiting_items)} timer(s)")
         
-        # Check pomodoro
-        if user_settings.get("prevent_sleep_pomodoro", True):
-            pomodoro = await self._get_pomodoro_state()
-            if pomodoro.get("active", False):
-                should_inhibit = True
-                reason_parts.append("Pomodoro")
+        # Check pomodoro with prevent_sleep=True (uses global setting)
+        user_settings = await self._get_user_settings()
+        pomodoro = await self._get_pomodoro_state()
+        if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
+            should_inhibit = True
+            reason_parts.append("Pomodoro")
+            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Pomodoro"})
         
-        # Check alarms (if any are due within the configured time window)
-        if user_settings.get("prevent_sleep_alarms", False):
-            alarms = await self._get_alarms()
-            window_minutes = user_settings.get("prevent_sleep_alarms_window", 60)
+        # Check alarms with prevent_sleep=True (enabled and upcoming within per-alarm window)
+        alarms = await self._get_alarms()
+        now = time.time()
+        alarm_count = 0
+        for alarm_id, alarm in alarms.items():
+            if not alarm.get("enabled", False) or not alarm.get("prevent_sleep", False):
+                continue
+            # Use per-alarm window (default 60 minutes)
+            window_minutes = alarm.get("prevent_sleep_window", 60)
             window_seconds = window_minutes * 60
-            now = time.time()
-            
-            upcoming_alarms = []
-            for alarm in alarms.values():
-                if not alarm.get("enabled", False):
-                    continue
-                next_time = alarm.get("next_time")
-                if next_time and 0 < (next_time - now) <= window_seconds:
-                    upcoming_alarms.append(alarm)
-            
-            if upcoming_alarms:
+            next_trigger = self._calculate_next_trigger(alarm)
+            if next_trigger and 0 < (next_trigger - now) <= window_seconds:
                 should_inhibit = True
-                reason_parts.append(f"{len(upcoming_alarms)} alarm(s) within {window_minutes}m")
+                alarm_count += 1
+                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm")})
+        if alarm_count > 0:
+            reason_parts.append(f"{alarm_count} alarm(s)")
         
-        # Check reminders (if any are active/enabled)
-        if user_settings.get("prevent_sleep_reminders", False):
-            reminders = await self._get_reminders()
-            active_reminders = [r for r in reminders.values() if r.get("enabled", False)]
-            if active_reminders:
+        # Check reminders with prevent_sleep=True
+        reminders = await self._get_reminders()
+        reminder_count = 0
+        for reminder_id, reminder in reminders.items():
+            if reminder.get("enabled", False) and reminder.get("prevent_sleep", False):
                 should_inhibit = True
-                reason_parts.append(f"{len(active_reminders)} reminder(s)")
+                reminder_count += 1
+                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder")})
+        if reminder_count > 0:
+            reason_parts.append(f"{reminder_count} reminder(s)")
         
         if should_inhibit:
             reason = "AlarMe: " + ", ".join(reason_parts) + " active"
             await self._acquire_sleep_inhibitor(reason)
+            await decky.emit("alarme_sleep_inhibitor_updated", {"active": True, "reason": reason, "items": inhibiting_items})
         else:
             await self._release_sleep_inhibitor()
+            await decky.emit("alarme_sleep_inhibitor_updated", {"active": False, "reason": "", "items": []})
 
     async def _jiggler_loop(self):
         """Simulate activity periodically to prevent sleep using uinput keyboard events."""
@@ -373,7 +377,8 @@ class Plugin:
 
     async def create_timer(self, seconds: int, label: str = "",
                           subtle_mode: bool = None,
-                          auto_suspend: bool = None) -> str:
+                          auto_suspend: bool = None,
+                          prevent_sleep: bool = None) -> str:
         """Create a new countdown timer."""
         # Check limit
         timers = await self._get_timers()
@@ -389,6 +394,8 @@ class Plugin:
             subtle_mode = user_settings.get("timer_subtle_mode", False)
         if auto_suspend is None:
             auto_suspend = user_settings.get("timer_auto_suspend", False)
+        if prevent_sleep is None:
+            prevent_sleep = False
         if auto_suspend:
             subtle_mode = True
         
@@ -403,7 +410,8 @@ class Plugin:
             "end_time": end_time,
             "created_at": time.time(),
             "subtle_mode": subtle_mode,
-            "auto_suspend": auto_suspend
+            "auto_suspend": auto_suspend,
+            "prevent_sleep": prevent_sleep
         }
         
         # Save to settings
@@ -412,7 +420,7 @@ class Plugin:
         await self._save_timers(timers)
         
         # Save to recent timers (for quick access)
-        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend)
+        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend, prevent_sleep)
         
         # Start the timer task
         self.timer_tasks[timer_id] = self.loop.create_task(
@@ -593,7 +601,7 @@ class Plugin:
                 # Emit update every second for real-time display
                 await decky.emit("alarme_timer_tick", {
                     "id": timer_id,
-                    "remaining": remaining
+                    "remaining": int(remaining)
                 })
                 await asyncio.sleep(1)
                 
@@ -621,7 +629,7 @@ class Plugin:
         await self.settings_commit()
         return True
 
-    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False):
+    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False, prevent_sleep: bool = False):
         """Add a timer to the recent timers list (max 5, dedup by seconds+label+modes)."""
         recent = await self.get_recent_timers()
         
@@ -630,15 +638,17 @@ class Plugin:
             "seconds": seconds,
             "label": label or f"{seconds // 60} min timer",
             "subtle_mode": subtle_mode,
-            "auto_suspend": auto_suspend
+            "auto_suspend": auto_suspend,
+            "prevent_sleep": prevent_sleep
         }
         
-        # Remove duplicates (same seconds, label, subtle_mode, and auto_suspend)
+        # Remove duplicates (same seconds, label, subtle_mode, auto_suspend, and prevent_sleep)
         recent = [r for r in recent if not (
             r.get("seconds") == seconds and 
             r.get("label") == new_entry["label"] and
             r.get("subtle_mode", False) == subtle_mode and
-            r.get("auto_suspend", False) == auto_suspend
+            r.get("auto_suspend", False) == auto_suspend and
+            r.get("prevent_sleep", False) == prevent_sleep
         )]
         
         # Add to front
@@ -655,7 +665,9 @@ class Plugin:
     async def create_alarm(self, hour: int, minute: int, label: str = "", 
                           recurring: str = "once", sound: str = "alarm.mp3",
                           volume: int = 100, subtle_mode: bool = False, 
-                          auto_suspend: bool = False) -> str:
+                          auto_suspend: bool = False,
+                          prevent_sleep: bool = False,
+                          prevent_sleep_window: int = 60) -> str:
         """
         Create a new alarm.
         recurring: 'once', 'daily', 'weekdays', 'weekends', or comma-separated days (0-6, 0=Monday)
@@ -663,6 +675,8 @@ class Plugin:
         volume: 0-100 alarm volume
         subtle_mode: if True, show only a toast notification
         auto_suspend: if True, suspend device after alarm
+        prevent_sleep: if True, keep device awake while alarm is upcoming
+        prevent_sleep_window: minutes before alarm to start preventing sleep
         """
         # Check limit
         alarms = await self._get_alarms()
@@ -694,7 +708,9 @@ class Plugin:
             "sound": sound,
             "volume": volume,
             "subtle_mode": subtle_mode,
-            "auto_suspend": auto_suspend
+            "auto_suspend": auto_suspend,
+            "prevent_sleep": prevent_sleep,
+            "prevent_sleep_window": prevent_sleep_window
         }
         
         alarms = await self._get_alarms()
@@ -704,6 +720,8 @@ class Plugin:
         decky.logger.info(f"AlarMe: Created alarm {alarm_id} for {hour:02d}:{minute:02d} with sound {sound}")
         await decky.emit("alarme_alarm_created", alarm_data)
         await self._emit_all_alarms()
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         
         return alarm_id
 
@@ -716,6 +734,8 @@ class Plugin:
             decky.logger.info(f"AlarMe: Deleted alarm {alarm_id}")
             await decky.emit("alarme_alarm_deleted", alarm_id)
             await self._emit_all_alarms()
+            # Update sleep inhibitor
+            await self._update_sleep_inhibitor()
             return True
         return False
 
@@ -728,6 +748,8 @@ class Plugin:
             await self._save_alarms(alarms)
             await decky.emit("alarme_alarm_updated", alarms[alarm_id])
             await self._emit_all_alarms()
+            # Update sleep inhibitor
+            await self._update_sleep_inhibitor()
             return True
         return False
 
@@ -735,7 +757,9 @@ class Plugin:
                           label: str = "", recurring: str = "once", 
                           sound: str = "alarm.mp3", volume: int = 100,
                           subtle_mode: bool = False,
-                          auto_suspend: bool = False) -> bool:
+                          auto_suspend: bool = False,
+                          prevent_sleep: bool = False,
+                          prevent_sleep_window: int = 60) -> bool:
         """Update an existing alarm's settings."""
         alarms = await self._get_alarms()
         if alarm_id in alarms:
@@ -758,6 +782,8 @@ class Plugin:
             alarm["volume"] = volume
             alarm["subtle_mode"] = subtle_mode
             alarm["auto_suspend"] = auto_suspend
+            alarm["prevent_sleep"] = prevent_sleep
+            alarm["prevent_sleep_window"] = prevent_sleep_window
             # Re-enable alarm when edited (user expects it to be active)
             alarm["enabled"] = True
             # Clear snooze and last_triggered when alarm time changes
@@ -768,6 +794,8 @@ class Plugin:
             decky.logger.info(f"AlarMe: Updated alarm {alarm_id} to {hour:02d}:{minute:02d}, recurring={recurring}, sound={sound}")
             await decky.emit("alarme_alarm_updated", alarm)
             await self._emit_all_alarms()
+            # Update sleep inhibitor
+            await self._update_sleep_inhibitor()
             return True
         decky.logger.warning(f"AlarMe: Update failed - alarm {alarm_id} not found")
         return False
@@ -1152,29 +1180,46 @@ class Plugin:
         if last_triggered and (now.timestamp() - last_triggered) < 120:
             # Already triggered, schedule for next occurrence
             target += timedelta(days=1)
-        # Note: We return the target even if it's in the past (missed). 
-        # The checker will decide whether to trigger or log as missed.
         
         recurring = alarm.get("recurring", "once")
         
+        # For "once" alarms: if target is in the past (with 90s grace), schedule for tomorrow
+        # This handles the case where user sets alarm for 3:30 when it's 3:45 - should be tomorrow
         if recurring == "once":
+            if target.timestamp() < now.timestamp() - 90:
+                # Target is more than 90s in the past, schedule for tomorrow
+                target += timedelta(days=1)
             return target.timestamp()
         
         elif recurring == "daily":
+            # For daily, if target is in the past, schedule for tomorrow
+            if target.timestamp() < now.timestamp() - 90:
+                target += timedelta(days=1)
             return target.timestamp()
         
         elif recurring == "weekdays":
+            # If target is in the past, move to tomorrow first
+            if target.timestamp() < now.timestamp() - 90:
+                target += timedelta(days=1)
+            # Then find next weekday
             while target.weekday() >= 5:  # 5=Saturday, 6=Sunday
                 target += timedelta(days=1)
             return target.timestamp()
         
         elif recurring == "weekends":
+            # If target is in the past, move to tomorrow first
+            if target.timestamp() < now.timestamp() - 90:
+                target += timedelta(days=1)
+            # Then find next weekend day
             while target.weekday() < 5:  # 0-4 are weekdays
                 target += timedelta(days=1)
             return target.timestamp()
         
         else:
             # Custom days (comma-separated, 0=Monday)
+            # If target is in the past, move to tomorrow first
+            if target.timestamp() < now.timestamp() - 90:
+                target += timedelta(days=1)
             try:
                 allowed_days = [int(d) for d in recurring.split(",")]
                 for _ in range(7):
@@ -1610,7 +1655,7 @@ class Plugin:
                     session = state.get("current_session", 1)
                     cycle = state.get("current_cycle", 1)
                     
-                    # Issue #13: Check if missed by > 60 seconds
+                    # Check if missed by > 60 seconds
                     if remaining < -60:
                         decky.logger.info(f"AlarMe: Pomodoro phase missed by {abs(remaining):.0f}s")
                         missed_label = f"Pomodoro: {'Break' if is_break else 'Focus Session'} {session}"
@@ -1637,6 +1682,8 @@ class Plugin:
                         new_state["remaining"] = 0
                         await self._save_pomodoro_state(new_state)
                         await decky.emit("alarme_pomodoro_updated", new_state)
+                        # Update sleep inhibitor
+                        await self._update_sleep_inhibitor()
                         return # Exit loop
 
                     # Update stats for completed phase
@@ -1708,7 +1755,7 @@ class Plugin:
                 
                 # Emit tick every 5 seconds
                 await decky.emit("alarme_pomodoro_tick", {
-                    "remaining": max(0, remaining),
+                    "remaining": int(max(0, remaining)),
                     "is_break": state.get("is_break", False),
                     "session": state.get("current_session", 1),
                     "cycle": state.get("current_cycle", 1)
@@ -1737,30 +1784,89 @@ class Plugin:
 
     async def get_presets(self) -> list:
         """Get all timer presets."""
-        return await self.settings_getSetting(SETTINGS_KEY_PRESETS, DEFAULT_PRESETS)
+        presets = await self.settings_getSetting(SETTINGS_KEY_PRESETS, DEFAULT_PRESETS)
+        user_settings = await self._get_user_settings()
+        enabled = user_settings.get("presets_enabled", True)
+        max_visible = user_settings.get("presets_max_visible", 5) if enabled else 0
+        
+        if len(presets) > max_visible:
+            presets = presets[:max_visible]
+            # Silently fix the saved state if it was out of sync
+            await self.settings_setSetting(SETTINGS_KEY_PRESETS, presets)
+            await self.settings_commit()
+            
+        return presets
 
-    async def save_preset(self, seconds: int, label: str) -> dict:
-        """Save a new timer preset."""
-        presets = await self.get_presets()
-        
-        # Check limit
-        if len(presets) >= MAX_PRESETS:
-            decky.logger.warning(f"AlarMe: Preset limit reached ({MAX_PRESETS})")
+    async def save_preset(self, seconds: int, label: str, 
+                          subtle_mode: bool = False, auto_suspend: bool = False,
+                          prevent_sleep: bool = False) -> dict:
+        """Save a new timer preset with all options. Overwrites oldest if max is reached.
+        Moves existing identical presets to the top instead of duplicating."""
+        user_settings = await self._get_user_settings()
+        enabled = user_settings.get("presets_enabled", True)
+        if not enabled:
+            decky.logger.warning("AlarMe: Presets are disabled. Cannot save preset.")
             return None
+            
+        presets = await self.get_presets()
+        max_visible = user_settings.get("presets_max_visible", 5)
         
+        # Check for exact duplicate
+        existing_idx = -1
         preset_id = str(uuid.uuid4())[:8]
+        
+        for i, p in enumerate(presets):
+            if (p.get("seconds") == seconds and 
+                p.get("label") == label and 
+                bool(p.get("subtle_mode", False)) == bool(subtle_mode) and 
+                bool(p.get("auto_suspend", False)) == bool(auto_suspend) and
+                bool(p.get("prevent_sleep", False)) == bool(prevent_sleep)):
+                existing_idx = i
+                preset_id = p.get("id")
+                break
+                
+        if existing_idx >= 0:
+            presets.pop(existing_idx)
+        
         preset = {
             "id": preset_id,
             "seconds": seconds,
-            "label": label
+            "label": label,
+            "subtle_mode": subtle_mode,
+            "auto_suspend": auto_suspend,
+            "prevent_sleep": prevent_sleep
         }
         
-        presets.append(preset)
+        # Insert at the beginning (index 0) so the newest is always visible
+        presets.insert(0, preset)
+        
+        # Enforce max limit by keeping only the newest
+        if len(presets) > max_visible:
+            decky.logger.info(f"AlarMe: Preset limit reached ({max_visible}). Overwriting oldest preset.")
+            presets = presets[:max_visible]
+            
         await self.settings_setSetting(SETTINGS_KEY_PRESETS, presets)
         await self.settings_commit()
         
+        decky.logger.info(f"AlarMe: Created preset '{label}' ({seconds}s, subtle={subtle_mode}, suspend={auto_suspend}, prevent_sleep={prevent_sleep})")
         await decky.emit("alarme_presets_updated", presets)
         return preset
+
+    async def save_preset_from_timer(self, timer_id: str) -> dict:
+        """Create a preset from an active or paused timer."""
+        timers = await self._get_timers()
+        if timer_id not in timers:
+            decky.logger.warning(f"AlarMe: Timer {timer_id} not found for preset creation")
+            return None
+        
+        timer = timers[timer_id]
+        return await self.save_preset(
+            seconds=timer.get("seconds", 300),
+            label=timer.get("label", "Timer"),
+            subtle_mode=timer.get("subtle_mode", False),
+            auto_suspend=timer.get("auto_suspend", False),
+            prevent_sleep=timer.get("prevent_sleep", False)
+        )
 
     async def remove_preset(self, preset_id: str) -> bool:
         """Remove a timer preset."""
@@ -1783,6 +1889,21 @@ class Plugin:
         current = await self._get_user_settings()
         current.update(new_settings)
         await self.settings_setSetting(SETTINGS_KEY_SETTINGS, current)
+        
+        # Truncate presets if max_visible is changed to prevent hidden presets
+        if "presets_max_visible" in new_settings:
+            max_visible = new_settings["presets_max_visible"]
+            presets = await self.get_presets()
+            if len(presets) > max_visible:
+                decky.logger.info(f"AlarMe: Truncating presets list to {max_visible}")
+                presets = presets[:max_visible]
+                await self.settings_setSetting(SETTINGS_KEY_PRESETS, presets)
+                await decky.emit("alarme_presets_updated", presets)
+        
+        # Update sleep inhibitor if prevent_sleep settings changed
+        if "pomodoro_prevent_sleep" in new_settings or "timer_prevent_sleep" in new_settings:
+            await self._update_sleep_inhibitor()
+                
         await self.settings_commit()
         
         await decky.emit("alarme_settings_updated", current)
@@ -1810,89 +1931,128 @@ class Plugin:
         use24h = user_settings.get("time_format_24h", True)
         
         alerts = []
+        sleep_preventing_alerts = []  # Always shown, regardless of filters
         
-        # Timers
-        if user_settings.get("overlay_show_timers", True):
-            timers = await self._get_timers()
-            for timer_id, timer in timers.items():
-                remaining = timer["end_time"] - now
-                if remaining > 0:
-                    alerts.append({
-                        "id": f"timer-{timer_id}",
-                        "category": "timer",
-                        "label": timer.get("label", "Timer"),
-                        "time": timer["end_time"],
-                        "remaining": remaining,
-                        "subtle_mode": timer.get("subtle_mode", False),
-                        "auto_suspend": timer.get("auto_suspend", False)
-                    })
+        # Timers - always check for sleep-preventing ones
+        timers = await self._get_timers()
+        for timer_id, timer in timers.items():
+            remaining = int(timer["end_time"] - now)
+            if remaining > 0:
+                alert = {
+                    "id": f"timer-{timer_id}",
+                    "category": "timer",
+                    "label": timer.get("label", "Timer"),
+                    "time": timer["end_time"],
+                    "remaining": remaining,
+                    "subtle_mode": timer.get("subtle_mode", False),
+                    "auto_suspend": timer.get("auto_suspend", False),
+                    "prevent_sleep": timer.get("prevent_sleep", False)
+                }
+                # Sleep-preventing alerts always show
+                if timer.get("prevent_sleep"):
+                    sleep_preventing_alerts.append(alert)
+                elif user_settings.get("overlay_show_timers", True):
+                    alerts.append(alert)
         
-        # Alarms
-        if user_settings.get("overlay_show_alarms", True):
-            alarms = await self._get_alarms()
-            for alarm_id, alarm in alarms.items():
-                if not alarm.get("enabled", True):
-                    continue
-                next_trigger = self._calculate_next_trigger(alarm)
-                if next_trigger and next_trigger <= cutoff:
-                    alerts.append({
-                        "id": f"alarm-{alarm_id}",
-                        "category": "alarm",
-                        "label": alarm.get("label", "Alarm"),
-                        "time": next_trigger,
-                        "remaining": next_trigger - now,
-                        "subtle_mode": alarm.get("subtle_mode", False),
-                        "auto_suspend": alarm.get("auto_suspend", False)
-                    })
+        # Alarms - always check for sleep-preventing ones
+        alarms = await self._get_alarms()
+        for alarm_id, alarm in alarms.items():
+            if not alarm.get("enabled", True):
+                continue
+            next_trigger = self._calculate_next_trigger(alarm)
+            if not next_trigger:
+                continue
+            # Check if this alarm is currently preventing sleep (within its window)
+            is_preventing = False
+            if alarm.get("prevent_sleep"):
+                window_minutes = alarm.get("prevent_sleep_window", 60)
+                window_seconds = window_minutes * 60
+                if 0 < (next_trigger - now) <= window_seconds:
+                    is_preventing = True
+            
+            if next_trigger <= cutoff or is_preventing:
+                alert = {
+                    "id": f"alarm-{alarm_id}",
+                    "category": "alarm",
+                    "label": alarm.get("label", "Alarm"),
+                    "time": next_trigger,
+                    "remaining": next_trigger - now,
+                    "subtle_mode": alarm.get("subtle_mode", False),
+                    "auto_suspend": alarm.get("auto_suspend", False),
+                    "prevent_sleep": alarm.get("prevent_sleep", False)
+                }
+                if is_preventing:
+                    sleep_preventing_alerts.append(alert)
+                elif user_settings.get("overlay_show_alarms", True):
+                    alerts.append(alert)
         
-        # Pomodoro
-        if user_settings.get("overlay_show_pomodoros", True):
-            pomodoro = await self._get_pomodoro_state()
-            if pomodoro.get("active") and pomodoro.get("end_time"):
-                remaining = pomodoro["end_time"] - now
-                if remaining > 0:
-                    phase = "Break" if pomodoro.get("is_break") else "Focus"
-                    session = pomodoro.get("current_session", 1)
-                    alerts.append({
-                        "id": "pomodoro",
-                        "category": "pomodoro",
-                        "label": f"{phase} #{session}",
-                        "time": pomodoro["end_time"],
-                        "remaining": remaining,
-                        "subtle_mode": pomodoro.get("subtle_mode", user_settings.get("pomodoro_subtle_mode", False)),
-                        "auto_suspend": False
-                    })
+        # Pomodoro - always check for sleep-preventing
+        pomodoro = await self._get_pomodoro_state()
+        if pomodoro.get("active") and pomodoro.get("end_time"):
+            remaining = int(pomodoro["end_time"] - now)
+            if remaining > 0:
+                phase = "Break" if pomodoro.get("is_break") else "Focus"
+                session = pomodoro.get("current_session", 1)
+                is_preventing = user_settings.get("pomodoro_prevent_sleep", False)
+                alert = {
+                    "id": "pomodoro",
+                    "category": "pomodoro",
+                    "label": f"{phase} #{session}",
+                    "time": pomodoro["end_time"],
+                    "remaining": remaining,
+                    "subtle_mode": pomodoro.get("subtle_mode", user_settings.get("pomodoro_subtle_mode", False)),
+                    "auto_suspend": False,
+                    "prevent_sleep": is_preventing
+                }
+                if is_preventing:
+                    sleep_preventing_alerts.append(alert)
+                elif user_settings.get("overlay_show_pomodoros", True):
+                    alerts.append(alert)
         
-        # Reminders
-        if user_settings.get("overlay_show_reminders", True):
-            reminders = await self._get_reminders()
-            for reminder_id, reminder in reminders.items():
-                if not reminder.get("enabled"):
-                    continue
-                if reminder.get("only_while_gaming") and not await self._is_game_running():
-                    continue
-                next_trigger_str = reminder.get("next_trigger")
-                if not next_trigger_str:
-                    continue
-                try:
-                    next_trigger_dt = datetime.fromisoformat(next_trigger_str)
-                    next_ts = next_trigger_dt.timestamp()
-                    if next_ts <= cutoff:
-                        alerts.append({
-                            "id": f"reminder-{reminder_id}",
-                            "category": "reminder",
-                            "label": reminder.get("label", "Reminder"),
-                            "time": next_ts,
-                            "remaining": next_ts - now,
-                            "subtle_mode": reminder.get("subtle_mode", False),
-                            "auto_suspend": False
-                        })
-                except:
-                    continue
+        # Reminders - always check for sleep-preventing ones
+        reminders = await self._get_reminders()
+        for reminder_id, reminder in reminders.items():
+            if not reminder.get("enabled"):
+                continue
+            if reminder.get("only_while_gaming") and not await self._is_game_running():
+                continue
+            next_trigger_str = reminder.get("next_trigger")
+            if not next_trigger_str:
+                continue
+            try:
+                next_trigger_dt = datetime.fromisoformat(next_trigger_str)
+                next_ts = next_trigger_dt.timestamp()
+                is_preventing = reminder.get("prevent_sleep", False)
+                
+                if next_ts <= cutoff or is_preventing:
+                    alert = {
+                        "id": f"reminder-{reminder_id}",
+                        "category": "reminder",
+                        "label": reminder.get("label", "Reminder"),
+                        "time": next_ts,
+                        "remaining": next_ts - now,
+                        "subtle_mode": reminder.get("subtle_mode", False),
+                        "auto_suspend": False,
+                        "prevent_sleep": is_preventing
+                    }
+                    if is_preventing:
+                        sleep_preventing_alerts.append(alert)
+                    elif user_settings.get("overlay_show_reminders", True):
+                        alerts.append(alert)
+            except:
+                continue
         
-        # Sort by trigger time and cap
+        # Combine: sleep-preventing alerts first (sorted by time), then regular alerts
+        sleep_preventing_alerts.sort(key=lambda a: a["time"])
         alerts.sort(key=lambda a: a["time"])
-        alerts = alerts[:max_alerts]
+        
+        # Merge: prioritize sleep-preventing, fill remaining slots with regular alerts
+        # Remove duplicates (an alert might be in both lists if it's within time window AND preventing sleep)
+        sleep_ids = {a["id"] for a in sleep_preventing_alerts}
+        alerts = [a for a in alerts if a["id"] not in sleep_ids]
+        
+        combined = sleep_preventing_alerts + alerts
+        combined = combined[:max_alerts]
         
         # Return overlay-relevant settings alongside alerts
         overlay_settings = {
@@ -1906,7 +2066,7 @@ class Plugin:
             "time_format_24h": use24h
         }
         
-        return {"alerts": alerts, "settings": overlay_settings}
+        return {"alerts": combined, "settings": overlay_settings}
 
     async def export_backup(self) -> str:
         """Export all user data (alarms, presets, settings, recent timers) to JSON string."""
@@ -2148,7 +2308,8 @@ class Plugin:
                              start_time: str = None, recurrences: int = -1,
                              only_while_gaming: bool = False, reset_on_game_start: bool = False,
                              sound: str = "alarm.mp3", volume: int = 100,
-                             subtle_mode: bool = False) -> dict:
+                             subtle_mode: bool = False,
+                             prevent_sleep: bool = False) -> dict:
         """
         Create a new periodic reminder.
         frequency_minutes: interval between reminders (15-180)
@@ -2156,6 +2317,7 @@ class Plugin:
         recurrences: -1 = infinite, or positive integer
         only_while_gaming: if True, only tick down while a game is running
         reset_on_game_start: if True, reset timer loop when game starts
+        prevent_sleep: if True, keep device awake while reminder is active
         """
         # Check limit
         reminders = await self._get_reminders()
@@ -2189,6 +2351,7 @@ class Plugin:
             "sound": sound,
             "volume": volume,
             "subtle_mode": subtle_mode,
+            "prevent_sleep": prevent_sleep,
             "enabled": True,
             "created_at": time.time(),
             "next_trigger": next_trigger,
@@ -2202,6 +2365,8 @@ class Plugin:
         decky.logger.info(f"AlarMe: Created reminder {reminder_id} every {frequency_minutes} min")
         await decky.emit("alarme_reminder_created", reminder_data)
         await self._emit_all_reminders()
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         
         return reminder_data
 
@@ -2210,7 +2375,8 @@ class Plugin:
                              recurrences: int = -1, only_while_gaming: bool = False,
                              reset_on_game_start: bool = False,
                              sound: str = "alarm.mp3", volume: int = 100,
-                             subtle_mode: bool = False) -> dict:
+                             subtle_mode: bool = False,
+                             prevent_sleep: bool = False) -> dict:
         """Update an existing reminder's settings."""
         reminders = await self._get_reminders()
         if reminder_id not in reminders:
@@ -2226,6 +2392,7 @@ class Plugin:
         reminder["sound"] = sound
         reminder["volume"] = volume
         reminder["subtle_mode"] = subtle_mode
+        reminder["prevent_sleep"] = prevent_sleep
         
         # Recalculate next trigger if frequency changed
         if start_time:
@@ -2245,6 +2412,8 @@ class Plugin:
         await self._save_reminders(reminders)
         await decky.emit("alarme_reminder_updated", reminder)
         await self._emit_all_reminders()
+        # Update sleep inhibitor
+        await self._update_sleep_inhibitor()
         
         decky.logger.info(f"AlarMe: Updated reminder {reminder_id}")
         return reminder
@@ -2264,6 +2433,8 @@ class Plugin:
             decky.logger.info(f"AlarMe: Deleted reminder {reminder_id}")
             await decky.emit("alarme_reminder_deleted", reminder_id)
             await self._emit_all_reminders()
+            # Update sleep inhibitor
+            await self._update_sleep_inhibitor()
             return True
         return False
 
@@ -2282,6 +2453,8 @@ class Plugin:
             await self._save_reminders(reminders)
             await decky.emit("alarme_reminder_updated", reminders[reminder_id])
             await self._emit_all_reminders()
+            # Update sleep inhibitor
+            await self._update_sleep_inhibitor()
             return True
         return False
 
@@ -2746,8 +2919,11 @@ class Plugin:
         # Start reminder checker
         self.reminder_check_task = self.loop.create_task(self._reminder_checker())
 
-        # Start suspend monitor (Issue #13)
+        # Start suspend monitor
         self.suspend_monitor_task = self.loop.create_task(self._suspend_monitor())
+        
+        # Check and activate sleep inhibitor if any alerts require it
+        await self._update_sleep_inhibitor()
         
         decky.logger.info("AlarMe: Plugin initialized successfully")
 

@@ -40,12 +40,15 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 8
-        }}>
+        <Focusable
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8
+            }}
+            flow-children="horizontal"
+        >
             {/* Toggle - separate from the clickable card */}
             <div
                 onClick={handleToggleClick}
@@ -111,6 +114,9 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
                         {alarm.auto_suspend && (
                             <span style={{ color: '#aa88aa' }}>💤 Auto-suspend</span>
                         )}
+                        {alarm.prevent_sleep && (
+                            <span style={{ color: '#e69900' }}>🛡️ Prevent Sleep</span>
+                        )}
                         {isSnoozed && alarm.snoozed_until && (
                             <span style={{ color: '#ffaa00' }}>
                                 ⏸️ Until {formatTime(
@@ -131,7 +137,7 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
                 {/* Edit indicator */}
                 <FaChevronRight size={12} color={cardFocused ? '#ffffff' : '#666666'} />
             </Focusable>
-        </div>
+        </Focusable>
     );
 };
 
@@ -143,8 +149,8 @@ export function AlarmPanel() {
 
     const handleCreateAlarm = useCallback(() => {
         showAlarmEditorModal({
-            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
-                await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend);
+            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow) => {
+                await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow);
             },
             getSounds,
             use24h,
@@ -155,8 +161,8 @@ export function AlarmPanel() {
     const handleEditAlarm = useCallback((alarm: Alarm) => {
         showAlarmEditorModal({
             alarm,
-            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend) => {
-                await updateAlarm(alarm.id, hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend);
+            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow) => {
+                await updateAlarm(alarm.id, hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow);
             },
             onDelete: async () => {
                 await deleteAlarm(alarm.id);
