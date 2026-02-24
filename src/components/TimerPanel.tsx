@@ -98,91 +98,94 @@ const TimerItem = ({ timer, onCancel, onPause, onResume, onSaveAsPreset, showSav
     return (
         <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            flexDirection: 'column',
             padding: '8px 12px',
             backgroundColor: isPaused ? '#4488aa44' : (isUrgent ? '#aa444444' : '#ffffff11'),
             borderRadius: 8,
             marginBottom: 8
         }}>
-            <div>
-                <div style={{ fontWeight: 'bold', fontSize: 16 }}>
-                    {timer.label}
-                    {isPaused && <span style={{ color: '#4488aa', marginLeft: 8, fontSize: 12 }}>PAUSED</span>}
-                </div>
-                <div style={{
-                    fontSize: 24,
-                    fontFamily: 'monospace',
-                    color: isPaused ? '#4488aa' : (isUrgent ? '#ff6666' : '#ffffff')
-                }}>
-                    {formatDuration(remaining)}
-                </div>
-                {(timer.subtle_mode || timer.auto_suspend || timer.prevent_sleep) && (
-                    <div style={{
-                        fontSize: 11,
-                        color: '#bbbbbb',
-                        marginTop: 4,
-                        display: 'flex',
-                        gap: 8
-                    }}>
-                        {timer.auto_suspend && <span>💤 Auto-Suspend</span>}
-                        {timer.subtle_mode && !timer.auto_suspend && <span>📵 Subtle</span>}
-                        {timer.prevent_sleep && <span style={{ color: '#e69900' }}>🛡️ Prevent Sleep</span>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <div style={{ fontWeight: 'bold', fontSize: 16 }}>
+                        {timer.label}
+                        {isPaused && <span style={{ color: '#4488aa', marginLeft: 8, fontSize: 12 }}>PAUSED</span>}
                     </div>
-                )}
-            </div>
-            <Focusable style={{ display: 'flex', gap: 8 }} flow-children="horizontal">
-                {showSavePreset && (
+                    <div style={{
+                        fontSize: 24,
+                        fontFamily: 'monospace',
+                        color: isPaused ? '#4488aa' : (isUrgent ? '#ff6666' : '#ffffff')
+                    }}>
+                        {formatDuration(remaining)}
+                    </div>
+                </div>
+                <Focusable style={{ display: 'flex', gap: 8 }} flow-children="horizontal">
+                    {showSavePreset && (
+                        <Focusable
+                            onActivate={handleSaveAsPreset}
+                            onFocus={() => setSaveFocused(true)}
+                            onBlur={() => setSaveFocused(false)}
+                            style={{
+                                padding: 8,
+                                backgroundColor: saveFocused ? '#ddaa00' : '#aa880088',
+                                borderRadius: 8,
+                                border: saveFocused ? '2px solid white' : '2px solid transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <FaStar size={16} />
+                        </Focusable>
+                    )}
                     <Focusable
-                        onActivate={handleSaveAsPreset}
-                        onFocus={() => setSaveFocused(true)}
-                        onBlur={() => setSaveFocused(false)}
+                        onActivate={handlePauseResume}
+                        onFocus={() => setPauseFocused(true)}
+                        onBlur={() => setPauseFocused(false)}
                         style={{
                             padding: 8,
-                            backgroundColor: saveFocused ? '#ddaa00' : '#aa880088',
+                            backgroundColor: pauseFocused ? '#4488aa' : '#4488aa88',
                             borderRadius: 8,
-                            border: saveFocused ? '2px solid white' : '2px solid transparent',
+                            border: pauseFocused ? '2px solid white' : '2px solid transparent',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
                         }}
                     >
-                        <FaStar size={16} />
+                        {isPaused ? <FaPlay size={16} /> : <FaPause size={16} />}
                     </Focusable>
-                )}
-                <Focusable
-                    onActivate={handlePauseResume}
-                    onFocus={() => setPauseFocused(true)}
-                    onBlur={() => setPauseFocused(false)}
-                    style={{
-                        padding: 8,
-                        backgroundColor: pauseFocused ? '#4488aa' : '#4488aa88',
-                        borderRadius: 8,
-                        border: pauseFocused ? '2px solid white' : '2px solid transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                >
-                    {isPaused ? <FaPlay size={16} /> : <FaPause size={16} />}
+                    <Focusable
+                        onActivate={handleCancel}
+                        onFocus={() => setCancelFocused(true)}
+                        onBlur={() => setCancelFocused(false)}
+                        style={{
+                            padding: 8,
+                            backgroundColor: cancelFocused ? '#ff6666' : '#aa444488',
+                            borderRadius: 8,
+                            border: cancelFocused ? '2px solid white' : '2px solid transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        <FaTimes size={16} />
+                    </Focusable>
                 </Focusable>
-                <Focusable
-                    onActivate={handleCancel}
-                    onFocus={() => setCancelFocused(true)}
-                    onBlur={() => setCancelFocused(false)}
-                    style={{
-                        padding: 8,
-                        backgroundColor: cancelFocused ? '#ff6666' : '#aa444488',
-                        borderRadius: 8,
-                        border: cancelFocused ? '2px solid white' : '2px solid transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                >
-                    <FaTimes size={16} />
-                </Focusable>
-            </Focusable>
+            </div>
+            
+            {(timer.subtle_mode || timer.auto_suspend || timer.prevent_sleep) && (
+                <div style={{
+                    fontSize: 11,
+                    color: '#bbbbbb',
+                    marginTop: 4,
+                    display: 'flex',
+                    gap: 8,
+                    width: '100%'
+                }}>
+                    {timer.prevent_sleep && <span style={{ color: '#e69900' }}>🛡️ Prev. Sleep</span>}
+                    {timer.auto_suspend && <span>💤 Auto-Suspend</span>}
+                    {timer.subtle_mode && !timer.auto_suspend && <span>📵 Subtle</span>}
+                </div>
+            )}
         </div>
     );
 };

@@ -6,18 +6,26 @@ import { callable } from "@decky/api";
 export const SOUNDLESS = 'soundless';
 
 /**
+ * Convert base64 string to object URL for audio playback
+ */
+export function base64ToObjectURL(base64: string, mimeType: string): string {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    return URL.createObjectURL(blob);
+}
+
+/**
  * Check if a sound filename is the soundless option
  */
 export function isSoundless(soundFile: string): boolean {
     return soundFile === SOUNDLESS;
 }
 
-/**
- * Play the alarm sound
- * @param soundFile - filename of sound to play (or 'soundless' for no sound)
- * @param volume - optional volume override (0-100)
- */
-// Backend callable for custom sounds
 const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
 
 /**
@@ -43,22 +51,14 @@ export async function playAlarmSound(soundFile: string = 'alarm.mp3', volume?: n
                 return null;
             }
 
-            // Convert base64 to blob URL
-            const byteCharacters = atob(result.data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: result.mime_type });
-            const blobUrl = URL.createObjectURL(blob);
+            const blobUrl = base64ToObjectURL(result.data, result.mime_type);
 
             audio = new Audio(blobUrl);
-            // Clean up blob when audio ends or if we manually revoke it later
-            const originalOnEnded = audio.onended;
-            audio.onended = (ev) => {
+            // Store blob URL for cleanup in stopSound (onended won't fire if looped)
+            (audio as any)._blobUrl = blobUrl;
+            audio.onended = () => {
                 URL.revokeObjectURL(blobUrl);
-                if (originalOnEnded) originalOnEnded.call(audio, ev);
+                (audio as any)._blobUrl = null;
             };
         } catch (e) {
             console.error('[Alarme] Failed to prepare custom sound:', e);
@@ -104,5 +104,11 @@ export function stopSound(audio: HTMLAudioElement | null): void {
     if (audio) {
         audio.pause();
         audio.currentTime = 0;
+        // Revoke blob URL if present (for custom sounds)
+        const blobUrl = (audio as any)._blobUrl;
+        if (blobUrl) {
+            URL.revokeObjectURL(blobUrl);
+            (audio as any)._blobUrl = null;
+        }
     }
 }

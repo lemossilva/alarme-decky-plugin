@@ -118,8 +118,10 @@ export function PomodoroStatsPanel({
     const getMonthTotal = () => {
         const history = stats?.daily_history || [];
         const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const monthData = history.filter(h => h.date >= monthStart);
+        // Exclude today from history to avoid double-counting with live todayFocus
+        const monthData = history.filter(h => h.date >= monthStart && h.date !== todayStr);
         return monthData.reduce((sum, h) => sum + h.focus_time, 0) + todayFocus;
     };
 

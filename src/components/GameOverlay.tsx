@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
@@ -9,10 +9,11 @@ import type { OverlayAlert } from "../types";
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, JSX.Element> = {
-    timer: <FaStopwatch />,
+    timer: <FaHourglassHalf />,
     alarm: <FaBell />,
     pomodoro: <FaBrain />,
-    reminder: <FaRedo />
+    reminder: <FaRedo />,
+    stopwatch: <FaStopwatch />
 };
 
 // Default position style (top-left corner)
@@ -27,6 +28,11 @@ const DEFAULT_POSITION_STYLE: React.CSSProperties = {
 // Format alert time display
 function formatAlertTime(alert: OverlayAlert, use24h: boolean): string {
     const remaining = alert.remaining ?? (alert.time - Date.now() / 1000);
+
+    // For stopwatch, show elapsed time (remaining is actually elapsed seconds)
+    if (alert.category === 'stopwatch') {
+        return formatDuration(Math.round(remaining));
+    }
 
     // For timers and active pomodoro, show countdown
     if (alert.category === 'timer' || alert.category === 'pomodoro') {

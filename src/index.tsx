@@ -13,12 +13,13 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaTimes, FaShieldAlt } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaShieldAlt } from "react-icons/fa";
 import { useState, useEffect, useRef } from "react";
 
 // Components
 import { TimerPanel } from "./components/TimerPanel";
 import { AlarmPanel } from "./components/AlarmPanel";
+import { StopwatchPanel } from "./components/StopwatchPanel";
 import { PomodoroPanel } from "./components/PomodoroPanel";
 import { ReminderPanel } from "./components/ReminderPanel";
 import { SettingsPage, SETTINGS_ROUTE, navigateToSettings } from "./components/SettingsModal";
@@ -27,12 +28,18 @@ import { PomodoroNotification } from "./components/PomodoroNotification";
 import { ReminderNotification } from "./components/ReminderNotification";
 import { GameOverlay } from "./components/GameOverlay";
 import showMissedReportModal from "./components/MissedReportModal";
+import { showSleepInhibitorModal } from "./components/SleepInhibitorModal";
 import { MissedItem } from "./types";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
 import { useSettings } from "./hooks/useSettings";
 import { useSleepInhibitor } from "./hooks/useSleepInhibitor";
+import { useTimers } from "./hooks/useTimers";
+import { useStopwatch } from "./hooks/useStopwatch";
+import { usePomodoro } from "./hooks/usePomodoro";
+import { useReminders } from "./hooks/useReminders";
+import { useGameStatus } from "./hooks/useGameStatus";
 
 // Types
 import type {
@@ -51,7 +58,7 @@ const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean
 const getMissedItems = callable<[], MissedItem[]>('get_missed_items');
 
 // Tab configuration
-type TabId = 'timers' | 'alarms' | 'pomodoro' | 'reminders' | 'settings';
+type TabId = 'timers' | 'alarms' | 'stopwatch' | 'pomodoro' | 'reminders';
 
 interface Tab {
     id: TabId;
@@ -60,21 +67,22 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-    { id: 'timers', label: 'Timers', icon: <FaStopwatch size={16} /> },
+    { id: 'timers', label: 'Timers', icon: <FaHourglassHalf size={16} /> },
     { id: 'alarms', label: 'Alarms', icon: <FaBell size={16} /> },
     { id: 'pomodoro', label: 'Focus', icon: <FaBrain size={16} /> },
     { id: 'reminders', label: 'Remind', icon: <FaRedo size={16} /> },
-    { id: 'settings', label: 'Settings', icon: <FaCog size={16} /> }
+    { id: 'stopwatch', label: 'Watch', icon: <FaStopwatch size={16} /> }
 ];
 
 // Tab Button Component
 interface TabButtonProps {
     tab: Tab;
     active: boolean;
+    hasActiveItems?: boolean;
     onClick: () => void;
 }
 
-const TabButton = ({ tab, active, onClick }: TabButtonProps) => {
+const TabButton = ({ tab, active, hasActiveItems, onClick }: TabButtonProps) => {
     const [focused, setFocused] = useState(false);
 
     return (
@@ -95,11 +103,24 @@ const TabButton = ({ tab, active, onClick }: TabButtonProps) => {
                 borderRadius: 8,
                 cursor: 'pointer',
                 gap: 4,
-                transition: 'all 0.1s ease-in-out'
+                transition: 'all 0.1s ease-in-out',
+                position: 'relative'
             }}
         >
+            {hasActiveItems && (
+                <div style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    width: 6,
+                    height: 6,
+                    backgroundColor: '#4488aa',
+                    borderRadius: '50%',
+                    border: active ? '1px solid white' : 'none'
+                }} />
+            )}
             {tab.icon}
-            <span style={{ fontSize: 11 }}>{tab.label}</span>
+            <span style={{ fontSize: 12 }}>{tab.label}</span>
         </Focusable>
     );
 };
@@ -109,9 +130,24 @@ function Content() {
     const [activeTab, setActiveTab] = useState<TabId>('timers');
     const [missedItems, setMissedItems] = useState<MissedItem[]>([]);
     const { settings: userSettings } = useSettings();
-    const { isActive: sleepInhibitorActive } = useSleepInhibitor();
+    const { isActive: sleepInhibitorActive, items: sleepInhibitorItems } = useSleepInhibitor();
     const use24h = userSettings.time_format_24h;
     const contentRef = useRef<HTMLDivElement>(null);
+
+    // Track active items for tab indicators
+    const { timers } = useTimers();
+    const { status: stopwatchStatus } = useStopwatch();
+    const { state: pomodoroState } = usePomodoro();
+    const { reminders } = useReminders();
+    const isGameRunning = useGameStatus();
+
+    // Calculate which tabs have active items
+    const hasActiveTimers = timers.some(t => !t.paused);
+    const hasActiveStopwatch = stopwatchStatus === 'running';
+    const hasActivePomodoro = pomodoroState.active;
+    const hasActiveReminders = reminders.some(r => 
+        r.enabled && (!r.only_while_gaming || isGameRunning)
+    );
 
     // Scroll to top on mount — SteamOS auto-focuses toggle fields which scrolls to middle
     useEffect(() => {
@@ -145,7 +181,7 @@ function Content() {
         };
     }, []);
 
-    // Persistent dismissal logic
+    // Persistent dismissal logic - track when user last viewed the report
     const [lastDismissed, setLastDismissed] = useState<number>(() => {
         return parseInt(localStorage.getItem('alarme_missed_dismissed_at') || '0');
     });
@@ -154,13 +190,17 @@ function Content() {
         ? Math.max(...missedItems.map(i => i.missed_at))
         : 0;
 
-    const showMissedAlerts = missedItems.length > 0 && latestMissedTime > lastDismissed;
+    // hasNewMissedAlerts = true when there are NEW missed alerts (not yet seen)
+    const hasNewMissedAlerts = missedItems.length > 0 && latestMissedTime > lastDismissed;
 
-    const handleHideReport = () => {
-        const now = Date.now() / 1000; // UNIX timestamp in seconds
+    const handleOpenMissedModal = () => {
+        // Mark as seen by updating lastDismissed to current latest time (in seconds)
+        const now = Date.now() / 1000;
         setLastDismissed(now);
         localStorage.setItem('alarme_missed_dismissed_at', now.toString());
+        showMissedReportModal(missedItems, use24h);
     };
+
 
     useEffect(() => {
         const fetchMissed = async () => {
@@ -184,100 +224,132 @@ function Content() {
         return () => { removeEventListener('alarme_missed_items_updated', handleMissedUpdate); };
     }, []);
 
+    const hasMissedAlerts = missedItems.length > 0;
+
     return (
         <div ref={contentRef}>
-            {/* Missed Alerts Notification Area */}
-            {showMissedAlerts && (
-                <PanelSection title="Missed Alerts">
-                    <PanelSectionRow>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-                            {/* View Report Button */}
-                            <Focusable
-                                id="view-missed-report-btn"
-                                onActivate={() => showMissedReportModal(missedItems, use24h)}
-                                style={{
-                                    flex: 1,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '8px 12px',
-                                    backgroundColor: '#ffffff11',
-                                    borderRadius: 8,
-                                    border: '2px solid transparent',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.1s ease-in-out'
-                                }}
-                                // Set focus styles using focusable-focused class or inline state if needed
-                                // But since we want to be elegant, let's use a subtle hover/focus state
-                                onFocus={(e: any) => {
-                                    e.target.style.backgroundColor = '#4488aa';
-                                    e.target.style.borderColor = 'white';
-                                }}
-                                onBlur={(e: any) => {
-                                    e.target.style.backgroundColor = '#ffffff11';
-                                    e.target.style.borderColor = 'transparent';
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <FaBell style={{ color: '#ff4444' }} />
-                                    <span style={{ fontSize: 13, fontWeight: 500 }}>{missedItems.length} Missed</span>
-                                </div>
-                                <span style={{ fontSize: 11, opacity: 0.6 }}>View Report</span>
-                            </Focusable>
-
-                            {/* Dismiss Button (X) */}
-                            <Focusable
-                                id="dismiss-missed-report-btn"
-                                onActivate={handleHideReport}
-                                style={{
-                                    width: 40,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    backgroundColor: '#ff444415',
-                                    borderRadius: 8,
-                                    border: '2px solid transparent',
-                                    color: '#ff4444',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.1s ease-in-out'
-                                }}
-                                onFocus={(e: any) => {
-                                    e.target.style.backgroundColor = '#4488aa';
-                                    e.target.style.borderColor = 'white';
-                                    e.target.style.color = 'white';
-                                }}
-                                onBlur={(e: any) => {
-                                    e.target.style.backgroundColor = '#ff444415';
-                                    e.target.style.borderColor = 'transparent';
-                                    e.target.style.color = '#ff4444';
-                                }}
-                            >
-                                <FaTimes size={14} />
-                            </Focusable>
-                        </div>
-                    </PanelSectionRow>
-                </PanelSection>
-            )}
-
-            {/* Sleep Inhibitor Status Badge */}
-            {sleepInhibitorActive && (
-                <PanelSection>
-                    <PanelSectionRow>
-                        <div style={{
+            {/* Notification Bar: 3 buttons (Missed, Sleep, Settings) - compact row */}
+            <div style={{ padding: '8px 16px 8px 16px' }}>
+                <Focusable
+                    flow-children="row"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'stretch',
+                        gap: 8,
+                        width: '100%'
+                    }}
+                >
+                    {/* Missed Alerts Button */}
+                    <Focusable
+                        onActivate={hasMissedAlerts ? handleOpenMissedModal : undefined}
+                        style={{
+                            flex: 1,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 8,
-                            padding: '6px 12px',
-                            backgroundColor: '#e6990022',
-                            borderRadius: 8,
-                            border: '1px solid #e6990044'
-                        }}>
-                            <FaShieldAlt style={{ color: '#e69900' }} />
-                            <span style={{ fontSize: 12, color: '#e69900' }}>Sleep blocked</span>
-                        </div>
-                    </PanelSectionRow>
-                </PanelSection>
-            )}
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: 8,
+                            backgroundColor: hasMissedAlerts ? '#ff444422' : '#ffffff08',
+                            borderRadius: 12,
+                            border: '2px solid transparent',
+                            cursor: hasMissedAlerts ? 'pointer' : 'default',
+                            opacity: hasMissedAlerts ? 1 : 0.6,
+                            transition: 'all 0.1s ease-in-out',
+                            position: 'relative'
+                        }}
+                        onFocus={(e: any) => {
+                            if (hasMissedAlerts) {
+                                e.target.style.backgroundColor = '#4488aa';
+                                e.target.style.borderColor = 'white';
+                            }
+                        }}
+                        onBlur={(e: any) => {
+                            e.target.style.backgroundColor = hasMissedAlerts ? '#ff444422' : '#ffffff08';
+                            e.target.style.borderColor = 'transparent';
+                        }}
+                    >
+                        <FaBell size={14} style={{ color: hasMissedAlerts ? '#ff4444' : '#666666' }} />
+                        <span style={{ fontSize: 12, color: hasMissedAlerts ? '#ff6666' : '#666666', fontWeight: 500 }}>
+                            {hasMissedAlerts ? `${missedItems.length} Missed` : 'Missed'}
+                        </span>
+                        {/* New report indicator (red dot) */}
+                        {hasNewMissedAlerts && (
+                            <div style={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 4,
+                                width: 6,
+                                height: 6,
+                                backgroundColor: '#ff4444',
+                                borderRadius: '50%'
+                            }} />
+                        )}
+                    </Focusable>
+
+                    {/* Sleep Inhibitor Button */}
+                    <Focusable
+                        onActivate={sleepInhibitorActive ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
+                        style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: 8,
+                            backgroundColor: sleepInhibitorActive ? '#e6990022' : '#ffffff08',
+                            borderRadius: 12,
+                            border: '2px solid transparent',
+                            cursor: sleepInhibitorActive ? 'pointer' : 'default',
+                            opacity: sleepInhibitorActive ? 1 : 0.6,
+                            transition: 'all 0.1s ease-in-out'
+                        }}
+                        onFocus={(e: any) => {
+                            if (sleepInhibitorActive) {
+                                e.target.style.backgroundColor = '#4488aa';
+                                e.target.style.borderColor = 'white';
+                            }
+                        }}
+                        onBlur={(e: any) => {
+                            e.target.style.backgroundColor = sleepInhibitorActive ? '#e6990022' : '#ffffff08';
+                            e.target.style.borderColor = 'transparent';
+                        }}
+                    >
+                        <FaShieldAlt size={14} style={{ color: sleepInhibitorActive ? '#e69900' : '#666666' }} />
+                        <span style={{ fontSize: 12, color: sleepInhibitorActive ? '#e69900' : '#666666', fontWeight: 500 }}>
+                            {sleepInhibitorActive ? 'Awake' : 'Sleep'}
+                        </span>
+                    </Focusable>
+
+                    {/* Settings Button */}
+                    <Focusable
+                        onActivate={navigateToSettings}
+                        style={{
+                            padding: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#ffffff08',
+                            borderRadius: 12,
+                            border: '2px solid transparent',
+                            cursor: 'pointer',
+                            color: '#888888',
+                            transition: 'all 0.1s ease-in-out'
+                        }}
+                        onFocus={(e: any) => {
+                            e.target.style.backgroundColor = '#4488aa';
+                            e.target.style.borderColor = 'white';
+                            e.target.style.color = 'white';
+                        }}
+                        onBlur={(e: any) => {
+                            e.target.style.backgroundColor = '#ffffff08';
+                            e.target.style.borderColor = 'transparent';
+                            e.target.style.color = '#888888';
+                        }}
+                    >
+                        <FaCog size={16} />
+                    </Focusable>
+                </Focusable>
+            </div>
 
             {/* Tab Navigation */}
             <PanelSection>
@@ -293,20 +365,24 @@ function Content() {
                             marginBottom: 8
                         }}
                     >
-                        {TABS.map(tab => (
-                            <TabButton
-                                key={tab.id}
-                                tab={tab}
-                                active={activeTab === tab.id}
-                                onClick={() => {
-                                    if (tab.id === 'settings') {
-                                        navigateToSettings();
-                                    } else {
-                                        setActiveTab(tab.id);
-                                    }
-                                }}
-                            />
-                        ))}
+                        {TABS.map(tab => {
+                            let hasActiveItems = false;
+                            if (tab.id === 'timers') hasActiveItems = hasActiveTimers;
+                            else if (tab.id === 'stopwatch') hasActiveItems = hasActiveStopwatch;
+                            else if (tab.id === 'pomodoro') hasActiveItems = hasActivePomodoro;
+                            else if (tab.id === 'reminders') hasActiveItems = hasActiveReminders;
+                            // alarms: no indicator as per requirements
+                            
+                            return (
+                                <TabButton
+                                    key={tab.id}
+                                    tab={tab}
+                                    active={activeTab === tab.id}
+                                    hasActiveItems={hasActiveItems}
+                                    onClick={() => setActiveTab(tab.id)}
+                                />
+                            );
+                        })}
                     </Focusable>
                 </PanelSectionRow>
             </PanelSection>
@@ -316,6 +392,7 @@ function Content() {
             {activeTab === 'alarms' && <AlarmPanel />}
             {activeTab === 'pomodoro' && <PomodoroPanel />}
             {activeTab === 'reminders' && <ReminderPanel />}
+            {activeTab === 'stopwatch' && <StopwatchPanel />}
         </div>
     );
 }
@@ -429,12 +506,6 @@ export default definePlugin(() => {
                 title: "⏰ Reminder",
                 body: `${event.reminder.label || "Time for a break!"} • ${getTimeStr(use24h)}`
             });
-            // Play sound briefly if configured? No, subtle implies quiet or toast only.
-            // But user might want sound + toast.
-            // Current logic in main.py sends sound in event.
-            // In handleTimerCompleted we play sound if auto_suspend is on.
-            // For periodic reminders, subtle usually means minimal intrusion.
-            // We'll stick to just toast for subtle as per original design.
         } else {
             // Non-subtle: Show Modal
             // Pass sound details to modal so it plays sound
@@ -465,9 +536,7 @@ export default definePlugin(() => {
         });
     });
 
-    // Game lifecycle listeners
-    // Using SteamGameLifetimeNotification or similar
-    // For now we use the general app lifetime notification which is reliable
+    // Game lifecycle listeners using app lifetime notification
     let unregisterGameListener: any;
 
     // Track running app IDs to handle multiple concurrent games/apps
@@ -476,7 +545,6 @@ export default definePlugin(() => {
     try {
         if (SteamClient?.GameSessions?.RegisterForAppLifetimeNotifications) {
             unregisterGameListener = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((update: any) => {
-                // Ensure we have an AppID to track
                 if (!update.unAppID) return;
 
                 const appId = String(update.unAppID);

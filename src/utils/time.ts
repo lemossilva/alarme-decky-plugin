@@ -95,6 +95,54 @@ export function getRelativeTime(timestamp: number | null | undefined, use24h: bo
 }
 
 /**
+ * Format milliseconds into stopwatch display format (HH:MM:SS.cs)
+ */
+export function formatStopwatch(ms: number): string {
+    if (ms < 0) ms = 0;
+
+    const totalSeconds = Math.floor(ms / 1000);
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const cs = centiseconds.toString().padStart(2, '0');
+    const ss = seconds.toString().padStart(2, '0');
+    const mm = minutes.toString().padStart(2, '0');
+
+    if (hours > 0) {
+        const hh = hours.toString().padStart(2, '0');
+        return `${hh}:${mm}:${ss}.${cs}`;
+    }
+    return `${mm}:${ss}.${cs}`;
+}
+
+/**
+ * Format milliseconds into lap split display (shorter format for lap list)
+ */
+export function formatLapSplit(ms: number): string {
+    if (ms < 0) ms = 0;
+
+    const totalSeconds = Math.floor(ms / 1000);
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const cs = centiseconds.toString().padStart(2, '0');
+    const ss = seconds.toString().padStart(2, '0');
+
+    if (hours > 0) {
+        const mm = minutes.toString().padStart(2, '0');
+        return `${hours}:${mm}:${ss}.${cs}`;
+    }
+    if (minutes > 0) {
+        return `${minutes}:${ss}.${cs}`;
+    }
+    return `${seconds}.${cs}`;
+}
+
+/**
  * Get recurring pattern display text
  */
 export function getRecurringText(recurring: string): string {

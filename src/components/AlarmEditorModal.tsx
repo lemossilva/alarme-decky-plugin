@@ -26,7 +26,6 @@ const QUICK_RECURRING_OPTIONS: DropdownOption[] = [
 ];
 
 interface AlarmEditorModalProps {
-    // If provided, we're editing an existing alarm
     alarm?: Alarm;
     onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean, preventSleep?: boolean, preventSleepWindow?: number) => Promise<void>;
     onDelete?: () => Promise<void>;
@@ -165,6 +164,14 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
             stopSound(previewAudioRef.current);
         };
     }, [getSounds]);
+
+    // Cleanup interval/timeout refs on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, []);
 
     // Restore focus on unmount
     useEffect(() => {

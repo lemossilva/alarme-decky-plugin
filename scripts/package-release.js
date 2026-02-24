@@ -14,6 +14,23 @@ const zipFile = path.join(releaseDir, `${pluginName}.zip`);
 
 console.log('📦 Packaging release for', pluginName);
 
+// 0. Version consistency check
+console.log('🔍 Checking version consistency...');
+const pluginJsonPath = path.join(rootDir, 'plugin.json');
+const packageJsonPath = path.join(rootDir, 'package.json');
+
+const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+if (pluginJson.version !== packageJson.version) {
+    console.error(`❌ Version mismatch detected!`);
+    console.error(`   plugin.json:  ${pluginJson.version}`);
+    console.error(`   package.json: ${packageJson.version}`);
+    console.error(`   Please ensure both files have the same version.`);
+    process.exit(1);
+}
+console.log(`   ✓ Version ${pluginJson.version} is consistent`);
+
 // 1. Build
 console.log('🏗️  Building project...');
 try {

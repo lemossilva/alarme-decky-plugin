@@ -6,7 +6,7 @@ import type { SleepInhibitorStatus } from '../types';
 const getSleepInhibitorStatus = callable<[], SleepInhibitorStatus>('get_sleep_inhibitor_status');
 
 export function useSleepInhibitor() {
-    const [status, setStatus] = useState<SleepInhibitorStatus>({ active: false });
+    const [status, setStatus] = useState<SleepInhibitorStatus>({ active: false, items: [] });
 
     // Load initial status
     const loadStatus = useCallback(async () => {
@@ -34,6 +34,7 @@ export function useSleepInhibitor() {
     return {
         isActive: status.active,
         reason: status.reason,
+        items: status.items || [],
         refresh: loadStatus
     };
 }

@@ -16,7 +16,6 @@ const findModule = (property: string) => {
 };
 
 const SleepParent = findModule("InitiateSleep");
-export const NavSoundMap = findModule("ToastMisc");
 
 export class SteamUtils {
     static async suspend() {

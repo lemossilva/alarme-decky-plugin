@@ -162,6 +162,7 @@ export interface UserSettings {
     overlay_show_alarms: boolean;
     overlay_show_pomodoros: boolean;
     overlay_show_reminders: boolean;
+    overlay_show_stopwatch: boolean;
     // Legacy Prevent Sleep settings (deprecated - now per-item)
     prevent_sleep_enabled?: boolean;
     prevent_sleep_timers?: boolean;
@@ -184,9 +185,16 @@ export interface UserSettings {
 }
 
 // Sleep inhibitor status
+export interface SleepInhibitorItem {
+    type: string;
+    id: string;
+    label: string;
+}
+
 export interface SleepInhibitorStatus {
     active: boolean;
     reason?: string;
+    items?: SleepInhibitorItem[];
 }
 
 export interface MissedItem {
@@ -245,7 +253,7 @@ export type OverlayPosition = 'default' | 'custom';
 
 export type OverlayDisplayMode = 'always' | 'gaming_only';
 
-export type OverlayCategory = 'timer' | 'alarm' | 'pomodoro' | 'reminder';
+export type OverlayCategory = 'timer' | 'alarm' | 'pomodoro' | 'reminder' | 'stopwatch';
 
 export interface OverlayAlert {
     id: string;
@@ -258,5 +266,22 @@ export interface OverlayAlert {
     prevent_sleep?: boolean;
 }
 
+// Stopwatch types
+export interface StopwatchLap {
+    label: string;
+    absolute_ms: number;
+    split_ms: number;
+}
+
+export type StopwatchStatus = 'idle' | 'running' | 'paused';
+
+export interface StopwatchState {
+    status: StopwatchStatus;
+    start_time: number | null;
+    elapsed_ms: number;
+    laps: StopwatchLap[];
+    prevent_sleep?: boolean;
+}
+
 // Tab types
-export type TabId = 'timers' | 'alarms' | 'pomodoro' | 'reminders' | 'settings';
+export type TabId = 'timers' | 'alarms' | 'stopwatch' | 'pomodoro' | 'reminders' | 'settings';

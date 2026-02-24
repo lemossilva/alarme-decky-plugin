@@ -5,7 +5,7 @@ import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { formatDuration } from "../utils/time";
-import { playAlarmSound, stopSound } from "../utils/sounds";
+import { playAlarmSound, stopSound, base64ToObjectURL } from "../utils/sounds";
 import { useEffect, useRef, useState } from "react";
 
 // Backend callable for base64 sound data
@@ -81,15 +81,7 @@ export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal
                     return;
                 }
 
-                // Convert base64 to blob URL
-                const byteCharacters = atob(result.data);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: result.mime_type });
-                blobUrlRef.current = URL.createObjectURL(blob);
+                blobUrlRef.current = base64ToObjectURL(result.data, result.mime_type);
 
                 // Play via HTML5 Audio
                 const audio = new Audio(blobUrlRef.current);

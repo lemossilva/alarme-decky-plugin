@@ -1,7 +1,7 @@
 import { ConfirmModal, Focusable, showModal } from "@decky/ui";
 import { callable } from "@decky/api";
 import { FaBell, FaBan, FaPowerOff, FaPlus, FaMinus } from "react-icons/fa";
-import { playAlarmSound, stopSound } from "../utils/sounds";
+import { playAlarmSound, stopSound, base64ToObjectURL } from "../utils/sounds";
 import { SteamUtils } from "../utils/steam";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { useEffect, useRef, useState } from "react";
@@ -90,15 +90,7 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                     return;
                 }
 
-                // Convert base64 to blob URL
-                const byteCharacters = atob(result.data);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: result.mime_type });
-                blobUrlRef.current = URL.createObjectURL(blob);
+                blobUrlRef.current = base64ToObjectURL(result.data, result.mime_type);
 
                 // Play via HTML5 Audio
                 const audio = new Audio(blobUrlRef.current);

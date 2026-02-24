@@ -55,9 +55,6 @@ export function PomodoroPanel() {
 
     const isLongBreakNext = currentSession % sessionsUntilLong === 0;
 
-    // Stats calculation handled inline
-
-
     return (
         <div>
             <PanelSection title="Pomodoro Timer">

@@ -130,8 +130,8 @@ function ReminderEditorModalContent({
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    // Available sounds
-    const [sounds, setSounds] = useState<SoundFile[]>([]);
+    // Available sounds - initialize with fallback to prevent empty dropdown flash
+    const [sounds, setSounds] = useState<SoundFile[]>([{ filename: 'alarm.mp3', name: 'Alarm' }]);
     const [showLabelPresets, setShowLabelPresets] = useState(false);
 
     // Input delay state
@@ -272,6 +272,19 @@ function ReminderEditorModalContent({
             closeModal={closeModal}
         >
             <Focusable style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
+                {/* Input delay hint */}
+                {!inputEnabled && (
+                    <div style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#4488aa33',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        color: '#88ccff',
+                        textAlign: 'center'
+                    }}>
+                        ⏳ Input enabled shortly...
+                    </div>
+                )}
                 {/* Label Section */}
                 <div>
                     <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#ccc' }}>

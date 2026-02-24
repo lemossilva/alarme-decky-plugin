@@ -1,15 +1,14 @@
 # AlarMe - Decky Loader Plugin
 # Python Backend
 
-from settings import SettingsManager  # type: ignore
+from settings import SettingsManager
 from datetime import datetime, timedelta
 import time
 import os
-import decky  # type: ignore
+import decky 
 import asyncio
 import uuid
 import json
-import subprocess
 import fcntl
 import struct
 
@@ -27,6 +26,7 @@ SETTINGS_KEY_SETTINGS = "user_settings"
 SETTINGS_KEY_POMODORO = "pomodoro_state"
 SETTINGS_KEY_RECENT_TIMERS = "recent_timers"
 SETTINGS_KEY_REMINDERS = "reminders"
+SETTINGS_KEY_STOPWATCH = "stopwatch_state"
 
 # Limits to prevent excessive data
 MAX_ACTIVE_TIMERS = 50
@@ -34,6 +34,8 @@ MAX_ALARMS = 100
 MAX_REMINDERS = 50
 MAX_RECENT_TIMERS = 20
 MAX_PRESETS = 50
+MAX_STOPWATCH_LAPS = 100
+MAX_STOPWATCH_RUNTIME_MS = 24 * 60 * 60 * 1000  # 24 hours in milliseconds
 
 # Default user settings
 DEFAULT_SETTINGS = {
@@ -75,6 +77,7 @@ DEFAULT_SETTINGS = {
     "overlay_show_alarms": True,
     "overlay_show_pomodoros": True,
     "overlay_show_reminders": True,
+    "overlay_show_stopwatch": False,
     # Timer presets settings
     "presets_enabled": True,
     "presets_max_visible": 5
@@ -218,6 +221,13 @@ class Plugin:
         if reminder_count > 0:
             reason_parts.append(f"{reminder_count} reminder(s)")
         
+        # Check stopwatch with prevent_sleep=True
+        stopwatch = await self._get_stopwatch_state()
+        if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
+            should_inhibit = True
+            reason_parts.append("Stopwatch")
+            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch"})
+        
         if should_inhibit:
             reason = "AlarMe: " + ", ".join(reason_parts) + " active"
             await self._acquire_sleep_inhibitor(reason)
@@ -356,9 +366,84 @@ class Plugin:
 
     async def get_sleep_inhibitor_status(self) -> dict:
         """Get current sleep inhibitor status."""
+        inhibiting_items = []
+        
+        # Collect all items that are preventing sleep
+        timers = await self._get_timers()
+        for timer_id, timer in timers.items():
+            if not timer.get("paused", False) and timer.get("prevent_sleep", False):
+                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer")})
+        
+        user_settings = await self._get_user_settings()
+        pomodoro = await self._get_pomodoro_state()
+        if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
+            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Focus Session"})
+        
+        alarms = await self._get_alarms()
+        now = time.time()
+        for alarm_id, alarm in alarms.items():
+            if not alarm.get("enabled", False) or not alarm.get("prevent_sleep", False):
+                continue
+            window_minutes = alarm.get("prevent_sleep_window", 60)
+            window_seconds = window_minutes * 60
+            next_trigger = self._calculate_next_trigger(alarm)
+            if next_trigger and 0 < (next_trigger - now) <= window_seconds:
+                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm")})
+        
+        reminders = await self._get_reminders()
+        for reminder_id, reminder in reminders.items():
+            if reminder.get("enabled", False) and reminder.get("prevent_sleep", False):
+                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder")})
+        
+        stopwatch = await self._get_stopwatch_state()
+        if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
+            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch"})
+        
         return {
-            "active": self._sleep_inhibitor_active
+            "active": self._sleep_inhibitor_active,
+            "items": inhibiting_items
         }
+
+    async def disable_all_sleep_inhibitors(self) -> bool:
+        """Disable all mechanisms preventing sleep."""
+        decky.logger.info("AlarMe: Disabling all sleep inhibitors")
+        
+        # Cancel all timers with prevent_sleep
+        timers = await self._get_timers()
+        for timer_id, timer in list(timers.items()):
+            if timer.get("prevent_sleep", False):
+                await self.cancel_timer(timer_id)
+        
+        # Stop pomodoro if active
+        pomodoro = await self._get_pomodoro_state()
+        if pomodoro.get("active", False):
+            await self.stop_pomodoro()
+        
+        # Turn off all alarms that are preventing sleep
+        alarms = await self._get_alarms()
+        for alarm_id, alarm in alarms.items():
+            if alarm.get("prevent_sleep", False) and alarm.get("enabled", False):
+                alarm["enabled"] = False
+        await self._save_alarms(alarms)
+        await decky.emit("alarme_alarms_updated", list(alarms.values()))
+        
+        # Turn off all reminders that are preventing sleep
+        reminders = await self._get_reminders()
+        for reminder_id, reminder in reminders.items():
+            if reminder.get("prevent_sleep", False) and reminder.get("enabled", False):
+                reminder["enabled"] = False
+        await self._save_reminders(reminders)
+        await decky.emit("alarme_reminders_updated", list(reminders.values()))
+        
+        # Reset stopwatch if running (regardless of prevent_sleep flag, since it's in the inhibitor list)
+        stopwatch = await self._get_stopwatch_state()
+        if stopwatch.get("status") == "running":
+            await self.stopwatch_reset()
+        
+        # Update sleep inhibitor state
+        await self._update_sleep_inhibitor()
+        
+        return True
 
     # ==================== TIMER METHODS ====================
 
@@ -601,7 +686,7 @@ class Plugin:
                 # Emit update every second for real-time display
                 await decky.emit("alarme_timer_tick", {
                     "id": timer_id,
-                    "remaining": int(remaining)
+                    "remaining": max(0, int(remaining))
                 })
                 await asyncio.sleep(1)
                 
@@ -1263,30 +1348,21 @@ class Plugin:
                             diff = next_trigger - current_time
                             
                             if next_trigger <= current_time:
-                                # Check how late we are
+
                                 delay = current_time - next_trigger
                                 
-                                # Grace period: 90 seconds
+                                # Grace period
                                 if delay > 90:
                                     # Missed!
                                     decky.logger.info(f"AlarMe: Alarm {alarm_id} missed by {delay:.0f}s")
                                     await self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), next_trigger)
                                     
-                                    # Mark as handled so we don't loop
-                                    # For once: Disable
+
                                     if alarm.get("recurring") == "once":
                                         alarms[alarm_id]["enabled"] = False
                                         alarms[alarm_id]["snoozed_until"] = None
                                     else:
-                                        # For recurring: Update last_triggered to the MISSED time
-                                        # This forces _calculate_next_trigger to look ahead next time
                                         alarms[alarm_id]["snoozed_until"] = None
-                                        # But wait, if we set last_triggered to next_trigger (which is today 08:00),
-                                        # and now is 10:00.
-                                        # Next calc: 10:00 - 08:00 = 2 hours (> 120s).
-                                        # So it won't skip!
-                                        # We need to set last_triggered to NOW? Or just ensure calc advances?
-                                        # If last_triggered is NOW, then calc sees diff < 120s, so logic advances.
                                         alarms[alarm_id]["last_triggered"] = current_time 
                                     
                                     await self._save_alarms(alarms)
@@ -1447,7 +1523,7 @@ class Plugin:
         
         if is_break:
             # Starting new work session from break
-            # Check if we just finished a long break
+            # Check if a long break just finished
             was_long_break = pomodoro_state.get("break_type") == "long"
             
             if was_long_break:
@@ -1672,7 +1748,7 @@ class Plugin:
                         await self._add_missed_item("pomodoro", "pomodoro", missed_label, due_time)
                         
                         # Stop the cycle (do not auto-advance)
-                        # We still credit the session duration (capped) because it "finished"
+                        # Credit the session duration (capped) because it "finished"
                         elapsed = state.get("duration", 0) # Use intended duration
                         try:
                             await self._update_pomodoro_stats(
@@ -1713,7 +1789,7 @@ class Plugin:
                         pomodoro_sound = user_settings.get("pomodoro_sound", "alarm.mp3")
                         is_subtle = user_settings.get("pomodoro_subtle_mode", False)
                         
-                        # Check if we just finished a long break
+                        # Check if a long break just finished
                         was_long_break = state.get("break_type") == "long"
                         if was_long_break:
                             new_session = 1
@@ -1789,6 +1865,195 @@ class Plugin:
     async def _save_pomodoro_state(self, state: dict):
         await self.settings_setSetting(SETTINGS_KEY_POMODORO, state)
         await self.settings_commit()
+
+    # ==================== STOPWATCH METHODS ====================
+
+    async def _get_stopwatch_state(self) -> dict:
+        return await self.settings_getSetting(SETTINGS_KEY_STOPWATCH, {
+            "status": "idle",
+            "start_time": None,
+            "elapsed_ms": 0,
+            "laps": [],
+            "prevent_sleep": False
+        })
+
+    async def _save_stopwatch_state(self, state: dict):
+        await self.settings_setSetting(SETTINGS_KEY_STOPWATCH, state)
+        await self.settings_commit()
+
+    async def stopwatch_get_state(self) -> dict:
+        """Get current stopwatch state. Auto-resets if max runtime exceeded."""
+        state = await self._get_stopwatch_state()
+        
+        if state.get("status") == "running" and state.get("start_time"):
+            running_ms = (time.time() - state["start_time"]) * 1000
+            current_elapsed = state.get("elapsed_ms", 0) + running_ms
+            
+            # Check max runtime limit
+            if current_elapsed >= MAX_STOPWATCH_RUNTIME_MS:
+                decky.logger.info(f"AlarMe: Stopwatch max runtime ({MAX_STOPWATCH_RUNTIME_MS}ms) exceeded, auto-resetting")
+                await self.stopwatch_reset()
+                state = await self._get_stopwatch_state()
+                state["current_elapsed_ms"] = 0
+                state["auto_reset"] = True
+                return state
+            
+            state["current_elapsed_ms"] = current_elapsed
+        else:
+            state["current_elapsed_ms"] = state.get("elapsed_ms", 0)
+        
+        return state
+
+    async def stopwatch_start(self) -> dict:
+        """Start or resume the stopwatch."""
+        state = await self._get_stopwatch_state()
+        
+        if state.get("status") == "running":
+            return await self.stopwatch_get_state()
+        
+        state["status"] = "running"
+        state["start_time"] = time.time()
+        
+        await self._save_stopwatch_state(state)
+        await self._update_sleep_inhibitor()
+        
+        await decky.emit("alarme_stopwatch_updated", state)
+        
+        decky.logger.info("AlarMe: Stopwatch started")
+        return await self.stopwatch_get_state()
+
+    async def stopwatch_pause(self) -> dict:
+        """Pause the stopwatch."""
+        state = await self._get_stopwatch_state()
+        
+        if state.get("status") != "running":
+            return await self.stopwatch_get_state()
+        
+        if state.get("start_time"):
+            running_ms = (time.time() - state["start_time"]) * 1000
+            state["elapsed_ms"] = state.get("elapsed_ms", 0) + running_ms
+        
+        state["status"] = "paused"
+        state["start_time"] = None
+        
+        await self._save_stopwatch_state(state)
+        await self._update_sleep_inhibitor()
+        
+        # Emit an event to force overlay update since stopwatch is no longer running/preventing sleep
+        await decky.emit("alarme_stopwatch_updated", state)
+        
+        decky.logger.info(f"AlarMe: Stopwatch paused at {state['elapsed_ms']:.0f}ms")
+        return await self.stopwatch_get_state()
+
+    async def stopwatch_reset(self) -> dict:
+        """Reset the stopwatch to initial state."""
+        state = {
+            "status": "idle",
+            "start_time": None,
+            "elapsed_ms": 0,
+            "laps": [],
+            "prevent_sleep": False
+        }
+        
+        await self._save_stopwatch_state(state)
+        await self._update_sleep_inhibitor()
+        
+        # Emit an event to force overlay update since stopwatch is reset
+        await decky.emit("alarme_stopwatch_updated", state)
+        
+        decky.logger.info("AlarMe: Stopwatch reset")
+        return await self.stopwatch_get_state()
+
+    async def stopwatch_lap(self) -> dict:
+        """Record a lap time. Returns state with 'lap_limit_reached' flag if max laps exceeded."""
+        state = await self._get_stopwatch_state()
+        
+        if state.get("status") != "running":
+            return await self.stopwatch_get_state()
+        
+        current_ms = state.get("elapsed_ms", 0)
+        if state.get("start_time"):
+            current_ms += (time.time() - state["start_time"]) * 1000
+        
+        laps = state.get("laps", [])
+        
+        # Track total lap count separately (continues incrementing even after limit)
+        total_lap_count = state.get("total_lap_count", len(laps))
+        total_lap_count += 1
+        
+        lap_limit_reached = False
+        
+        if laps:
+            last_lap_absolute = laps[-1].get("absolute_ms", 0)
+            split_ms = current_ms - last_lap_absolute
+        else:
+            split_ms = current_ms
+        
+        new_lap = {
+            "label": f"Lap {total_lap_count}",
+            "absolute_ms": current_ms,
+            "split_ms": split_ms
+        }
+        
+        # Enforce max laps limit - remove oldest when exceeded
+        if len(laps) >= MAX_STOPWATCH_LAPS:
+            laps.pop(0)
+            lap_limit_reached = True
+            decky.logger.info(f"AlarMe: Stopwatch lap limit ({MAX_STOPWATCH_LAPS}) reached, removing oldest lap")
+        
+        laps.append(new_lap)
+        state["laps"] = laps
+        state["total_lap_count"] = total_lap_count
+        
+        await self._save_stopwatch_state(state)
+        decky.logger.info(f"AlarMe: Lap {total_lap_count} recorded at {current_ms:.0f}ms (split: {split_ms:.0f}ms)")
+        
+        result = await self.stopwatch_get_state()
+        result["lap_limit_reached"] = lap_limit_reached
+        return result
+
+    async def stopwatch_set_prevent_sleep(self, prevent_sleep: bool) -> dict:
+        """Set prevent_sleep option for stopwatch."""
+        state = await self._get_stopwatch_state()
+        state["prevent_sleep"] = prevent_sleep
+        await self._save_stopwatch_state(state)
+        await self._update_sleep_inhibitor()
+        
+        await decky.emit("alarme_stopwatch_updated", state)
+        
+        decky.logger.info(f"AlarMe: Stopwatch prevent_sleep set to {prevent_sleep}")
+        return await self.stopwatch_get_state()
+
+    async def stopwatch_get_laps_text(self) -> str:
+        """Get formatted lap list for clipboard copy."""
+        state = await self._get_stopwatch_state()
+        laps = state.get("laps", [])
+        
+        if not laps:
+            return ""
+        
+        lines = []
+        for lap in laps:
+            absolute = self._format_stopwatch_time(lap.get("absolute_ms", 0))
+            split = self._format_stopwatch_time(lap.get("split_ms", 0))
+            lines.append(f"{lap.get('label', 'Lap')}: {absolute} (+{split})")
+        
+        return "\n".join(lines)
+
+    def _format_stopwatch_time(self, ms: float) -> str:
+        """Format milliseconds to HH:MM:SS.cs string."""
+        if ms < 0:
+            ms = 0
+        
+        total_seconds = int(ms / 1000)
+        centiseconds = int((ms % 1000) / 10)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}.{centiseconds:02d}"
 
     # ==================== PRESET METHODS ====================
 
@@ -1889,6 +2154,18 @@ class Plugin:
         return True
 
     # ==================== SETTINGS METHODS ====================
+
+    async def get_version(self) -> str:
+        """Get plugin version from plugin.json."""
+        try:
+            plugin_dir = os.path.dirname(os.path.realpath(__file__))
+            plugin_json_path = os.path.join(plugin_dir, "plugin.json")
+            with open(plugin_json_path, 'r') as f:
+                plugin_data = json.load(f)
+            return plugin_data.get("version", "unknown")
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to read plugin version: {e}")
+            return "unknown"
 
     async def get_settings(self) -> dict:
         """Get user settings."""
@@ -2052,6 +2329,33 @@ class Plugin:
             except:
                 continue
         
+        # Stopwatch - show first if enabled and running
+        stopwatch = await self._get_stopwatch_state()
+        if stopwatch.get("status") == "running":
+            is_preventing = stopwatch.get("prevent_sleep", False)
+            
+            laps = stopwatch.get("laps", [])
+            total_lap_count = stopwatch.get("total_lap_count", len(laps))
+            
+            # Show lap count if any laps recorded, otherwise empty label (icon only)
+            label = f"L{total_lap_count + 1}" if total_lap_count > 0 else ""
+            
+            stopwatch_alert = {
+                "id": "stopwatch",
+                "category": "stopwatch",
+                "label": label,
+                "time": stopwatch.get("start_time") or 0,
+                "remaining": int(stopwatch.get("elapsed_ms", 0) / 1000),
+                "subtle_mode": False,
+                "auto_suspend": False,
+                "prevent_sleep": is_preventing
+            }
+            
+            if is_preventing:
+                sleep_preventing_alerts.insert(0, stopwatch_alert)
+            elif user_settings.get("overlay_show_stopwatch", False):
+                alerts.insert(0, stopwatch_alert)
+        
         # Combine: sleep-preventing alerts first (sorted by time), then regular alerts
         sleep_preventing_alerts.sort(key=lambda a: a["time"])
         alerts.sort(key=lambda a: a["time"])
@@ -2159,6 +2463,13 @@ class Plugin:
                 await self.settings_setSetting(SETTINGS_KEY_SETTINGS, settings_to_save)
                 await self.settings_commit()
                 await decky.emit("alarme_settings_updated", settings_to_save)
+            
+            if "reminders" in data:
+                await self._save_reminders(data["reminders"])
+                await self._emit_all_reminders()
+            
+            # Emit general event so frontend can trigger full refresh
+            await decky.emit("alarme_data_imported", True)
             
             decky.logger.info("AlarMe: Backup imported successfully")
             return True
@@ -2631,7 +2942,12 @@ class Plugin:
     # ==================== LIFECYCLE METHODS ====================
 
     async def _check_missed_alarms(self, start_time: float, end_time: float):
-        """Check for alarms missed between start_time and end_time."""
+        """Check for alarms missed between start_time and end_time.
+        
+        Alarms within MISS_THRESHOLD_SECONDS of end_time are left for _alarm_checker
+        to handle live, avoiding double-firing on resume.
+        """
+        MISS_THRESHOLD_SECONDS = 90
         alarms = await self._get_alarms()
         modified = False
         
@@ -2679,13 +2995,19 @@ class Plugin:
                     except: pass
                 
                 if is_valid:
-                    await self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), candidate.timestamp())
+                    candidate_ts = candidate.timestamp()
+                    # Skip alarms within threshold of resume time - let _alarm_checker handle them live
+                    if end_time - candidate_ts < MISS_THRESHOLD_SECONDS:
+                        candidate += timedelta(days=1)
+                        continue
+                    
+                    await self._add_missed_item("alarm", alarm_id, alarm.get("label", "Alarm"), candidate_ts)
                     
                     if recurring == "once":
                         alarms[alarm_id]["enabled"] = False
                         alarms[alarm_id]["snoozed_until"] = None
                         modified = True
-                        break # Stop ensuring we don't duplicate logic for 'once'
+                        break
                 
                 candidate += timedelta(days=1)
                 
@@ -2700,7 +3022,7 @@ class Plugin:
         
         modified = False
         
-        # If behavior is PAUSE, we don't log missed items, we just shift the schedule
+        # PAUSE behavior: shift the schedule instead of logging missed items
         if behavior == "pause":
             suspend_duration = end_time - start_time
             if suspend_duration > 0:
@@ -2714,7 +3036,7 @@ class Plugin:
                             dt = datetime.fromisoformat(reminder["next_trigger"])
                             # Only shift if it was scheduled to happen in the future relative to start_time?
                             # Or strictly shift everything? 
-                            # Usually "pause" means time stops. So we shift everything.
+                            # "pause" means time stops, so shift everything.
                             dt += timedelta(seconds=suspend_duration)
                             reminder["next_trigger"] = dt.isoformat()
                             modified = True
@@ -2767,12 +3089,8 @@ class Plugin:
                          reminder["enabled"] = False
                  
                  # Log only the last missed occurrence (Smart Recurrence)
-                 # Add details about how many were missed
                  details = None
                  missed_in_window = processed_count 
-                 # Wait, processed_count includes occurrences BEFORE start_time if next_ts was old
-                 # But next_ts should be updated unless we had a backlog. 
-                 # As we run checker often, next_ts is usually close to now.
                  if missed_in_window > 1:
                      details = f"Missed {missed_in_window} occurrences while away"
                  
@@ -2810,7 +3128,7 @@ class Plugin:
         p_end = pomodoro.get("end_time", 0)
         # Check if it finished during suspend window
         if p_end <= end_time:
-             # It finished while we were away!
+             # Session finished during suspend
              
              # Cancel existing handler first to prevent double-fire
              if hasattr(self, 'pomodoro_task') and self.pomodoro_task:
@@ -2877,7 +3195,7 @@ class Plugin:
                     # Wait briefly for synchronous checkers to resume
                     await asyncio.sleep(1)
                     
-                    # Check if we should notify about new items in the report
+                    # Notify about new items in the report if applicable
                     if user_settings.get("missed_alerts_enabled", True):
                         all_missed = await self.settings_getSetting("missed_alerts_items", [])
                         recent_missed = [i for i in all_missed if i.get("missed_at", 0) >= self.last_tick]
@@ -2993,6 +3311,12 @@ class Plugin:
                 "duration": 0
             })
             await self.settings_setSetting(SETTINGS_KEY_REMINDERS, {})
+            await self.settings_setSetting(SETTINGS_KEY_STOPWATCH, {
+                "status": "idle",
+                "start_time": None,
+                "elapsed_ms": 0,
+                "laps": []
+            })
             await self.settings_setSetting("missed_alerts_items", [])
             
             # 8. Reset Pomodoro stats

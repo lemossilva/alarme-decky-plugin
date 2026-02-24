@@ -20,8 +20,9 @@ import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import type { SoundFile } from "../types";
 
-// Backend callable for factory reset
+// Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
+const getVersionCall = callable<[], string>('get_version');
 
 // Scrollable wrapper for SidebarNavigation content pages
 const ScrollableContent = ({ children }: { children: React.ReactNode }) => (
@@ -219,7 +220,7 @@ const TimerSettingsPage = () => {
         <ScrollableContent>
             <PanelSection>
                 <PanelSectionRow>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <Focusable flow-children="row" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                         <FaStopwatch style={{ color: '#888', flexShrink: 0 }} />
                         <span style={{ flexShrink: 0 }}>Sound</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -230,8 +231,10 @@ const TimerSettingsPage = () => {
                                 strDefaultLabel="Select Sound"
                             />
                         </div>
-                        <SoundPreviewButton soundFile={settings.timer_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
-                    </div>
+                        {settings.timer_sound !== 'soundless' && (
+                            <SoundPreviewButton soundFile={settings.timer_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
+                        )}
+                    </Focusable>
                 </PanelSectionRow>
 
                 {settings.timer_sound !== 'soundless' && (
@@ -349,7 +352,7 @@ const PomodoroSettingsPage = () => {
         <ScrollableContent>
             <PanelSection>
                 <PanelSectionRow>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                    <Focusable flow-children="row" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                         <FaBrain style={{ color: '#888', flexShrink: 0 }} />
                         <span style={{ flexShrink: 0 }}>Sound</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -363,7 +366,7 @@ const PomodoroSettingsPage = () => {
                         {settings.pomodoro_sound !== 'soundless' && (
                             <SoundPreviewButton soundFile={settings.pomodoro_sound || 'alarm.mp3'} onPlayCustom={playCustomSound} />
                         )}
-                    </div>
+                    </Focusable>
                 </PanelSectionRow>
 
                 {settings.pomodoro_sound !== 'soundless' && (
@@ -863,6 +866,9 @@ const OverlaySettingsPage = () => {
                     </PanelSection>
 
                     <PanelSection title="Categories">
+                        <div style={{ padding: '0 16px 12px 16px', fontSize: 12, color: '#aaaaaa' }}>
+                            Items with "Prevent Sleep" active will always bypass these settings and show in the overlay. Alerts in overlay are ordered by their due time (next alert first).
+                        </div>
                         <PanelSectionRow>
                             <ToggleField
                                 icon={<FaStopwatch />}
@@ -870,6 +876,16 @@ const OverlaySettingsPage = () => {
                                 description="Show active timer countdowns"
                                 checked={settings.overlay_show_timers ?? true}
                                 onChange={(value) => updateSetting('overlay_show_timers', value)}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaHistory />}
+                                label="Stopwatch"
+                                description="Show running stopwatch elapsed time. Stopwatch has priority over other alerts."
+                                checked={settings.overlay_show_stopwatch ?? true}
+                                onChange={(value) => updateSetting('overlay_show_stopwatch', value)}
                             />
                         </PanelSectionRow>
 
@@ -932,6 +948,11 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
+    const [version, setVersion] = useState('...');
+
+    useEffect(() => {
+        getVersionCall().then(setVersion).catch(() => setVersion('unknown'));
+    }, []);
 
     const handleReset = async () => {
         setResetting(true);
@@ -986,7 +1007,7 @@ const FactoryResetPage = () => {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v1.5.4
+                                <strong>AlarMe</strong> v{version}
                             </p>
                             <p>
                                 By Guilherme Lemos
