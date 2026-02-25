@@ -12,7 +12,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaStopwatch, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHourglassHalf, FaHistory, FaBellSlash, FaStar } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -221,7 +221,7 @@ const TimerSettingsPage = () => {
             <PanelSection>
                 <PanelSectionRow>
                     <Focusable flow-children="row" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaStopwatch style={{ color: '#888', flexShrink: 0 }} />
+                        <FaHourglassHalf style={{ color: '#888', flexShrink: 0 }} />
                         <span style={{ flexShrink: 0 }}>Sound</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <Dropdown
@@ -247,14 +247,14 @@ const TimerSettingsPage = () => {
                             max={100}
                             step={5}
                             onChange={(value) => updateSetting('timer_volume', value)}
-                            icon={<FaVolumeUp />}
+                            icon={<FaVolumeUp size={16} />}
                         />
                     </PanelSectionRow>
                 )}
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<FaStar />}
+                        icon={<FaStar size={16} />}
                         label="Saved Presets"
                         description="Show preset buttons for quickly starting timers"
                         checked={settings.presets_enabled ?? true}
@@ -272,7 +272,7 @@ const TimerSettingsPage = () => {
                                 max={10}
                                 step={1}
                                 onChange={(value) => updateSetting('presets_max_visible', value)}
-                                icon={<FaClock />}
+                                icon={<FaClock size={16} />}
                             />
                         </div>
                     </PanelSectionRow>
@@ -298,7 +298,7 @@ const AlarmSettingsPage = () => {
                         max={30}
                         step={1}
                         onChange={(value) => updateSetting('snooze_duration', value)}
-                        icon={<FaBell />}
+                        icon={<FaBell size={16} />}
                     />
                 </PanelSectionRow>
                 <PanelSectionRow>
@@ -325,7 +325,7 @@ const ReminderSettingsPage = () => {
                     rightOption={{ value: 'continue', label: 'Miss (Continue)' }}
                     value={settings.reminder_suspend_behavior || 'continue'}
                     onChange={(val) => updateSetting('reminder_suspend_behavior', val)}
-                    icon={<FaStopwatch />}
+                    icon={<FaRedo size={16} />}
                 />
                 <PanelSectionRow>
                     <div style={{ fontSize: 12, color: '#888888', padding: '8px 0' }}>
@@ -379,7 +379,7 @@ const PomodoroSettingsPage = () => {
                             max={100}
                             step={5}
                             onChange={(value) => updateSetting('pomodoro_volume', value)}
-                            icon={<FaVolumeUp />}
+                            icon={<FaVolumeUp size={16} />}
                         />
                     </PanelSectionRow>
                 )}
@@ -393,7 +393,7 @@ const PomodoroSettingsPage = () => {
                         max={60}
                         step={5}
                         onChange={(value) => updateSetting('pomodoro_work_duration', value)}
-                        icon={<FaBrain />}
+                        icon={<FaBrain size={16} />}
                     />
                 </PanelSectionRow>
 
@@ -406,7 +406,7 @@ const PomodoroSettingsPage = () => {
                         max={15}
                         step={1}
                         onChange={(value) => updateSetting('pomodoro_break_duration', value)}
-                        icon={<FaCoffee />}
+                        icon={<FaCoffee size={16} />}
                     />
                 </PanelSectionRow>
 
@@ -419,7 +419,7 @@ const PomodoroSettingsPage = () => {
                         max={45}
                         step={5}
                         onChange={(value) => updateSetting('pomodoro_long_break_duration', value)}
-                        icon={<FaCoffee />}
+                        icon={<FaCoffee size={16} />}
                     />
                 </PanelSectionRow>
 
@@ -432,13 +432,13 @@ const PomodoroSettingsPage = () => {
                         max={8}
                         step={1}
                         onChange={(value) => updateSetting('pomodoro_sessions_until_long_break', value)}
-                        icon={<FaClock />}
+                        icon={<FaClock size={16} />}
                     />
                 </PanelSectionRow>
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<FaBullseye />}
+                        icon={<FaBullseye size={16} />}
                         label="Daily Goal"
                         description="Track progress toward a daily focus time goal"
                         checked={settings.pomodoro_daily_goal_enabled ?? false}
@@ -456,7 +456,7 @@ const PomodoroSettingsPage = () => {
                             max={8}
                             step={1}
                             onChange={(value) => updateSetting('pomodoro_daily_goal', value)}
-                            icon={<FaClock />}
+                            icon={<FaClock size={16} />}
                         />
                     </PanelSectionRow>
                 )}
@@ -468,7 +468,7 @@ const PomodoroSettingsPage = () => {
                     rightOption={{ value: 'continue', label: 'Miss (Continue)' }}
                     value={settings.pomodoro_suspend_behavior || 'continue'}
                     onChange={(val) => updateSetting('pomodoro_suspend_behavior', val)}
-                    icon={<FaBrain />}
+                    icon={<FaBrain size={16} />}
                 />
             </PanelSection>
         </ScrollableContent>
@@ -484,7 +484,7 @@ const DisplaySettingsPage = () => {
             <PanelSection>
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<FaClock />}
+                        icon={<FaClock size={16} />}
                         label="24-Hour Format"
                         description="Use 24-hour time format (e.g., 14:30 instead of 2:30 PM)"
                         checked={settings.time_format_24h}
@@ -494,7 +494,7 @@ const DisplaySettingsPage = () => {
 
                 <PanelSectionRow>
                         <ToggleField
-                            icon={<FaGamepad />}
+                            icon={<FaGamepad size={16} />}
                             label="In-Game Alert Delay"
                             description="Adds a brief delay before you can interact with alert popups while gaming, preventing accidental dismissals from controller input"
                             checked={(settings.snooze_activation_delay ?? 2.0) > 0}
@@ -510,7 +510,7 @@ const DisplaySettingsPage = () => {
                                     max={5.0}
                                     step={0.5}
                                     onChange={(value) => updateSetting('snooze_activation_delay', value)}
-                                    icon={<FaHourglassHalf />}
+                                    icon={<FaHourglassHalf size={16} />}
                                 />
                             </div>
                         )}
@@ -518,7 +518,7 @@ const DisplaySettingsPage = () => {
 
                 <PanelSectionRow>
                         <ToggleField
-                            icon={<FaBellSlash />}
+                            icon={<FaBellSlash size={16} />}
                             label="Missed Alert Detection"
                             description="Notify about alarms and timers missed while suspended"
                             checked={settings.missed_alerts_enabled ?? true}
@@ -534,7 +534,7 @@ const DisplaySettingsPage = () => {
                                     max={72}
                                     step={1}
                                     onChange={(value) => updateSetting('missed_alerts_window', value)}
-                                    icon={<FaHistory />}
+                                    icon={<FaHistory size={16} />}
                                 />
                             </div>
                         )}
@@ -556,7 +556,7 @@ const BackupSettingsPage = () => {
                 <PanelSectionRow>
                     <ButtonItem
                         layout="below"
-                        icon={<FaSave />}
+                        icon={<FaSave size={16} />}
                         onClick={showExportModal}
                     >
                         Export Backup
@@ -565,7 +565,7 @@ const BackupSettingsPage = () => {
                 <PanelSectionRow>
                     <ButtonItem
                         layout="below"
-                        icon={<FaFileImport />}
+                        icon={<FaFileImport size={16} />}
                         onClick={showImportModal}
                     >
                         Import Backup
@@ -871,7 +871,7 @@ const OverlaySettingsPage = () => {
                         </div>
                         <PanelSectionRow>
                             <ToggleField
-                                icon={<FaStopwatch />}
+                                icon={<FaHourglassHalf size={16} />}
                                 label="Timers"
                                 description="Show active timer countdowns"
                                 checked={settings.overlay_show_timers ?? true}
@@ -911,7 +911,7 @@ const OverlaySettingsPage = () => {
 
                         <PanelSectionRow>
                             <ToggleField
-                                icon={<FaClock />}
+                                icon={<FaRedo size={16} />}
                                 label="Reminders"
                                 description="Show next periodic reminders"
                                 checked={settings.overlay_show_reminders ?? true}
@@ -948,10 +948,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.6.0');
+    const [version, setVersion] = useState('1.6.1');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.6.0')).catch(() => setVersion('1.6.0'));
+        getVersionCall().then(v => setVersion(v || '1.6.1')).catch(() => setVersion('1.6.1'));
     }, []);
 
     const handleReset = async () => {
@@ -986,7 +986,7 @@ const FactoryResetPage = () => {
                 <PanelSectionRow>
                     <ButtonItem
                         layout="below"
-                        icon={<FaTrash />}
+                        icon={<FaTrash size={16} />}
                         onClick={handleResetClick}
                         disabled={resetting || resetDone}
                     >
@@ -1028,42 +1028,42 @@ export const SettingsPage = () => {
     const pages = [
         {
             title: "Timers",
-            icon: <FaStopwatch />,
+            icon: <FaHourglassHalf size={16} />,
             content: <TimerSettingsPage />
         },
         {
             title: "Alarms",
-            icon: <FaBell />,
+            icon: <FaBell size={16} />,
             content: <AlarmSettingsPage />
         },
         {
             title: "Reminders",
-            icon: <FaClock />,
+            icon: <FaRedo size={16} />,
             content: <ReminderSettingsPage />
         },
         {
             title: "Pomodoro",
-            icon: <FaBrain />,
+            icon: <FaBrain size={16} />,
             content: <PomodoroSettingsPage />
         },
         {
             title: "Display",
-            icon: <FaCog />,
+            icon: <FaCog size={16} />,
             content: <DisplaySettingsPage />
         },
         {
             title: "Overlay",
-            icon: <FaEye />,
+            icon: <FaEye size={16} />,
             content: <OverlaySettingsPage />
         },
         {
             title: "Backup",
-            icon: <FaDatabase />,
+            icon: <FaDatabase size={16} />,
             content: <BackupSettingsPage />
         },
         {
             title: "Factory Reset",
-            icon: <FaTrash />,
+            icon: <FaTrash size={16} />,
             content: <FactoryResetPage />
         }
     ];

@@ -371,7 +371,6 @@ function Content() {
                             else if (tab.id === 'stopwatch') hasActiveItems = hasActiveStopwatch;
                             else if (tab.id === 'pomodoro') hasActiveItems = hasActivePomodoro;
                             else if (tab.id === 'reminders') hasActiveItems = hasActiveReminders;
-                            // alarms: no indicator as per requirements
                             
                             return (
                                 <TabButton

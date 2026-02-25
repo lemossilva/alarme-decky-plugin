@@ -1951,8 +1951,7 @@ class Plugin:
             "status": "idle",
             "start_time": None,
             "elapsed_ms": 0,
-            "laps": [],
-            "prevent_sleep": False
+            "laps": []
         }
         
         await self._save_stopwatch_state(state)
@@ -2025,18 +2024,19 @@ class Plugin:
         return await self.stopwatch_get_state()
 
     async def stopwatch_get_laps_text(self) -> str:
-        """Get formatted lap list for clipboard copy."""
+        """Get formatted lap list for clipboard copy in tab-separated format."""
         state = await self._get_stopwatch_state()
         laps = state.get("laps", [])
         
         if not laps:
             return ""
         
-        lines = []
+        lines = ["Lap\tSplit\tTotal"]
         for lap in laps:
             absolute = self._format_stopwatch_time(lap.get("absolute_ms", 0))
             split = self._format_stopwatch_time(lap.get("split_ms", 0))
-            lines.append(f"{lap.get('label', 'Lap')}: {absolute} (+{split})")
+            label = lap.get('label', 'Lap').replace('Lap ', '')
+            lines.append(f"{label}\t{split}\t{absolute}")
         
         return "\n".join(lines)
 

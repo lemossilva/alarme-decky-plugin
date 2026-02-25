@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { callable } from '@decky/api';
+import { callable, addEventListener, removeEventListener } from '@decky/api';
 import type { StopwatchState, StopwatchLap } from '../types';
 
 const getStateCall = callable<[], StopwatchState & { auto_reset?: boolean }>('stopwatch_get_state');
@@ -87,9 +87,21 @@ export function useStopwatch(): UseStopwatchReturn {
         mountedRef.current = true;
         loadInitialState();
 
+        const handleStopwatchUpdate = (newState: StopwatchState) => {
+            if (mountedRef.current) {
+                setState(newState);
+                if (newState.status !== 'running') {
+                    setDisplayElapsed((newState as any).current_elapsed_ms || newState.elapsed_ms || 0);
+                }
+            }
+        };
+
+        addEventListener('alarme_stopwatch_updated', handleStopwatchUpdate);
+
         return () => {
             mountedRef.current = false;
             stopTicking();
+            removeEventListener('alarme_stopwatch_updated', handleStopwatchUpdate);
         };
     }, [loadInitialState, stopTicking]);
 

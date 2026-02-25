@@ -10,7 +10,7 @@ import { FaPlay, FaPause, FaFlag, FaUndo, FaCopy } from "react-icons/fa";
 import { useStopwatch } from "../hooks/useStopwatch";
 import { formatStopwatch, formatLapSplit } from "../utils/time";
 import type { StopwatchLap } from "../types";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function StopwatchPanel() {
     const {
@@ -32,6 +32,7 @@ export function StopwatchPanel() {
 
     const prevLapLimitReached = useRef(false);
     const prevAutoReset = useRef(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (lapLimitReached && !prevLapLimitReached.current) {
@@ -62,12 +63,24 @@ export function StopwatchPanel() {
 
     const handleCopyLaps = async () => {
         const text = await copyLaps();
-        if (text && navigator.clipboard) {
-            try {
-                await navigator.clipboard.writeText(text);
-            } catch (e) {
-                console.error('Failed to copy to clipboard:', e);
-            }
+        if (!text) return;
+
+        try {
+            const el = document.createElement('textarea');
+            el.value = text;
+            el.style.position = 'fixed';
+            el.style.opacity = '0';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            setCopied(true);
+            setTimeout(() => {
+                if (mountedRef.current) setCopied(false);
+            }, 1500);
+        } catch (e) {
+            console.error('Failed to copy laps:', e);
         }
     };
 
@@ -80,6 +93,13 @@ export function StopwatchPanel() {
         if (lap.split_ms === slowestSplitMs) return '#cc4444';
         return '#ffffff';
     };
+
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     if (loading) {
         return (
@@ -147,7 +167,22 @@ export function StopwatchPanel() {
                     >
                         {/* Left Button: Lap / Reset */}
                         <Focusable
-                            onActivate={canLap ? lap : (canReset && (isPaused || hasLaps) ? reset : undefined)}
+                            onActivate={
+                                (canLap || (canReset && (isPaused || hasLaps)))
+                                    ? (e: any) => {
+                                        if (canLap) {
+                                            lap();
+                                        } else {
+                                            reset();
+                                            if (e && e.target) {
+                                                e.target.style.borderColor = 'transparent';
+                                                e.target.style.cursor = 'default';
+                                            }
+                                        }
+                                    }
+                                    : undefined
+                            }
+
                             style={{
                                 flex: 1,
                                 display: 'flex',
@@ -181,7 +216,17 @@ export function StopwatchPanel() {
 
                         {/* Right Button: Start / Stop */}
                         <Focusable
-                            onActivate={isRunning ? pause : start}
+                            onActivate={(e: any) => {
+                                if (isRunning) {
+                                    pause();
+                                    // Becoming idle/paused -> set focus color to green
+                                    if (e && e.target) e.target.style.backgroundColor = '#44aa66';
+                                } else {
+                                    start();
+                                    // Becoming running -> set focus color to red
+                                    if (e && e.target) e.target.style.backgroundColor = '#cc4444';
+                                }
+                            }}
                             style={{
                                 flex: 1,
                                 display: 'flex',
@@ -206,7 +251,7 @@ export function StopwatchPanel() {
                         >
                             {isRunning ? <FaPause size={14} /> : <FaPlay size={14} />}
                             <span style={{ fontSize: 14 }}>
-                                {isRunning ? 'Stop' : (isPaused ? 'Resume' : 'Start')}
+                                {isRunning ? 'Pause' : (isPaused ? 'Resume' : 'Start')}
                             </span>
                         </Focusable>
                     </Focusable>
@@ -233,74 +278,74 @@ export function StopwatchPanel() {
                             onClick={handleCopyLaps}
                         >
                             <FaCopy size={12} style={{ marginRight: 8 }} />
-                            Copy Laps to Clipboard
+                            {copied ? "Copied!" : "Copy Laps to Clipboard"}
                         </ButtonItem>
                     </PanelSectionRow>
 
                     {/* Lap Entries (reverse order - latest first) */}
                     <PanelSectionRow>
-                        <Focusable
-                            style={{
-                                maxHeight: 200,
-                                overflowY: 'auto',
-                                width: '100%'
-                            }}
-                        >
-                            {[...laps].reverse().map((lapItem, idx) => {
-                                const lapColor = getLapColor(lapItem);
-                                const isFastest = laps.length > 1 && lapItem.split_ms === fastestSplitMs;
-                                const isSlowest = laps.length > 1 && lapItem.split_ms === slowestSplitMs;
+                        <div style={{
+                            maxHeight: 200,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            flex: '1 1 auto'
+                        }}>
+                            <Focusable>
+                                {[...laps].reverse().map((lapItem, idx) => {
+                                    const lapColor = getLapColor(lapItem);
+                                    const isFastest = laps.length > 1 && lapItem.split_ms === fastestSplitMs;
+                                    const isSlowest = laps.length > 1 && lapItem.split_ms === slowestSplitMs;
 
-                                return (
-                                    <Focusable
-                                        key={laps.length - idx}
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            padding: '8px 12px',
-                                            backgroundColor: idx % 2 === 0 ? '#ffffff08' : 'transparent',
-                                            borderRadius: 4,
-                                            border: '2px solid transparent',
-                                            transition: 'all 0.1s ease-in-out'
-                                        }}
-                                        onFocus={(e: any) => {
-                                            e.target.style.borderColor = '#4488aa';
-                                            e.target.style.backgroundColor = '#ffffff15';
-                                        }}
-                                        onBlur={(e: any) => {
-                                            e.target.style.borderColor = 'transparent';
-                                            e.target.style.backgroundColor = idx % 2 === 0 ? '#ffffff08' : 'transparent';
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <span style={{ 
-                                                color: lapColor, 
-                                                fontWeight: (isFastest || isSlowest) ? 'bold' : 'normal',
-                                                minWidth: 50
+                                    return (
+                                        <Focusable
+                                            key={laps.length - idx}
+                                            onActivate={() => { }}
+                                            onFocus={(e: any) => {
+                                                e.target.style.border = '2px solid #ffffff';
+                                            }}
+                                            onBlur={(e: any) => {
+                                                e.target.style.border = 'transparent';
+                                            }}
+                                            style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '8px 12px',
+                                                backgroundColor: idx % 2 === 0 ? '#ffffff08' : 'transparent',
+                                                borderRadius: 4,
+                                                marginBottom: idx < laps.length - 1 ? 4 : 0,
+                                                transition: 'all 0.1s ease-in-out',
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{
+                                                    color: lapColor,
+                                                    fontWeight: (isFastest || isSlowest) ? 'bold' : 'normal',
+                                                    minWidth: 50
+                                                }}>
+                                                    {lapItem.label}
+                                                </span>
+                                                {isFastest && <span style={{ fontSize: 10, color: '#44cc66' }}>FAST</span>}
+                                                {isSlowest && <span style={{ fontSize: 10, color: '#cc4444' }}>SLOW</span>}
+                                            </div>
+                                            <div style={{
+                                                fontFamily: 'monospace',
+                                                display: 'flex',
+                                                gap: 16,
+                                                alignItems: 'center'
                                             }}>
-                                                {lapItem.label}
-                                            </span>
-                                            {isFastest && <span style={{ fontSize: 10, color: '#44cc66' }}>FAST</span>}
-                                            {isSlowest && <span style={{ fontSize: 10, color: '#cc4444' }}>SLOW</span>}
-                                        </div>
-                                        <div style={{ 
-                                            fontFamily: 'monospace', 
-                                            display: 'flex',
-                                            gap: 16,
-                                            alignItems: 'center'
-                                        }}>
-                                            <span style={{ color: lapColor, fontSize: 13 }}>
-                                                +{formatLapSplit(lapItem.split_ms)}
-                                            </span>
-                                            <span style={{ color: '#888888', fontSize: 12 }}>
-                                                {formatStopwatch(lapItem.absolute_ms)}
-                                            </span>
-                                        </div>
-                                    </Focusable>
-                                );
-                            })}
-                        </Focusable>
+                                                <span style={{ color: lapColor, fontSize: 13 }}>
+                                                    +{formatLapSplit(lapItem.split_ms)}
+                                                </span>
+                                                <span style={{ color: '#888888', fontSize: 12 }}>
+                                                    {formatStopwatch(lapItem.absolute_ms)}
+                                                </span>
+                                            </div>
+                                        </Focusable>
+                                    );
+                                })}
+                            </Focusable>
+                        </div>
                     </PanelSectionRow>
                 </PanelSection>
             )}
