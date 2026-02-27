@@ -53,16 +53,21 @@ const DEFAULT_SETTINGS: UserSettings = {
     overlay_show_pomodoros: true,
     overlay_show_reminders: true,
     overlay_show_stopwatch: false,
+    overlay_compact_mode: false,
+    overlay_show_prevent_sleep_badge: true,
+    overlay_show_missed_badge: true,
+    // Timer presets settings
+    presets_enabled: true,
+    presets_max_visible: 5,
+    // Tab Order
+    tab_order: ["timers", "alarms", "pomodoro", "reminders", "stopwatch"],
     // Prevent Sleep settings
     prevent_sleep_enabled: false,
     prevent_sleep_timers: true,
     prevent_sleep_pomodoro: true,
     prevent_sleep_alarms: false,
     prevent_sleep_alarms_window: 60,  // default 1 hour
-    prevent_sleep_reminders: false,
-    // Timer presets settings
-    presets_enabled: true,
-    presets_max_visible: 5
+    prevent_sleep_reminders: false
 };
 
 export function useSettings() {

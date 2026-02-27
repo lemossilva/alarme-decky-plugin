@@ -94,6 +94,9 @@ export function StopwatchPanel() {
         return '#ffffff';
     };
 
+    const [leftBtnFocused, setLeftBtnFocused] = useState(false);
+    const [rightBtnFocused, setRightBtnFocused] = useState(false);
+
     const mountedRef = useRef(true);
     useEffect(() => {
         return () => {
@@ -175,14 +178,14 @@ export function StopwatchPanel() {
                                         } else {
                                             reset();
                                             if (e && e.target) {
-                                                e.target.style.borderColor = 'transparent';
-                                                e.target.style.cursor = 'default';
+                                                e.target.blur();
                                             }
                                         }
                                     }
                                     : undefined
                             }
-
+                            onFocus={() => setLeftBtnFocused(true)}
+                            onBlur={() => setLeftBtnFocused(false)}
                             style={{
                                 flex: 1,
                                 display: 'flex',
@@ -190,43 +193,29 @@ export function StopwatchPanel() {
                                 justifyContent: 'center',
                                 gap: 8,
                                 padding: '12px 16px',
-                                backgroundColor: canLap ? '#ffffff22' : (canReset && (isPaused || hasLaps) ? '#ff444422' : '#ffffff11'),
+                                backgroundColor: leftBtnFocused 
+                                    ? (canLap ? '#4488aa' : '#aa4444')
+                                    : (canLap ? '#ffffff22' : (canReset && (isPaused || hasLaps) ? '#ff444422' : '#ffffff11')),
                                 borderRadius: 8,
-                                border: '2px solid transparent',
+                                border: leftBtnFocused ? '2px solid white' : '2px solid transparent',
                                 cursor: (canLap || (canReset && (isPaused || hasLaps))) ? 'pointer' : 'default',
                                 opacity: (canLap || (canReset && (isPaused || hasLaps))) ? 1 : 0.4,
                                 transition: 'all 0.1s ease-in-out'
                             }}
-                            onFocus={(e: any) => {
-                                if (canLap || (canReset && (isPaused || hasLaps))) {
-                                    e.target.style.borderColor = 'white';
-                                    e.target.style.backgroundColor = canLap ? '#4488aa' : '#aa4444';
-                                }
-                            }}
-                            onBlur={(e: any) => {
-                                e.target.style.borderColor = 'transparent';
-                                e.target.style.backgroundColor = canLap ? '#ffffff22' : (canReset && (isPaused || hasLaps) ? '#ff444422' : '#ffffff11');
-                            }}
                         >
-                            {canLap ? <FaFlag size={14} /> : <FaUndo size={14} />}
-                            <span style={{ fontSize: 14 }}>
+                            {canLap ? <FaFlag size={14} color={leftBtnFocused ? '#ffffff' : undefined} /> : <FaUndo size={14} color={leftBtnFocused ? '#ffffff' : undefined} />}
+                            <span style={{ fontSize: 14, color: leftBtnFocused ? '#ffffff' : undefined }}>
                                 {canLap ? 'Lap' : 'Reset'}
                             </span>
                         </Focusable>
 
                         {/* Right Button: Start / Stop */}
                         <Focusable
-                            onActivate={(e: any) => {
-                                if (isRunning) {
-                                    pause();
-                                    // Becoming idle/paused -> set focus color to green
-                                    if (e && e.target) e.target.style.backgroundColor = '#44aa66';
-                                } else {
-                                    start();
-                                    // Becoming running -> set focus color to red
-                                    if (e && e.target) e.target.style.backgroundColor = '#cc4444';
-                                }
+                            onActivate={() => {
+                                isRunning ? pause() : start();
                             }}
+                            onFocus={() => setRightBtnFocused(true)}
+                            onBlur={() => setRightBtnFocused(false)}
                             style={{
                                 flex: 1,
                                 display: 'flex',
@@ -234,23 +223,17 @@ export function StopwatchPanel() {
                                 justifyContent: 'center',
                                 gap: 8,
                                 padding: '12px 16px',
-                                backgroundColor: isRunning ? '#ff444444' : '#44cc6644',
+                                backgroundColor: rightBtnFocused 
+                                    ? (isRunning ? '#cc4444' : '#44aa44')
+                                    : (isRunning ? '#ff444444' : '#44cc6644'),
                                 borderRadius: 8,
-                                border: '2px solid transparent',
+                                border: rightBtnFocused ? '2px solid white' : '2px solid transparent',
                                 cursor: 'pointer',
                                 transition: 'all 0.1s ease-in-out'
                             }}
-                            onFocus={(e: any) => {
-                                e.target.style.borderColor = 'white';
-                                e.target.style.backgroundColor = isRunning ? '#cc4444' : '#44aa44';
-                            }}
-                            onBlur={(e: any) => {
-                                e.target.style.borderColor = 'transparent';
-                                e.target.style.backgroundColor = isRunning ? '#ff444444' : '#44cc6644';
-                            }}
                         >
-                            {isRunning ? <FaPause size={14} /> : <FaPlay size={14} />}
-                            <span style={{ fontSize: 14 }}>
+                            {isRunning ? <FaPause size={14} color={rightBtnFocused ? '#ffffff' : undefined} /> : <FaPlay size={14} color={rightBtnFocused ? '#ffffff' : undefined} />}
+                            <span style={{ fontSize: 14, color: rightBtnFocused ? '#ffffff' : undefined }}>
                                 {isRunning ? 'Pause' : (isPaused ? 'Resume' : 'Start')}
                             </span>
                         </Focusable>

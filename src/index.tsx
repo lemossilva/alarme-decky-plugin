@@ -14,7 +14,7 @@ import {
 } from "@decky/api";
 import { showModal } from "@decky/ui";
 import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaShieldAlt } from "react-icons/fa";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 // Components
 import { TimerPanel } from "./components/TimerPanel";
@@ -29,7 +29,6 @@ import { ReminderNotification } from "./components/ReminderNotification";
 import { GameOverlay } from "./components/GameOverlay";
 import showMissedReportModal from "./components/MissedReportModal";
 import { showSleepInhibitorModal } from "./components/SleepInhibitorModal";
-import { MissedItem } from "./types";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
@@ -40,6 +39,7 @@ import { useStopwatch } from "./hooks/useStopwatch";
 import { usePomodoro } from "./hooks/usePomodoro";
 import { useReminders } from "./hooks/useReminders";
 import { useGameStatus } from "./hooks/useGameStatus";
+import { useMissedAlerts } from "./hooks/useMissedAlerts";
 
 // Types
 import type {
@@ -55,7 +55,6 @@ const snoozeTimerCall = callable<[timer_id: string, minutes: number], boolean>('
 const cancelTimerCall = callable<[timer_id: string], boolean>('cancel_timer');
 const setGameRunning = callable<[is_running: boolean], void>('set_game_running');
 const toggleReminder = callable<[reminder_id: string, enabled: boolean], boolean>('toggle_reminder');
-const getMissedItems = callable<[], MissedItem[]>('get_missed_items');
 
 // Tab configuration
 type TabId = 'timers' | 'alarms' | 'stopwatch' | 'pomodoro' | 'reminders';
@@ -92,11 +91,12 @@ const TabButton = ({ tab, active, hasActiveItems, onClick }: TabButtonProps) => 
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             style={{
-                flex: 1,
+                flex: '1 1 0',
+                minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '6px 4px',
+                padding: '6px 2px',
                 backgroundColor: active ? '#4488aa' : (focused ? '#ffffff22' : 'transparent'),
                 color: active || focused ? '#ffffff' : '#888888',
                 border: focused ? '2px solid #ffffff' : '2px solid transparent',
@@ -120,7 +120,14 @@ const TabButton = ({ tab, active, hasActiveItems, onClick }: TabButtonProps) => 
                 }} />
             )}
             {tab.icon}
-            <span style={{ fontSize: 12 }}>{tab.label}</span>
+            <span style={{ 
+                fontSize: 11, 
+                whiteSpace: 'nowrap', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis', 
+                maxWidth: '100%',
+                marginTop: 2
+            }}>{tab.label}</span>
         </Focusable>
     );
 };
@@ -128,9 +135,9 @@ const TabButton = ({ tab, active, hasActiveItems, onClick }: TabButtonProps) => 
 // Main Content Component
 function Content() {
     const [activeTab, setActiveTab] = useState<TabId>('timers');
-    const [missedItems, setMissedItems] = useState<MissedItem[]>([]);
     const { settings: userSettings } = useSettings();
     const { isActive: sleepInhibitorActive, items: sleepInhibitorItems } = useSleepInhibitor();
+    const { missedItems, hasMissedAlerts, hasNewMissedAlerts, markAsSeen } = useMissedAlerts();
     const use24h = userSettings.time_format_24h;
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +155,29 @@ function Content() {
     const hasActiveReminders = reminders.some(r => 
         r.enabled && (!r.only_while_gaming || isGameRunning)
     );
+
+    // Sort tabs based on settings, or use default order
+    const orderedTabs = useMemo(() => {
+        if (!userSettings.tab_order || userSettings.tab_order.length === 0) {
+            return TABS;
+        }
+        
+        const sorted = [...TABS].sort((a, b) => {
+            const indexA = userSettings.tab_order!.indexOf(a.id);
+            const indexB = userSettings.tab_order!.indexOf(b.id);
+            
+            // If both are found in the custom order, sort by that order
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            // If only A is found, it comes first
+            if (indexA !== -1) return -1;
+            // If only B is found, it comes first
+            if (indexB !== -1) return 1;
+            // If neither is found, maintain original order
+            return TABS.indexOf(a) - TABS.indexOf(b);
+        });
+        
+        return sorted;
+    }, [userSettings.tab_order]);
 
     // Scroll to top on mount — SteamOS auto-focuses toggle fields which scrolls to middle
     useEffect(() => {
@@ -181,50 +211,10 @@ function Content() {
         };
     }, []);
 
-    // Persistent dismissal logic - track when user last viewed the report
-    const [lastDismissed, setLastDismissed] = useState<number>(() => {
-        return parseInt(localStorage.getItem('alarme_missed_dismissed_at') || '0');
-    });
-
-    const latestMissedTime = missedItems.length > 0
-        ? Math.max(...missedItems.map(i => i.missed_at))
-        : 0;
-
-    // hasNewMissedAlerts = true when there are NEW missed alerts (not yet seen)
-    const hasNewMissedAlerts = missedItems.length > 0 && latestMissedTime > lastDismissed;
-
     const handleOpenMissedModal = () => {
-        // Mark as seen by updating lastDismissed to current latest time (in seconds)
-        const now = Date.now() / 1000;
-        setLastDismissed(now);
-        localStorage.setItem('alarme_missed_dismissed_at', now.toString());
+        markAsSeen();
         showMissedReportModal(missedItems, use24h);
     };
-
-
-    useEffect(() => {
-        const fetchMissed = async () => {
-            try {
-                const items = await getMissedItems();
-                if (items) {
-                    setMissedItems(items);
-                }
-            } catch (e) {
-                console.error("Failed to fetch missed items", e);
-            }
-        };
-
-        fetchMissed();
-
-        const handleMissedUpdate = (items: MissedItem[]) => {
-            setMissedItems(items || []);
-        };
-
-        addEventListener('alarme_missed_items_updated', handleMissedUpdate);
-        return () => { removeEventListener('alarme_missed_items_updated', handleMissedUpdate); };
-    }, []);
-
-    const hasMissedAlerts = missedItems.length > 0;
 
     return (
         <div ref={contentRef}>
@@ -365,7 +355,7 @@ function Content() {
                             marginBottom: 8
                         }}
                     >
-                        {TABS.map(tab => {
+                        {orderedTabs.map(tab => {
                             let hasActiveItems = false;
                             if (tab.id === 'timers') hasActiveItems = hasActiveTimers;
                             else if (tab.id === 'stopwatch') hasActiveItems = hasActiveStopwatch;

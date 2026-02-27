@@ -134,12 +134,7 @@ function ReminderEditorModalContent({
     const [sounds, setSounds] = useState<SoundFile[]>([{ filename: 'alarm.mp3', name: 'Alarm' }]);
     const [showLabelPresets, setShowLabelPresets] = useState(false);
 
-    // Input delay state
-    const [inputEnabled, setInputEnabled] = useState(false);
-    useEffect(() => {
-        const timer = setTimeout(() => setInputEnabled(true), 1000);
-        return () => clearTimeout(timer);
-    }, []);
+    const inputEnabled = true;
 
     // Load sounds and check for custom initial values
     useEffect(() => {
@@ -603,32 +598,42 @@ function ReminderEditorModalContent({
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <div style={{ flex: 1 }}>
-                            <Dropdown
-                                rgOptions={soundOptions}
-                                selectedOption={sound}
-                                onChange={(option: DropdownOption) => setSound(option.data as string)}
-                            />
-                        </div>
-                        {sound !== 'soundless' && (
-                            <Focusable
-                                onActivate={toggleSoundPreview}
-                                style={{
-                                    padding: '8px 12px',
-                                    backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
-                                    borderRadius: 4,
-                                    cursor: 'pointer',
-                                    minWidth: 80,
-                                    textAlign: 'center'
-                                }}
-                            >
-                                {isPlaying ? (
-                                    <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
-                                ) : (
-                                    <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
-                                )}
-                            </Focusable>
-                        )}
+                        <Focusable
+                            flow-children="horizontal"
+                            style={{
+                                display: 'flex',
+                                flex: 1,
+                                gap: 8,
+                                alignItems: 'center'
+                            }}
+                        >
+                            <div style={{ flex: 1 }}>
+                                <Dropdown
+                                    rgOptions={soundOptions}
+                                    selectedOption={sound}
+                                    onChange={(option: DropdownOption) => setSound(option.data as string)}
+                                />
+                            </div>
+                            {sound !== 'soundless' && (
+                                <Focusable
+                                    onActivate={toggleSoundPreview}
+                                    style={{
+                                        padding: '8px 12px',
+                                        backgroundColor: isPlaying ? '#44aa44' : '#ffffff22',
+                                        borderRadius: 4,
+                                        cursor: 'pointer',
+                                        minWidth: 80,
+                                        textAlign: 'center'
+                                    }}
+                                >
+                                    {isPlaying ? (
+                                        <span><FaPause size={10} style={{ marginRight: 4 }} /> Stop</span>
+                                    ) : (
+                                        <span><FaPlay size={10} style={{ marginRight: 4 }} /> Play</span>
+                                    )}
+                                </Focusable>
+                            )}
+                        </Focusable>
                     </div>
                 </div>
 

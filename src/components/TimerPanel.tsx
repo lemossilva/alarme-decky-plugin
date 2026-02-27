@@ -17,6 +17,8 @@ import { formatDuration, formatDurationLong } from "../utils/time";
 import { showTimerLabelModal } from "./TimerLabelModal";
 import type { Timer, Preset } from "../types";
 
+const MAX_TIMER_MINUTES = 43200; // 1 month in minutes (30 days)
+
 interface QuickButtonProps {
     minutes: number;
     onClick: () => void;
@@ -243,7 +245,7 @@ const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps
                     opacity: disabled ? 0.5 : 1
                 }}
             >
-                <FaPlay size={10} style={{ minWidth: 10 }} />
+                <FaPlay size={10} style={{ minWidth: 10, color: focused ? '#ffffff' : undefined }} />
                 
                 {/* Timer Label - Truncated */}
                 <span style={{ 
@@ -251,7 +253,8 @@ const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps
                     whiteSpace: 'nowrap', 
                     overflow: 'hidden', 
                     textOverflow: 'ellipsis',
-                    marginRight: 4
+                    marginRight: 4,
+                    color: focused ? '#ffffff' : undefined
                 }}>
                     {preset.label}
                 </span>
@@ -261,13 +264,12 @@ const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: 6, 
-                    opacity: 0.7,
-                    flexShrink: 0 // Prevent shrinking
+                    flexShrink: 0
                 }}>
-                    {preset.auto_suspend && <span style={{ fontSize: 12 }}>💤</span>}
-                    {preset.subtle_mode && !preset.auto_suspend && <span style={{ fontSize: 12 }}>📵</span>}
-                    {preset.prevent_sleep && <span style={{ fontSize: 12, color: '#e69900' }}>🛡️</span>}
-                    <span style={{ color: '#888888', fontSize: 12, marginLeft: 2, minWidth: 35, textAlign: 'right' }}>
+                    {preset.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#ddaadd' : '#aa88aa' }}>💤</span>}
+                    {preset.subtle_mode && !preset.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#aaddaa' : '#88aa88' }}>📵</span>}
+                    {preset.prevent_sleep && <span style={{ fontSize: 12, color: focused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
+                    <span style={{ color: focused ? '#ffffff' : '#888888', fontSize: 12, marginLeft: 2, minWidth: 35, textAlign: 'right' }}>
                         {minutes}m
                     </span>
                 </div>
@@ -323,13 +325,13 @@ const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; 
                 transform: pressed ? 'scale(0.97)' : 'scale(1)'
             }}
         >
-            <FaPlay size={10} />
-            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayLabel}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.7 }}>
-                {recent.auto_suspend && <span style={{ fontSize: 12 }}>💤</span>}
-                {recent.subtle_mode && !recent.auto_suspend && <span style={{ fontSize: 12 }}>📵</span>}
-                {recent.prevent_sleep && <span style={{ fontSize: 12, color: '#e69900' }}>🛡️</span>}
-                <span style={{ color: '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
+            <FaPlay size={10} style={{ color: focused ? '#ffffff' : undefined }} />
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: focused ? '#ffffff' : undefined }}>{displayLabel}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {recent.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#ddaadd' : '#aa88aa' }}>💤</span>}
+                {recent.subtle_mode && !recent.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#aaddaa' : '#88aa88' }}>📵</span>}
+                {recent.prevent_sleep && <span style={{ fontSize: 12, color: focused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
+                <span style={{ color: focused ? '#ffffff' : '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
             </div>
         </Focusable>
     );
@@ -424,10 +426,10 @@ export function TimerPanel() {
                             gap: 8
                         }}
                     >
-                        <QuickButton minutes={1} variant="add" onClick={() => setTimerMinutes(m => m + 1)} />
-                        <QuickButton minutes={5} variant="add" onClick={() => setTimerMinutes(m => m + 5)} />
-                        <QuickButton minutes={10} variant="add" onClick={() => setTimerMinutes(m => m + 10)} />
-                        <QuickButton minutes={30} variant="add" onClick={() => setTimerMinutes(m => m + 30)} />
+                        <QuickButton minutes={1} variant="add" disabled={timerMinutes >= MAX_TIMER_MINUTES} onClick={() => setTimerMinutes(m => Math.min(MAX_TIMER_MINUTES, m + 1))} />
+                        <QuickButton minutes={5} variant="add" disabled={timerMinutes >= MAX_TIMER_MINUTES - 4} onClick={() => setTimerMinutes(m => Math.min(MAX_TIMER_MINUTES, m + 5))} />
+                        <QuickButton minutes={10} variant="add" disabled={timerMinutes >= MAX_TIMER_MINUTES - 9} onClick={() => setTimerMinutes(m => Math.min(MAX_TIMER_MINUTES, m + 10))} />
+                        <QuickButton minutes={30} variant="add" disabled={timerMinutes >= MAX_TIMER_MINUTES - 29} onClick={() => setTimerMinutes(m => Math.min(MAX_TIMER_MINUTES, m + 30))} />
                     </Focusable>
                 </PanelSectionRow>
 

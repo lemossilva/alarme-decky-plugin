@@ -163,6 +163,9 @@ export interface UserSettings {
     overlay_show_pomodoros: boolean;
     overlay_show_reminders: boolean;
     overlay_show_stopwatch: boolean;
+    overlay_compact_mode: boolean;
+    overlay_show_prevent_sleep_badge: boolean;
+    overlay_show_missed_badge: boolean;
     // Legacy Prevent Sleep settings (deprecated - now per-item)
     prevent_sleep_enabled?: boolean;
     prevent_sleep_timers?: boolean;
@@ -173,6 +176,8 @@ export interface UserSettings {
     // Timer presets settings
     presets_enabled: boolean;
     presets_max_visible: number;
+    // Tab Order
+    tab_order?: string[];
     // Legacy/deprecated (kept for migration)
     overlay_position_steamui?: OverlayPosition;
     overlay_pixel_shift?: boolean;

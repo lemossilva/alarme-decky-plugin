@@ -78,9 +78,14 @@ DEFAULT_SETTINGS = {
     "overlay_show_pomodoros": True,
     "overlay_show_reminders": True,
     "overlay_show_stopwatch": False,
+    "overlay_compact_mode": False,
+    "overlay_show_prevent_sleep_badge": True,
+    "overlay_show_missed_badge": True,
     # Timer presets settings
     "presets_enabled": True,
-    "presets_max_visible": 5
+    "presets_max_visible": 5,
+    # Tab Order
+    "tab_order": ["timers", "alarms", "pomodoro", "reminders", "stopwatch"]
 }
 
 # Default presets

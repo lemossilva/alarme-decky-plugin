@@ -12,7 +12,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
@@ -475,106 +475,95 @@ const PomodoroSettingsPage = () => {
     );
 };
 
-// Display Settings Page
-const DisplaySettingsPage = () => {
-    const { settings, updateSetting } = useSettings();
-
-    return (
-        <ScrollableContent>
-            <PanelSection>
-                <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaClock size={16} />}
-                        label="24-Hour Format"
-                        description="Use 24-hour time format (e.g., 14:30 instead of 2:30 PM)"
-                        checked={settings.time_format_24h}
-                        onChange={(value) => updateSetting('time_format_24h', value)}
-                    />
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                        <ToggleField
-                            icon={<FaGamepad size={16} />}
-                            label="In-Game Alert Delay"
-                            description="Adds a brief delay before you can interact with alert popups while gaming, preventing accidental dismissals from controller input"
-                            checked={(settings.snooze_activation_delay ?? 2.0) > 0}
-                            onChange={(enabled) => updateSetting('snooze_activation_delay', enabled ? 2.0 : 0)}
-                        />
-                        {(settings.snooze_activation_delay ?? 2.0) > 0 && (
-                            <div style={{ paddingLeft: '40px', paddingTop: '8px' }}>
-                                <SliderField
-                                    label="Delay Duration"
-                                    description={`${settings.snooze_activation_delay?.toFixed(1) ?? '2.0'} seconds`}
-                                    value={settings.snooze_activation_delay ?? 2.0}
-                                    min={0.5}
-                                    max={5.0}
-                                    step={0.5}
-                                    onChange={(value) => updateSetting('snooze_activation_delay', value)}
-                                    icon={<FaHourglassHalf size={16} />}
-                                />
-                            </div>
-                        )}
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                        <ToggleField
-                            icon={<FaBellSlash size={16} />}
-                            label="Missed Alert Detection"
-                            description="Notify about alarms and timers missed while suspended"
-                            checked={settings.missed_alerts_enabled ?? true}
-                            onChange={(value) => updateSetting('missed_alerts_enabled', value)}
-                        />
-                        {settings.missed_alerts_enabled && (
-                            <div style={{ paddingLeft: '40px', paddingTop: '8px' }}>
-                                <SliderField
-                                    label="Report Time Window"
-                                    description={`${settings.missed_alerts_window ?? 24} hours`}
-                                    value={settings.missed_alerts_window ?? 24}
-                                    min={1}
-                                    max={72}
-                                    step={1}
-                                    onChange={(value) => updateSetting('missed_alerts_window', value)}
-                                    icon={<FaHistory size={16} />}
-                                />
-                            </div>
-                        )}
-                </PanelSectionRow>
-
-            </PanelSection>
-        </ScrollableContent>
-    );
+// Tab labels for display
+const TAB_LABELS: Record<string, string> = {
+    "timers": "Timers",
+    "alarms": "Alarms",
+    "pomodoro": "Focus",
+    "reminders": "Reminders",
+    "stopwatch": "Stopwatch"
 };
 
-// Backup Settings Page
-const BackupSettingsPage = () => {
+const DEFAULT_TAB_ORDER = ["timers", "alarms", "pomodoro", "reminders", "stopwatch"];
+
+// General Settings Page
+const GeneralSettingsPage = () => {
+    const { settings, updateSetting } = useSettings();
     const { importCustomSounds } = useAlarms();
     const [importStatus, setImportStatus] = useState<{ message: string; success: boolean } | null>(null);
 
+    const tabOrder = settings.tab_order && settings.tab_order.length === 5 
+        ? settings.tab_order 
+        : DEFAULT_TAB_ORDER;
+
+    const moveTab = (index: number, direction: 'up' | 'down') => {
+        const newOrder = [...tabOrder];
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+        [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+        updateSetting('tab_order', newOrder);
+    };
+
+    const resetTabOrder = () => {
+        updateSetting('tab_order', DEFAULT_TAB_ORDER);
+    };
+
     return (
         <ScrollableContent>
-            <PanelSection title="Configuration Backup">
+            <PanelSection title="Tab Order">
                 <PanelSectionRow>
-                    <ButtonItem
-                        layout="below"
-                        icon={<FaSave size={16} />}
-                        onClick={showExportModal}
-                    >
-                        Export Backup
-                    </ButtonItem>
-                </PanelSectionRow>
-                <PanelSectionRow>
-                    <ButtonItem
-                        layout="below"
-                        icon={<FaFileImport size={16} />}
-                        onClick={showImportModal}
-                    >
-                        Import Backup
-                    </ButtonItem>
-                </PanelSectionRow>
-                <PanelSectionRow>
-                    <div style={{ fontSize: 12, color: '#888888', padding: '4px 0', textAlign: 'center' }}>
-                        Save your configuration before reinstalling or moving to a new device.
+                    <div style={{ fontSize: 12, color: '#888888', marginBottom: 8 }}>
+                        Reorder navigation tabs using the arrows.
                     </div>
+                </PanelSectionRow>
+                {tabOrder.map((tabId, index) => (
+                    <PanelSectionRow key={tabId}>
+                        <Focusable
+                            flow-children="horizontal"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 0'
+                            }}
+                        >
+                            <span style={{ flex: 1, fontSize: 14 }}>
+                                {TAB_LABELS[tabId] || tabId}
+                            </span>
+                            <Focusable
+                                onActivate={index === 0 ? undefined : () => moveTab(index, 'up')}
+                                style={{
+                                    padding: '4px 10px',
+                                    backgroundColor: index === 0 ? '#ffffff11' : '#ffffff22',
+                                    borderRadius: 4,
+                                    opacity: index === 0 ? 0.4 : 1,
+                                    cursor: index === 0 ? 'default' : 'pointer'
+                                }}
+                            >
+                                ▲
+                            </Focusable>
+                            <Focusable
+                                onActivate={index === tabOrder.length - 1 ? undefined : () => moveTab(index, 'down')}
+                                style={{
+                                    padding: '4px 10px',
+                                    backgroundColor: index === tabOrder.length - 1 ? '#ffffff11' : '#ffffff22',
+                                    borderRadius: 4,
+                                    opacity: index === tabOrder.length - 1 ? 0.4 : 1,
+                                    cursor: index === tabOrder.length - 1 ? 'default' : 'pointer'
+                                }}
+                            >
+                                ▼
+                            </Focusable>
+                        </Focusable>
+                    </PanelSectionRow>
+                ))}
+                <PanelSectionRow>
+                    <ButtonItem
+                        layout="below"
+                        onClick={resetTabOrder}
+                    >
+                        Reset to Default
+                    </ButtonItem>
                 </PanelSectionRow>
             </PanelSection>
 
@@ -604,21 +593,112 @@ const BackupSettingsPage = () => {
                         }}
                     >
                         Import / Rescan Sounds
+                        {importStatus && (
+                            <span style={{
+                                marginLeft: 8,
+                                fontSize: 12,
+                                color: importStatus.success ? '#88ff88' : '#ff8888'
+                            }}>
+                                • {importStatus.message}
+                            </span>
+                        )}
                     </ButtonItem>
                 </PanelSectionRow>
-                {importStatus && (
-                    <PanelSectionRow>
-                        <div style={{
-                            fontSize: 13,
-                            color: importStatus.success ? '#88ff88' : '#ff8888',
-                            textAlign: 'center',
-                            marginTop: 4,
-                            width: '100%'
-                        }}>
-                            {importStatus.message}
+            </PanelSection>
+
+            <PanelSection title="Time Format">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaClock size={16} />}
+                        label="24-Hour Format"
+                        description="Use 24-hour time format (e.g., 14:30 instead of 2:30 PM)"
+                        checked={settings.time_format_24h}
+                        onChange={(value) => updateSetting('time_format_24h', value)}
+                    />
+                </PanelSectionRow>
+            </PanelSection>
+
+            <PanelSection title="Alert Behavior">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaGamepad size={16} />}
+                        label="In-Game Alert Delay"
+                        description="Adds a brief delay before you can interact with alert popups while gaming, preventing accidental dismissals from controller input"
+                        checked={(settings.snooze_activation_delay ?? 2.0) > 0}
+                        onChange={(enabled) => updateSetting('snooze_activation_delay', enabled ? 2.0 : 0)}
+                    />
+                    {(settings.snooze_activation_delay ?? 2.0) > 0 && (
+                        <div style={{ paddingLeft: '40px', paddingTop: '8px' }}>
+                            <SliderField
+                                label="Delay Duration"
+                                description={`${settings.snooze_activation_delay?.toFixed(1) ?? '2.0'} seconds`}
+                                value={settings.snooze_activation_delay ?? 2.0}
+                                min={0.5}
+                                max={5.0}
+                                step={0.5}
+                                onChange={(value) => updateSetting('snooze_activation_delay', value)}
+                                icon={<FaHourglassHalf size={16} />}
+                            />
                         </div>
-                    </PanelSectionRow>
-                )}
+                    )}
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaBellSlash size={16} />}
+                        label="Missed Alert Detection"
+                        description="Notify about alarms and timers missed while suspended"
+                        checked={settings.missed_alerts_enabled ?? true}
+                        onChange={(value) => updateSetting('missed_alerts_enabled', value)}
+                    />
+                    {settings.missed_alerts_enabled && (
+                        <div style={{ paddingLeft: '40px', paddingTop: '8px' }}>
+                            <SliderField
+                                label="Report Time Window"
+                                description={`${settings.missed_alerts_window ?? 24} hours`}
+                                value={settings.missed_alerts_window ?? 24}
+                                min={1}
+                                max={72}
+                                step={1}
+                                onChange={(value) => updateSetting('missed_alerts_window', value)}
+                                icon={<FaHistory size={16} />}
+                            />
+                        </div>
+                    )}
+                </PanelSectionRow>
+            </PanelSection>
+        </ScrollableContent>
+    );
+};
+
+// Backup Settings Page
+const BackupSettingsPage = () => {
+    return (
+        <ScrollableContent>
+            <PanelSection title="Configuration Backup">
+                <PanelSectionRow>
+                    <ButtonItem
+                        layout="below"
+                        icon={<FaSave size={16} />}
+                        onClick={showExportModal}
+                    >
+                        Export Backup
+                    </ButtonItem>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <ButtonItem
+                        layout="below"
+                        icon={<FaFileImport size={16} />}
+                        onClick={showImportModal}
+                    >
+                        Import Backup
+                    </ButtonItem>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#888888', padding: '4px 0', textAlign: 'center' }}>
+                        Save your configuration before reinstalling or moving to a new device.
+                    </div>
+                </PanelSectionRow>
             </PanelSection>
         </ScrollableContent>
     );
@@ -807,6 +887,15 @@ const OverlaySettingsPage = () => {
                     </PanelSection>
 
                     <PanelSection title="Appearance">
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaEye />}
+                                label="Compact Mode"
+                                description="Hide text labels and only show icons to save space"
+                                checked={settings.overlay_compact_mode ?? false}
+                                onChange={(value) => updateSetting('overlay_compact_mode', value)}
+                            />
+                        </PanelSectionRow>
 
                         <PanelSectionRow>
                             <SliderField
@@ -920,6 +1009,26 @@ const OverlaySettingsPage = () => {
                         </PanelSectionRow>
 
                         <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaShieldAlt size={16} />}
+                                label="Prevent Sleep Badge"
+                                description="Show a shield icon when the device is being prevented from sleeping"
+                                checked={settings.overlay_show_prevent_sleep_badge ?? true}
+                                onChange={(value) => updateSetting('overlay_show_prevent_sleep_badge', value)}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaBellSlash size={16} />}
+                                label="Missed Alerts Badge"
+                                description="Show a red dot when there are unread missed alerts"
+                                checked={settings.overlay_show_missed_badge ?? true}
+                                onChange={(value) => updateSetting('overlay_show_missed_badge', value)}
+                            />
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
                             <div style={{ fontSize: 11, color: '#888', padding: '4px 0', lineHeight: 1.4 }}>
                                 <strong>🛡️ Note:</strong> Alerts that are actively preventing sleep will always appear in the overlay, regardless of category filters. They are prioritized at the top of the list.
                             </div>
@@ -948,10 +1057,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.6.1');
+    const [version, setVersion] = useState('1.6.2');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.6.1')).catch(() => setVersion('1.6.1'));
+        getVersionCall().then(v => setVersion(v || '1.6.2')).catch(() => setVersion('1.6.2'));
     }, []);
 
     const handleReset = async () => {
@@ -1027,6 +1136,11 @@ export const SETTINGS_ROUTE = '/alarme/settings';
 export const SettingsPage = () => {
     const pages = [
         {
+            title: "General",
+            icon: <FaCog size={16} />,
+            content: <GeneralSettingsPage />
+        },
+        {
             title: "Timers",
             icon: <FaHourglassHalf size={16} />,
             content: <TimerSettingsPage />
@@ -1047,11 +1161,6 @@ export const SettingsPage = () => {
             content: <PomodoroSettingsPage />
         },
         {
-            title: "Display",
-            icon: <FaCog size={16} />,
-            content: <DisplaySettingsPage />
-        },
-        {
             title: "Overlay",
             icon: <FaEye size={16} />,
             content: <OverlaySettingsPage />
@@ -1062,7 +1171,7 @@ export const SettingsPage = () => {
             content: <BackupSettingsPage />
         },
         {
-            title: "Factory Reset",
+            title: "Reset & About",
             icon: <FaTrash size={16} />,
             content: <FactoryResetPage />
         }

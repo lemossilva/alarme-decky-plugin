@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { useSleepInhibitor } from "../hooks/useSleepInhibitor";
+import { useMissedAlerts } from "../hooks/useMissedAlerts";
 import { formatDuration, formatTime } from "../utils/time";
 import type { OverlayAlert } from "../types";
 
@@ -65,16 +66,19 @@ const OverlayAlertItem = ({
     alert,
     textSize,
     use24h,
-    hideShield
+    compactMode,
+    showPreventSleepBadge
 }: {
     alert: OverlayAlert;
     textSize: number;
     use24h: boolean;
-    hideShield?: boolean;
+    compactMode?: boolean;
+    showPreventSleepBadge?: boolean;
 }) => {
     const iconSize = Math.max(8, textSize - 1);
+    const showShield = showPreventSleepBadge && alert.prevent_sleep;
 
-    const hasAnyIcon = alert.subtle_mode || alert.auto_suspend || (alert.prevent_sleep && !hideShield);
+    const hasAnyIcon = alert.subtle_mode || alert.auto_suspend || showShield;
 
     return (
         <div style={{
@@ -96,18 +100,20 @@ const OverlayAlertItem = ({
             }}>
                 {CATEGORY_ICONS[alert.category] || <FaBell />}
             </div>
-            <span style={{
-                fontSize: textSize,
-                opacity: 0.9,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: 80,
-                lineHeight: 1,
-                display: 'flex',
-                alignItems: 'center'
-            }}>
-                {alert.label}
-            </span>
+            {!compactMode && (
+                <span style={{
+                    fontSize: textSize,
+                    opacity: 0.9,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: 80,
+                    lineHeight: 1,
+                    display: 'flex',
+                    alignItems: 'center'
+                }}>
+                    {alert.label}
+                </span>
+            )}
             {hasAnyIcon && (
                 <div style={{
                     display: 'flex',
@@ -115,7 +121,7 @@ const OverlayAlertItem = ({
                     gap: 2,
                     opacity: 0.8
                 }}>
-                    {alert.prevent_sleep && !hideShield && (
+                    {showShield && (
                         <FaShieldAlt size={Math.max(8, textSize - 2)} color="#e69900" />
                     )}
                     {alert.auto_suspend ? (
@@ -146,6 +152,7 @@ export const GameOverlay = () => {
     const isGameRunning = useGameStatus();
     const alerts = useOverlayData(settings, isGameRunning);
     const { isActive: sleepInhibitorActive } = useSleepInhibitor();
+    const { hasNewMissedAlerts } = useMissedAlerts();
 
     const positionStyle = useMemo(() => {
         const isCustom = settings.overlay_position === 'custom';
@@ -159,8 +166,8 @@ export const GameOverlay = () => {
         return DEFAULT_POSITION_STYLE;
     }, [settings.overlay_position, settings.overlay_custom_x, settings.overlay_custom_y]);
 
-    // Don't render if disabled or (no alerts AND no sleep inhibitor)
-    if (!settings.overlay_enabled || (alerts.length === 0 && !sleepInhibitorActive)) {
+    // Don't render if disabled or (no alerts AND no sleep inhibitor AND no missed alerts)
+    if (!settings.overlay_enabled || (alerts.length === 0 && !sleepInhibitorActive && !hasNewMissedAlerts)) {
         return null;
     }
 
@@ -185,36 +192,70 @@ export const GameOverlay = () => {
             alignItems: 'center',
             gap: 12
         }}>
-            {/* Sleep Inhibitor Indicator */}
-            {sleepInhibitorActive && (
+            {/* Badges Container */}
+            {((settings.overlay_show_prevent_sleep_badge ?? true) && sleepInhibitorActive) || 
+             ((settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts) ? (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
-                    color: '#e69900' // Elegant yellow-orange hue
+                    gap: 6
                 }}>
-                    <FaShieldAlt size={settings.overlay_text_size ?? 11} />
+                    {/* Sleep Inhibitor Indicator */}
+                    {(settings.overlay_show_prevent_sleep_badge ?? true) && sleepInhibitorActive && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: '#e69900' // Elegant yellow-orange hue
+                        }}>
+                            <FaShieldAlt size={settings.overlay_text_size ?? 11} />
+                        </div>
+                    )}
+                    
+                    {/* Missed Alerts Indicator */}
+                    {(settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: '#ff4444' // Red alert hue
+                        }}>
+                            <FaBellSlash size={settings.overlay_text_size ?? 11} />
+                        </div>
+                    )}
                 </div>
+            ) : null}
+
+            {/* Separator between badges and alerts if both exist */}
+            {(((settings.overlay_show_prevent_sleep_badge ?? true) && sleepInhibitorActive) || 
+              ((settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts)) && 
+             alerts.length > 0 && (
+                <div style={{ 
+                    width: 1, 
+                    height: (settings.overlay_text_size ?? 11) + 2, 
+                    backgroundColor: '#8b8b8b', 
+                    opacity: 0.3 
+                }} />
             )}
+
             {/* Horizontal bar layout - alerts separated by dots */}
             {alerts.map((alert, index) => (
                 <div key={alert.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {index > 0 && (
                         <span style={{
                             opacity: 0.4,
-                            fontSize: 10, // Slightly larger dot for better centering visual
-                            lineHeight: 0, // Reset line height for symbols
+                            fontSize: 10,
+                            lineHeight: 0,
                             display: 'flex',
                             alignItems: 'center',
                             height: '100%',
-                            marginBottom: -1 // Half-pixel adjustment for symbol baseline bias
-                        }}>•</span> // Used smaller bullet for better centering
+                            marginBottom: -1
+                        }}>•</span>
                     )}
                     <OverlayAlertItem
                         alert={alert}
                         textSize={settings.overlay_text_size ?? 11}
                         use24h={settings.time_format_24h}
-                        hideShield={alerts.length === 1 && alert.prevent_sleep}
+                        compactMode={settings.overlay_compact_mode}
+                        showPreventSleepBadge={(settings.overlay_show_prevent_sleep_badge ?? true) && alerts.length > 1}
                     />
                 </div>
             ))}

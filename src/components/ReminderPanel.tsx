@@ -74,7 +74,9 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                marginBottom: 8
+                marginBottom: 8,
+                minWidth: 0,
+                overflow: 'hidden'
             }}
             flow-children="horizontal"
         >
@@ -90,7 +92,7 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                 />
             </div>
 
-            {/* Clickable reminder card */}
+            {/* Clickable reminder card*/}
             <Focusable
                 onActivate={onEdit}
                 onFocus={() => setCardFocused(true)}
@@ -98,62 +100,50 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                 style={{
                     flex: 1,
                     display: 'flex',
-                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '10px 12px',
+                    padding: '8px 12px',
+                    height: 72,
                     backgroundColor: cardFocused ? '#4488aa' : (isActive ? '#ffffff11' : '#ffffff08'),
                     borderRadius: 8,
                     opacity: isActive ? 1 : 0.6,
                     border: cardFocused ? '2px solid white' : '2px solid transparent',
                     transition: 'all 0.1s ease-in-out',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxSizing: 'border-box',
+                    minWidth: 0,
+                    overflow: 'hidden'
                 }}
             >
-                <div style={{ flex: 1 }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 2
-                    }}>
-                        {isActive ? <FaBell size={12} color="#44aa44" /> : <FaBellSlash size={12} color="#888888" />}
-                        <span style={{
-                            fontSize: 18,
-                            fontWeight: 'bold',
-                            color: isActive ? '#ffffff' : '#aaaaaa'
-                        }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflow: 'hidden' }}>
+                    {/* Row 1: Label */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {isActive ? <FaBell size={11} color={cardFocused ? '#88dd88' : '#44aa44'} /> : <FaBellSlash size={11} color={cardFocused ? '#cccccc' : '#888888'} />}
+                        <span style={{ fontSize: 16, fontWeight: 'bold', color: isActive ? '#ffffff' : cardFocused ? '#ffffff' : '#aaaaaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {reminder.label || `Every ${formatFrequency(reminder.frequency_minutes)}`}
                         </span>
                     </div>
-                    <div style={{ fontSize: 11, color: '#888888', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ color: '#6688aa' }}>
-                            <FaSync size={9} style={{ marginRight: 4 }} />
+
+                    {/* Row 2: Badges */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: cardFocused ? '#dddddd' : '#888888', overflow: 'hidden' }}>
+                        <span style={{ color: cardFocused ? '#aaccee' : '#6688aa', display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <FaSync size={8} />
                             {formatFrequency(reminder.frequency_minutes)}
                         </span>
-                        {!isInfinite && (
-                            <span style={{ color: '#aa88aa' }}>
-                                {triggersRemaining}/{reminder.recurrences} left
-                            </span>
-                        )}
-                        {reminder.only_while_gaming && (
-                            <span style={{ color: '#88aa88' }}>🎮 Gaming only</span>
-                        )}
-                        {reminder.subtle_mode && (
-                            <span style={{ color: '#88aa88' }}>📵 Subtle</span>
-                        )}
-                        {reminder.prevent_sleep && (
-                            <span style={{ color: '#e69900' }}>🛡️ Prevent Sleep</span>
-                        )}
+                        {!isInfinite && <span style={{ color: cardFocused ? '#ddaadd' : '#aa88aa' }}>{triggersRemaining}/{reminder.recurrences}</span>}
+                        {reminder.only_while_gaming && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>🎮</span>}
+                        {reminder.subtle_mode && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>📵</span>}
+                        {reminder.prevent_sleep && <span style={{ color: cardFocused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
                     </div>
-                    {reminder.next_trigger && isActive && triggersRemaining !== 0 && (
-                        <div style={{ fontSize: 10, color: '#666666', marginTop: 2 }}>
-                            {formatNextTrigger(reminder.next_trigger, reminder.only_while_gaming, gameRunning)}
-                        </div>
-                    )}
+
+                    {/* Row 3: Next trigger */}
+                    <div style={{ fontSize: 10, color: cardFocused ? '#bbbbbb' : '#666666' }}>
+                        {reminder.next_trigger && isActive && triggersRemaining !== 0 
+                            ? `Next: ${formatNextTrigger(reminder.next_trigger, reminder.only_while_gaming, gameRunning)}${(!gameRunning && reminder.only_while_gaming) ? ' (Paused)' : ''}`
+                            : ''}
+                    </div>
                 </div>
 
-                {/* Edit indicator */}
-                <FaChevronRight size={12} color={cardFocused ? '#ffffff' : '#666666'} />
+                <FaChevronRight size={12} color={cardFocused ? '#ffffff' : '#666666'} style={{ flexShrink: 0, marginLeft: 8 }} />
             </Focusable>
         </Focusable>
     );

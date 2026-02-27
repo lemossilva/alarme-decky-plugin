@@ -45,7 +45,9 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                marginBottom: 8
+                marginBottom: 8,
+                minWidth: 0,
+                overflow: 'hidden'
             }}
             flow-children="horizontal"
         >
@@ -61,81 +63,61 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
                 />
             </div>
 
-            {/* Clickable alarm card */}
+            {/* Clickable alarm card*/}
             <Focusable
                 onActivate={handleEdit}
-
                 onFocus={() => setCardFocused(true)}
                 onBlur={() => setCardFocused(false)}
                 style={{
                     flex: 1,
                     display: 'flex',
-                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '10px 12px',
+                    padding: '8px 12px',
+                    height: 72,
                     backgroundColor: cardFocused ? '#4488aa' : (isActive ? '#ffffff11' : '#ffffff08'),
                     borderRadius: 8,
                     opacity: isActive ? 1 : 0.6,
                     border: cardFocused ? '2px solid white' : '2px solid transparent',
                     transition: 'all 0.1s ease-in-out',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxSizing: 'border-box',
+                    minWidth: 0,
+                    overflow: 'hidden'
                 }}
             >
-                <div style={{ flex: 1 }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 2
-                    }}>
-                        {isActive ? <FaBell size={12} color="#44aa44" /> : <FaBellSlash size={12} color="#888888" />}
-                        <span style={{
-                            fontSize: 24,
-                            fontWeight: 'bold',
-                            fontFamily: 'monospace',
-                            color: isActive ? '#ffffff' : '#aaaaaa'
-                        }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflow: 'hidden' }}>
+                    {/* Row 1: Time + Recurrency */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {isActive ? <FaBell size={11} color={cardFocused ? '#88dd88' : '#44aa44'} /> : <FaBellSlash size={11} color={cardFocused ? '#cccccc' : '#888888'} />}
+                        <span style={{ fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace', color: isActive ? '#ffffff' : cardFocused ? '#ffffff' : '#aaaaaa' }}>
                             {formatTime(alarm.hour, alarm.minute, use24h)}
                         </span>
-                        <span style={{ fontSize: 13, color: '#aaaaaa', marginLeft: 4 }}>
-                            {alarm.label}
-                        </span>
+                        <span style={{ fontSize: 10, color: cardFocused ? '#dddddd' : '#888888' }}>{getRecurringText(alarm.recurring)}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: '#888888', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span>{getRecurringText(alarm.recurring)}</span>
+
+                    {/* Row 2: Label - truncated */}
+                    <div style={{ fontSize: 12, color: cardFocused ? '#ffffff' : '#aaaaaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {alarm.label}
+                    </div>
+
+                    {/* Row 3: Badges - fixed height slot */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: cardFocused ? '#dddddd' : '#888888', overflow: 'hidden' }}>
                         {alarm.sound && alarm.sound !== 'alarm.mp3' && (
-                            <span style={{ color: '#6688aa' }}>
-                                🔊 {alarm.sound.replace('.mp3', '').replace('.wav', '').replace('.ogg', '')}
-                            </span>
+                            <span style={{ color: cardFocused ? '#aaccee' : '#6688aa' }}>🔊 {alarm.sound.replace('custom:', '').replace('.mp3', '').replace('.wav', '').replace('.ogg', '')}</span>
                         )}
-                        {alarm.subtle_mode && (
-                            <span style={{ color: '#88aa88' }}>📵 Subtle</span>
-                        )}
-                        {alarm.auto_suspend && (
-                            <span style={{ color: '#aa88aa' }}>💤 Auto-suspend</span>
-                        )}
-                        {alarm.prevent_sleep && (
-                            <span style={{ color: '#e69900' }}>🛡️ Prevent Sleep</span>
-                        )}
+                        {alarm.subtle_mode && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>📵</span>}
+                        {alarm.auto_suspend && <span style={{ color: cardFocused ? '#ddaadd' : '#aa88aa' }}>💤</span>}
+                        {alarm.prevent_sleep && <span style={{ color: cardFocused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
                         {isSnoozed && alarm.snoozed_until && (
-                            <span style={{ color: '#ffaa00' }}>
-                                ⏸️ Until {formatTime(
-                                    new Date(alarm.snoozed_until * 1000).getHours(),
-                                    new Date(alarm.snoozed_until * 1000).getMinutes(),
-                                    use24h
-                                )}
-                            </span>
+                            <span style={{ color: cardFocused ? '#ffdd66' : '#ffaa00' }}>⏸️ {formatTime(new Date(alarm.snoozed_until * 1000).getHours(), new Date(alarm.snoozed_until * 1000).getMinutes(), use24h)}</span>
+                        )}
+                        {alarm.next_trigger && isActive && !isSnoozed && (
+                            <span style={{ color: cardFocused ? '#bbbbbb' : '#666666' }}>{getRelativeTime(alarm.next_trigger, use24h)}</span>
                         )}
                     </div>
-                    {alarm.next_trigger && isActive && !isSnoozed && (
-                        <div style={{ fontSize: 10, color: '#666666', marginTop: 2 }}>
-                            {getRelativeTime(alarm.next_trigger, use24h)}
-                        </div>
-                    )}
                 </div>
 
-                {/* Edit indicator */}
-                <FaChevronRight size={12} color={cardFocused ? '#ffffff' : '#666666'} />
+                <FaChevronRight size={12} color={cardFocused ? '#ffffff' : '#666666'} style={{ flexShrink: 0, marginLeft: 8 }} />
             </Focusable>
         </Focusable>
     );
