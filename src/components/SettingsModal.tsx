@@ -1057,10 +1057,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.6.2');
+    const [version, setVersion] = useState('1.6.3');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.6.2')).catch(() => setVersion('1.6.2'));
+        getVersionCall().then(v => setVersion(v || '1.6.3')).catch(() => setVersion('1.6.3'));
     }, []);
 
     const handleReset = async () => {

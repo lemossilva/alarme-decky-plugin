@@ -1382,6 +1382,10 @@ class Plugin:
                                 auto_suspend = alarm.get("auto_suspend", False)
                                 alarm_sound = alarm.get("sound", "alarm.mp3")
                                 alarm_volume = alarm.get("volume", 100)
+                                user_settings = await self._get_user_settings()
+                                default_snooze = user_settings.get("snooze_duration", 5)
+                                time_format_24h = user_settings.get("time_format_24h", True)
+                                snooze_activation_delay = user_settings.get("snooze_activation_delay", 2.0)
                                 if alarm.get("recurring") == "once":
                                     decky.logger.info(f"AlarMe: Disabling one-time alarm {alarm_id}")
                                     alarms[alarm_id]["enabled"] = False
@@ -1397,6 +1401,17 @@ class Plugin:
                                 
                                 await self._save_alarms(alarms)
                                 await self._emit_all_alarms()
+                                await decky.emit("alarme_alarm_triggered", {
+                                    "id": alarm_id,
+                                    "label": alarm.get("label", "Alarm"),
+                                    "subtle": subtle,
+                                    "sound": alarm_sound,
+                                    "volume": alarm_volume,
+                                    "snooze_duration": default_snooze,
+                                    "auto_suspend": auto_suspend,
+                                    "time_format_24h": time_format_24h,
+                                    "snooze_activation_delay": snooze_activation_delay
+                                })
                         else:
                              # No next trigger
                              pass
@@ -2981,7 +2996,7 @@ class Plugin:
                 recurring = alarm.get("recurring", "once")
                 
                 if recurring == "once":
-                    # Assumption: If 'once' alarm is active, it applies to the first valid time found
+                    #If 'once' alarm is active, it applies to the first valid time found
                     is_valid = True
                 
                 elif recurring == "daily":
@@ -3039,9 +3054,6 @@ class Plugin:
                         # Shift next_trigger forward by the duration of suspend
                         if reminder.get("next_trigger"):
                             dt = datetime.fromisoformat(reminder["next_trigger"])
-                            # Only shift if it was scheduled to happen in the future relative to start_time?
-                            # Or strictly shift everything? 
-                            # "pause" means time stops, so shift everything.
                             dt += timedelta(seconds=suspend_duration)
                             reminder["next_trigger"] = dt.isoformat()
                             modified = True

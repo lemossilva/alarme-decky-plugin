@@ -215,13 +215,16 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                         </div>
 
                         {/* Snooze time adjuster */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 8,
-                            marginBottom: 8
-                        }}>
+                        <Focusable
+                            flow-children="horizontal"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                marginBottom: 8
+                            }}
+                        >
                             <Focusable
                                 onActivate={() => adjustSnooze(-5)}
                                 style={{
@@ -284,7 +287,7 @@ function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnooze
                             >
                                 <FaPlus size={12} />
                             </Focusable>
-                        </div>
+                        </Focusable>
 
                         {/* Snooze button */}
                         <div style={{ display: 'flex', justifyContent: 'center' }}>
