@@ -5,8 +5,15 @@ import type { SleepInhibitorStatus } from '../types';
 // Backend callable
 const getSleepInhibitorStatus = callable<[], SleepInhibitorStatus>('get_sleep_inhibitor_status');
 
+const DEFAULT_STATUS: SleepInhibitorStatus = {
+    active: false,
+    items: [],
+    screensaver_mode: 'off',
+    screensaver_dim_opacity: 0.92
+};
+
 export function useSleepInhibitor() {
-    const [status, setStatus] = useState<SleepInhibitorStatus>({ active: false, items: [] });
+    const [status, setStatus] = useState<SleepInhibitorStatus>(DEFAULT_STATUS);
 
     // Load initial status
     const loadStatus = useCallback(async () => {
@@ -35,6 +42,8 @@ export function useSleepInhibitor() {
         isActive: status.active,
         reason: status.reason,
         items: status.items || [],
+        screensaverMode: status.screensaver_mode || 'off',
+        screensaverDimOpacity: status.screensaver_dim_opacity ?? 0.92,
         refresh: loadStatus
     };
 }

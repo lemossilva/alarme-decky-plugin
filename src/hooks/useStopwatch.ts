@@ -8,7 +8,7 @@ const pauseCall = callable<[], StopwatchState>('stopwatch_pause');
 const resetCall = callable<[], StopwatchState>('stopwatch_reset');
 const lapCall = callable<[], StopwatchState & { lap_limit_reached?: boolean }>('stopwatch_lap');
 const getLapsTextCall = callable<[], string>('stopwatch_get_laps_text');
-const setPreventSleepCall = callable<[prevent_sleep: boolean], StopwatchState>('stopwatch_set_prevent_sleep');
+const setPreventSleepCall = callable<[prevent_sleep: boolean, screensaver_mode?: string], StopwatchState>('stopwatch_set_prevent_sleep');
 
 interface UseStopwatchReturn {
     status: StopwatchState['status'];
@@ -16,6 +16,7 @@ interface UseStopwatchReturn {
     currentLapElapsed: number;
     laps: StopwatchLap[];
     preventSleep: boolean;
+    screensaverMode: 'off' | 'black' | 'dim';
     loading: boolean;
     autoReset: boolean;
     lapLimitReached: boolean;
@@ -24,7 +25,7 @@ interface UseStopwatchReturn {
     reset: () => Promise<void>;
     lap: () => Promise<void>;
     copyLaps: () => Promise<string>;
-    setPreventSleep: (value: boolean) => Promise<void>;
+    setPreventSleep: (value: boolean, screensaverMode?: 'off' | 'black' | 'dim') => Promise<void>;
 }
 
 export function useStopwatch(): UseStopwatchReturn {
@@ -171,9 +172,9 @@ export function useStopwatch(): UseStopwatchReturn {
         }
     }, []);
 
-    const setPreventSleep = useCallback(async (value: boolean) => {
+    const setPreventSleep = useCallback(async (value: boolean, screensaverMode: 'off' | 'black' | 'dim' = 'off') => {
         try {
-            const newState = await setPreventSleepCall(value);
+            const newState = await setPreventSleepCall(value, screensaverMode);
             if (mountedRef.current) {
                 setState(newState);
             }
@@ -197,6 +198,7 @@ export function useStopwatch(): UseStopwatchReturn {
         currentLapElapsed,
         laps: state.laps || [],
         preventSleep: state.prevent_sleep || false,
+        screensaverMode: (state.screensaver_mode as 'off' | 'black' | 'dim') || 'off',
         loading,
         autoReset,
         lapLimitReached,

@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.6.3-green)
+![Version](https://img.shields.io/badge/release-v1.7.0-green)
 ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://plugins.deckbrew.xyz/plugins?query=AlarMe&query=$[:1].downloads&suffix=%20downloads&label=Decky%20Store&color=blue)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
@@ -70,8 +70,17 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ### 🎮 In-Game Overlay
 - **Easy check** - Quickly see your alarms and timers
-- **Native Integration** - Fits seamlessly into SteamOS UI
+- **Native Integration** - Fits seamlessly into SteamOS UI and renders above game content
 - **Non-Intrusive** - Horizontal micro-alerts that won't block game UI
+- **Pixel shift** - OLED burn-in protection that slowly orbits the overlay position
+
+### 🌙 Screensaver Mode
+- **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, or stopwatch alongside Prevent Sleep
+- **Full Black or Dim Screen** - Choose between a fully opaque black screen or a configurable dim overlay
+- **Idle timer** - Configurable delay before the screensaver activates after your last input
+- **Gamepad & touch dismiss** - Any button press or screen tap temporarily wakes the screen
+- **Extra info line** - During screensaver, a second line shows the current time, date, and battery percentage (individually toggleable)
+- **Overlay visibility control** - Choose whether the alert overlay stays visible above the dimmed screen
 
 > **Note**: The overlay appears when you open the Quick Access Menu (•••) or Steam Menu. It uses the empty black bar space reserved by SteamOS to display your upcoming alarms and timers without obstructing any interface elements.
 

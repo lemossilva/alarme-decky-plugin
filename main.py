@@ -85,7 +85,23 @@ DEFAULT_SETTINGS = {
     "presets_enabled": True,
     "presets_max_visible": 5,
     # Tab Order
-    "tab_order": ["timers", "alarms", "pomodoro", "reminders", "stopwatch"]
+    "tab_order": ["timers", "alarms", "pomodoro", "reminders", "stopwatch"],
+    # Screensaver settings
+    "screensaver_mode": "off",           # "off" | "black" | "dim" — global default
+    "screensaver_dim_opacity": 0.92,     # opacity of the dim overlay (0.0–1.0)
+    "pomodoro_screensaver_mode": "off",  # pomodoro screensaver mode
+    # Screensaver timer
+    "screensaver_idle_seconds": 15,      # seconds idle before screensaver kicks in
+    # Overlay during screensaver
+    "overlay_during_screensaver": True,  # show GameOverlay above screensaver
+    # Overlay extra info during screensaver
+    "overlay_screensaver_show_clock": True,
+    "overlay_screensaver_show_date": True,
+    "overlay_screensaver_show_battery": True,
+    # Pixel shift for OLED burn-in prevention
+    "pixel_shift_enabled": True,
+    "pixel_shift_range": 3,          # max pixel displacement (1-10)
+    "pixel_shift_interval_seconds": 60  # seconds between shifts
 }
 
 # Default presets
@@ -174,18 +190,33 @@ class Plugin:
 
     # ==================== SLEEP INHIBITOR METHODS ====================
 
+    def _compute_effective_screensaver_mode(self, items_with_screensaver: list) -> str:
+        """Compute the effective screensaver mode from a list of mode strings.
+        'black' wins over 'dim'. Returns 'off' if no items."""
+        if not items_with_screensaver:
+            return "off"
+        modes = set(items_with_screensaver)
+        if "black" in modes:
+            return "black"
+        if "dim" in modes:
+            return "dim"
+        return "off"
+
     async def _update_sleep_inhibitor(self):
         """Update the sleep inhibitor based on per-item prevent_sleep flags."""
         should_inhibit = False
         reason_parts = []
         inhibiting_items = []
+        screensaver_modes = []
         
         # Check timers with prevent_sleep=True
         timers = await self._get_timers()
         for timer_id, timer in timers.items():
             if not timer.get("paused", False) and timer.get("prevent_sleep", False):
                 should_inhibit = True
-                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer")})
+                mode = timer.get("screensaver_mode", "off")
+                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": mode})
+                screensaver_modes.append(mode)
         if inhibiting_items:
             reason_parts.append(f"{len(inhibiting_items)} timer(s)")
         
@@ -194,8 +225,10 @@ class Plugin:
         pomodoro = await self._get_pomodoro_state()
         if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
             should_inhibit = True
+            mode = user_settings.get("pomodoro_screensaver_mode", "off")
             reason_parts.append("Pomodoro")
-            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Pomodoro"})
+            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Pomodoro", "screensaver_mode": mode})
+            screensaver_modes.append(mode)
         
         # Check alarms with prevent_sleep=True (enabled and upcoming within per-alarm window)
         alarms = await self._get_alarms()
@@ -211,7 +244,9 @@ class Plugin:
             if next_trigger and 0 < (next_trigger - now) <= window_seconds:
                 should_inhibit = True
                 alarm_count += 1
-                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm")})
+                mode = alarm.get("screensaver_mode", "off")
+                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": mode})
+                screensaver_modes.append(mode)
         if alarm_count > 0:
             reason_parts.append(f"{alarm_count} alarm(s)")
         
@@ -222,7 +257,9 @@ class Plugin:
             if reminder.get("enabled", False) and reminder.get("prevent_sleep", False):
                 should_inhibit = True
                 reminder_count += 1
-                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder")})
+                mode = reminder.get("screensaver_mode", "off")
+                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": mode})
+                screensaver_modes.append(mode)
         if reminder_count > 0:
             reason_parts.append(f"{reminder_count} reminder(s)")
         
@@ -230,16 +267,39 @@ class Plugin:
         stopwatch = await self._get_stopwatch_state()
         if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
             should_inhibit = True
+            mode = stopwatch.get("screensaver_mode", "off")
             reason_parts.append("Stopwatch")
-            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch"})
+            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": mode})
+            screensaver_modes.append(mode)
+        
+        effective_mode = self._compute_effective_screensaver_mode(screensaver_modes)
+        dim_opacity = user_settings.get("screensaver_dim_opacity", 0.92)
+        idle_seconds = user_settings.get("screensaver_idle_seconds", 15)
+        overlay_during = user_settings.get("overlay_during_screensaver", True)
         
         if should_inhibit:
             reason = "AlarMe: " + ", ".join(reason_parts) + " active"
             await self._acquire_sleep_inhibitor(reason)
-            await decky.emit("alarme_sleep_inhibitor_updated", {"active": True, "reason": reason, "items": inhibiting_items})
+            await decky.emit("alarme_sleep_inhibitor_updated", {
+                "active": True,
+                "reason": reason,
+                "items": inhibiting_items,
+                "screensaver_mode": effective_mode,
+                "screensaver_dim_opacity": dim_opacity,
+                "screensaver_idle_seconds": idle_seconds,
+                "overlay_during_screensaver": overlay_during
+            })
         else:
             await self._release_sleep_inhibitor()
-            await decky.emit("alarme_sleep_inhibitor_updated", {"active": False, "reason": "", "items": []})
+            await decky.emit("alarme_sleep_inhibitor_updated", {
+                "active": False,
+                "reason": "",
+                "items": [],
+                "screensaver_mode": "off",
+                "screensaver_dim_opacity": dim_opacity,
+                "screensaver_idle_seconds": idle_seconds,
+                "overlay_during_screensaver": overlay_during
+            })
 
     async def _jiggler_loop(self):
         """Simulate activity periodically to prevent sleep using uinput keyboard events."""
@@ -328,7 +388,13 @@ class Plugin:
                 self._sleep_inhibitor_active = True
                 self._jiggler_task = self.loop.create_task(self._jiggler_loop())
                 decky.logger.info(f"AlarMe: Sleep inhibitor active - {reason}")
-                await decky.emit("alarme_sleep_inhibitor_updated", {"active": True, "reason": reason})
+                user_settings = await self._get_user_settings()
+                await decky.emit("alarme_sleep_inhibitor_updated", {
+                    "active": True,
+                    "reason": reason,
+                    "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+                    "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92)
+                })
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to acquire sleep inhibitor: {e}")
 
@@ -356,7 +422,11 @@ class Plugin:
                 
             self._sleep_inhibitor_active = False
             decky.logger.info("AlarMe: Sleep inhibitor released")
-            await decky.emit("alarme_sleep_inhibitor_updated", {"active": False})
+            await decky.emit("alarme_sleep_inhibitor_updated", {
+                "active": False,
+                "screensaver_mode": "off",
+                "screensaver_dim_opacity": 0.92
+            })
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to release sleep inhibitor: {e}")
             # Force cleanup
@@ -372,17 +442,22 @@ class Plugin:
     async def get_sleep_inhibitor_status(self) -> dict:
         """Get current sleep inhibitor status."""
         inhibiting_items = []
+        screensaver_modes = []
         
         # Collect all items that are preventing sleep
         timers = await self._get_timers()
         for timer_id, timer in timers.items():
             if not timer.get("paused", False) and timer.get("prevent_sleep", False):
-                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer")})
+                mode = timer.get("screensaver_mode", "off")
+                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": mode})
+                screensaver_modes.append(mode)
         
         user_settings = await self._get_user_settings()
         pomodoro = await self._get_pomodoro_state()
         if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
-            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Focus Session"})
+            mode = user_settings.get("pomodoro_screensaver_mode", "off")
+            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Focus Session", "screensaver_mode": mode})
+            screensaver_modes.append(mode)
         
         alarms = await self._get_alarms()
         now = time.time()
@@ -393,20 +468,30 @@ class Plugin:
             window_seconds = window_minutes * 60
             next_trigger = self._calculate_next_trigger(alarm)
             if next_trigger and 0 < (next_trigger - now) <= window_seconds:
-                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm")})
+                mode = alarm.get("screensaver_mode", "off")
+                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": mode})
+                screensaver_modes.append(mode)
         
         reminders = await self._get_reminders()
         for reminder_id, reminder in reminders.items():
             if reminder.get("enabled", False) and reminder.get("prevent_sleep", False):
-                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder")})
+                mode = reminder.get("screensaver_mode", "off")
+                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": mode})
+                screensaver_modes.append(mode)
         
         stopwatch = await self._get_stopwatch_state()
         if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
-            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch"})
+            mode = stopwatch.get("screensaver_mode", "off")
+            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": mode})
+            screensaver_modes.append(mode)
+        
+        effective_mode = self._compute_effective_screensaver_mode(screensaver_modes)
         
         return {
             "active": self._sleep_inhibitor_active,
-            "items": inhibiting_items
+            "items": inhibiting_items,
+            "screensaver_mode": effective_mode,
+            "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92)
         }
 
     async def disable_all_sleep_inhibitors(self) -> bool:
@@ -450,6 +535,35 @@ class Plugin:
         
         return True
 
+    async def set_screensaver_mode(self, mode: str, dim_opacity: float = None) -> dict:
+        """Update screensaver mode and optionally dim opacity. Emits update if inhibitor is active."""
+        if mode not in ("off", "black", "dim"):
+            return {"success": False, "error": "Invalid mode"}
+        
+        user_settings = await self._get_user_settings()
+        user_settings["screensaver_mode"] = mode
+        if dim_opacity is not None:
+            user_settings["screensaver_dim_opacity"] = max(0.0, min(1.0, dim_opacity))
+        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, user_settings)
+        await self.settings_commit()
+
+        # If inhibitor is currently active, emit immediately so overlay updates live
+        if self._sleep_inhibitor_active:
+            # Recompute effective mode from all active items
+            await self._update_sleep_inhibitor()
+
+        return {"success": True, "screensaver_mode": mode}
+
+    async def get_screensaver_state(self) -> dict:
+        """Get the current screensaver state for frontend initialization."""
+        user_settings = await self._get_user_settings()
+        return {
+            "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+            "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92),
+            "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
+            "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True)
+        }
+
     # ==================== TIMER METHODS ====================
 
     def _format_timer_label(self, seconds: int) -> str:
@@ -468,7 +582,8 @@ class Plugin:
     async def create_timer(self, seconds: int, label: str = "",
                           subtle_mode: bool = None,
                           auto_suspend: bool = None,
-                          prevent_sleep: bool = None) -> str:
+                          prevent_sleep: bool = None,
+                          screensaver_mode: str = None) -> str:
         """Create a new countdown timer."""
         # Check limit
         timers = await self._get_timers()
@@ -486,6 +601,8 @@ class Plugin:
             auto_suspend = user_settings.get("timer_auto_suspend", False)
         if prevent_sleep is None:
             prevent_sleep = False
+        if screensaver_mode is None:
+            screensaver_mode = user_settings.get("screensaver_mode", "off")
         if auto_suspend:
             subtle_mode = True
         
@@ -501,7 +618,8 @@ class Plugin:
             "created_at": time.time(),
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
-            "prevent_sleep": prevent_sleep
+            "prevent_sleep": prevent_sleep,
+            "screensaver_mode": screensaver_mode
         }
         
         # Save to settings
@@ -510,7 +628,7 @@ class Plugin:
         await self._save_timers(timers)
         
         # Save to recent timers (for quick access)
-        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend, prevent_sleep)
+        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend, prevent_sleep, screensaver_mode)
         
         # Start the timer task
         self.timer_tasks[timer_id] = self.loop.create_task(
@@ -719,7 +837,7 @@ class Plugin:
         await self.settings_commit()
         return True
 
-    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False, prevent_sleep: bool = False):
+    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False, prevent_sleep: bool = False, screensaver_mode: str = "off"):
         """Add a timer to the recent timers list (max 5, dedup by seconds+label+modes)."""
         recent = await self.get_recent_timers()
         
@@ -729,16 +847,18 @@ class Plugin:
             "label": label or f"{seconds // 60} min timer",
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
-            "prevent_sleep": prevent_sleep
+            "prevent_sleep": prevent_sleep,
+            "screensaver_mode": screensaver_mode
         }
         
-        # Remove duplicates (same seconds, label, subtle_mode, auto_suspend, and prevent_sleep)
+        # Remove duplicates (same seconds, label, subtle_mode, auto_suspend, prevent_sleep, and screensaver_mode)
         recent = [r for r in recent if not (
             r.get("seconds") == seconds and 
             r.get("label") == new_entry["label"] and
             r.get("subtle_mode", False) == subtle_mode and
             r.get("auto_suspend", False) == auto_suspend and
-            r.get("prevent_sleep", False) == prevent_sleep
+            r.get("prevent_sleep", False) == prevent_sleep and
+            r.get("screensaver_mode", "off") == screensaver_mode
         )]
         
         # Add to front
@@ -757,7 +877,8 @@ class Plugin:
                           volume: int = 100, subtle_mode: bool = False, 
                           auto_suspend: bool = False,
                           prevent_sleep: bool = False,
-                          prevent_sleep_window: int = 60) -> str:
+                          prevent_sleep_window: int = 60,
+                          screensaver_mode: str = "off") -> str:
         """
         Create a new alarm.
         recurring: 'once', 'daily', 'weekdays', 'weekends', or comma-separated days (0-6, 0=Monday)
@@ -800,7 +921,8 @@ class Plugin:
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
             "prevent_sleep": prevent_sleep,
-            "prevent_sleep_window": prevent_sleep_window
+            "prevent_sleep_window": prevent_sleep_window,
+            "screensaver_mode": screensaver_mode
         }
         
         alarms = await self._get_alarms()
@@ -849,7 +971,8 @@ class Plugin:
                           subtle_mode: bool = False,
                           auto_suspend: bool = False,
                           prevent_sleep: bool = False,
-                          prevent_sleep_window: int = 60) -> bool:
+                          prevent_sleep_window: int = 60,
+                          screensaver_mode: str = "off") -> bool:
         """Update an existing alarm's settings."""
         alarms = await self._get_alarms()
         if alarm_id in alarms:
@@ -874,6 +997,7 @@ class Plugin:
             alarm["auto_suspend"] = auto_suspend
             alarm["prevent_sleep"] = prevent_sleep
             alarm["prevent_sleep_window"] = prevent_sleep_window
+            alarm["screensaver_mode"] = screensaver_mode
             # Re-enable alarm when edited (user expects it to be active)
             alarm["enabled"] = True
             # Clear snooze and last_triggered when alarm time changes
@@ -2031,16 +2155,17 @@ class Plugin:
         result["lap_limit_reached"] = lap_limit_reached
         return result
 
-    async def stopwatch_set_prevent_sleep(self, prevent_sleep: bool) -> dict:
-        """Set prevent_sleep option for stopwatch."""
+    async def stopwatch_set_prevent_sleep(self, prevent_sleep: bool, screensaver_mode: str = "off") -> dict:
+        """Set prevent_sleep and screensaver_mode options for stopwatch."""
         state = await self._get_stopwatch_state()
         state["prevent_sleep"] = prevent_sleep
+        state["screensaver_mode"] = screensaver_mode
         await self._save_stopwatch_state(state)
         await self._update_sleep_inhibitor()
         
         await decky.emit("alarme_stopwatch_updated", state)
         
-        decky.logger.info(f"AlarMe: Stopwatch prevent_sleep set to {prevent_sleep}")
+        decky.logger.info(f"AlarMe: Stopwatch prevent_sleep set to {prevent_sleep}, screensaver_mode={screensaver_mode}")
         return await self.stopwatch_get_state()
 
     async def stopwatch_get_laps_text(self) -> str:
@@ -2094,7 +2219,8 @@ class Plugin:
 
     async def save_preset(self, seconds: int, label: str, 
                           subtle_mode: bool = False, auto_suspend: bool = False,
-                          prevent_sleep: bool = False) -> dict:
+                          prevent_sleep: bool = False,
+                          screensaver_mode: str = "off") -> dict:
         """Save a new timer preset with all options. Overwrites oldest if max is reached.
         Moves existing identical presets to the top instead of duplicating."""
         user_settings = await self._get_user_settings()
@@ -2115,7 +2241,8 @@ class Plugin:
                 p.get("label") == label and 
                 bool(p.get("subtle_mode", False)) == bool(subtle_mode) and 
                 bool(p.get("auto_suspend", False)) == bool(auto_suspend) and
-                bool(p.get("prevent_sleep", False)) == bool(prevent_sleep)):
+                bool(p.get("prevent_sleep", False)) == bool(prevent_sleep) and
+                p.get("screensaver_mode", "off") == screensaver_mode):
                 existing_idx = i
                 preset_id = p.get("id")
                 break
@@ -2129,7 +2256,8 @@ class Plugin:
             "label": label,
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
-            "prevent_sleep": prevent_sleep
+            "prevent_sleep": prevent_sleep,
+            "screensaver_mode": screensaver_mode
         }
         
         # Insert at the beginning (index 0) so the newest is always visible
@@ -2160,7 +2288,8 @@ class Plugin:
             label=timer.get("label", "Timer"),
             subtle_mode=timer.get("subtle_mode", False),
             auto_suspend=timer.get("auto_suspend", False),
-            prevent_sleep=timer.get("prevent_sleep", False)
+            prevent_sleep=timer.get("prevent_sleep", False),
+            screensaver_mode=timer.get("screensaver_mode", "off")
         )
 
     async def remove_preset(self, preset_id: str) -> bool:
@@ -2207,8 +2336,8 @@ class Plugin:
                 await self.settings_setSetting(SETTINGS_KEY_PRESETS, presets)
                 await decky.emit("alarme_presets_updated", presets)
         
-        # Update sleep inhibitor if prevent_sleep settings changed
-        if "pomodoro_prevent_sleep" in new_settings or "timer_prevent_sleep" in new_settings:
+        # Update sleep inhibitor if prevent_sleep or screensaver settings changed
+        if any(k in new_settings for k in ("pomodoro_prevent_sleep", "timer_prevent_sleep", "screensaver_mode", "screensaver_dim_opacity", "pomodoro_screensaver_mode")):
             await self._update_sleep_inhibitor()
                 
         await self.settings_commit()
@@ -2650,7 +2779,8 @@ class Plugin:
                              only_while_gaming: bool = False, reset_on_game_start: bool = False,
                              sound: str = "alarm.mp3", volume: int = 100,
                              subtle_mode: bool = False,
-                             prevent_sleep: bool = False) -> dict:
+                             prevent_sleep: bool = False,
+                             screensaver_mode: str = "off") -> dict:
         """
         Create a new periodic reminder.
         frequency_minutes: interval between reminders (15-180)
@@ -2697,6 +2827,7 @@ class Plugin:
             "volume": volume,
             "subtle_mode": subtle_mode,
             "prevent_sleep": prevent_sleep,
+            "screensaver_mode": screensaver_mode,
             "enabled": True,
             "created_at": time.time(),
             "next_trigger": next_trigger,
@@ -2721,7 +2852,8 @@ class Plugin:
                              reset_on_game_start: bool = False,
                              sound: str = "alarm.mp3", volume: int = 100,
                              subtle_mode: bool = False,
-                             prevent_sleep: bool = False) -> dict:
+                             prevent_sleep: bool = False,
+                             screensaver_mode: str = "off") -> dict:
         """Update an existing reminder's settings."""
         reminders = await self._get_reminders()
         if reminder_id not in reminders:
@@ -2738,6 +2870,7 @@ class Plugin:
         reminder["volume"] = volume
         reminder["subtle_mode"] = subtle_mode
         reminder["prevent_sleep"] = prevent_sleep
+        reminder["screensaver_mode"] = screensaver_mode
         
         #Force disable prevent_sleep if only_while_gaming is active
         if only_while_gaming:

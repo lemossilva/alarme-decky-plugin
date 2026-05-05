@@ -167,9 +167,10 @@ export function ReminderPanel() {
                 sound: string,
                 volume: number,
                 subtleMode: boolean,
-                preventSleep: boolean
+                preventSleep: boolean,
+                screensaverMode: string
             ) => {
-                await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep);
+                await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode);
             },
             getSounds,
             use24h,
@@ -190,9 +191,10 @@ export function ReminderPanel() {
                 sound: string,
                 volume: number,
                 subtleMode: boolean,
-                preventSleep: boolean
+                preventSleep: boolean,
+                screensaverMode: string
             ) => {
-                await updateReminder(reminder.id, label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep);
+                await updateReminder(reminder.id, label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode);
             },
             onDelete: async () => {
                 await deleteReminder(reminder.id);

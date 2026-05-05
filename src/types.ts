@@ -10,6 +10,7 @@ export interface Timer {
     subtle_mode?: boolean;
     auto_suspend?: boolean;
     prevent_sleep?: boolean;
+    screensaver_mode?: 'off' | 'black' | 'dim';
     remaining?: number;
     paused?: boolean;
     paused_remaining?: number;
@@ -34,6 +35,7 @@ export interface Alarm {
     auto_suspend?: boolean;   // per-alarm auto suspend override
     prevent_sleep?: boolean;  // per-alarm prevent sleep override
     prevent_sleep_window?: number; // minutes before alarm to start preventing sleep
+    screensaver_mode?: 'off' | 'black' | 'dim';
 }
 
 // Sound file types
@@ -50,6 +52,7 @@ export interface Preset {
     subtle_mode?: boolean;
     auto_suspend?: boolean;
     prevent_sleep?: boolean;
+    screensaver_mode?: 'off' | 'black' | 'dim';
 }
 
 // Pomodoro types
@@ -67,6 +70,7 @@ export interface PomodoroState {
     volume?: number;
     subtle_mode?: boolean;
     prevent_sleep?: boolean;
+    screensaver_mode?: 'off' | 'black' | 'dim';
     stats?: PomodoroStats;
 }
 
@@ -104,6 +108,7 @@ export interface Reminder {
     volume: number;
     subtle_mode: boolean;
     prevent_sleep?: boolean;    // per-reminder prevent sleep
+    screensaver_mode?: 'off' | 'black' | 'dim';
     enabled: boolean;
     created_at: number;
     // Runtime state (read-only from backend)
@@ -178,6 +183,19 @@ export interface UserSettings {
     presets_max_visible: number;
     // Tab Order
     tab_order?: string[];
+    // Screensaver settings
+    screensaver_mode: 'off' | 'black' | 'dim';
+    screensaver_dim_opacity: number;
+    pomodoro_screensaver_mode: 'off' | 'black' | 'dim';
+    screensaver_idle_seconds: number;
+    overlay_during_screensaver: boolean;
+    overlay_screensaver_show_clock?: boolean;
+    overlay_screensaver_show_date?: boolean;
+    overlay_screensaver_show_battery?: boolean;
+    // Pixel shift
+    pixel_shift_enabled?: boolean;
+    pixel_shift_range?: number;
+    pixel_shift_interval_seconds?: number;
     // Legacy/deprecated (kept for migration)
     overlay_position_steamui?: OverlayPosition;
     overlay_pixel_shift?: boolean;
@@ -189,17 +207,22 @@ export interface UserSettings {
     alarm_sound?: string;
 }
 
-// Sleep inhibitor status
+    // Sleep inhibitor status
 export interface SleepInhibitorItem {
     type: string;
     id: string;
     label: string;
+    screensaver_mode?: 'off' | 'black' | 'dim';
 }
 
 export interface SleepInhibitorStatus {
     active: boolean;
     reason?: string;
     items?: SleepInhibitorItem[];
+    screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_dim_opacity?: number;
+    screensaver_idle_seconds?: number;
+    overlay_during_screensaver?: boolean;
 }
 
 export interface MissedItem {
@@ -286,6 +309,7 @@ export interface StopwatchState {
     elapsed_ms: number;
     laps: StopwatchLap[];
     prevent_sleep?: boolean;
+    screensaver_mode?: 'off' | 'black' | 'dim';
 }
 
 // Tab types

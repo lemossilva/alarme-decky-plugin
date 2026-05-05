@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash } from "react-icons/fa";
+import { useMemo, useState, useEffect } from "react";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash, FaBatteryFull } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
-import { useSleepInhibitor } from "../hooks/useSleepInhibitor";
+import { useScreensaver } from "../hooks/useScreensaver";
 import { useMissedAlerts } from "../hooks/useMissedAlerts";
 import { formatDuration, formatTime } from "../utils/time";
+import { usePixelShift } from "../hooks/usePixelShift";
 import type { OverlayAlert } from "../types";
 
 // Category icon mapping
@@ -151,8 +152,35 @@ export const GameOverlay = () => {
     const { settings } = useSettings();
     const isGameRunning = useGameStatus();
     const alerts = useOverlayData(settings, isGameRunning);
-    const { isActive: sleepInhibitorActive } = useSleepInhibitor();
+    const { inhibitorActive, overlayVisible: screensaverVisible } = useScreensaver();
     const { hasNewMissedAlerts } = useMissedAlerts();
+    const hasContent = alerts.length > 0 || inhibitorActive || hasNewMissedAlerts;
+    const overlayActive = settings.overlay_enabled && hasContent;
+    const { x: pxX, y: pxY } = usePixelShift(overlayActive);
+    const [batteryPct, setBatteryPct] = useState<number | null>(null);
+
+    const showBattery = settings.overlay_screensaver_show_battery ?? true;
+    const batteryActive = screensaverVisible && showBattery;
+
+    useEffect(() => {
+        if (!batteryActive) return;
+        let interval: ReturnType<typeof setInterval>;
+        let cancelled = false;
+        const update = async () => {
+            try {
+                if ('getBattery' in navigator) {
+                    const battery = await (navigator as any).getBattery();
+                    if (!cancelled) setBatteryPct(Math.round(battery.level * 100));
+                    battery.addEventListener('levelchange', () => {
+                        if (!cancelled) setBatteryPct(Math.round(battery.level * 100));
+                    });
+                }
+            } catch {}
+        };
+        update();
+        interval = setInterval(update, 30000);
+        return () => { cancelled = true; clearInterval(interval); };
+    }, [batteryActive]);
 
     const positionStyle = useMemo(() => {
         const isCustom = settings.overlay_position === 'custom';
@@ -166,99 +194,145 @@ export const GameOverlay = () => {
         return DEFAULT_POSITION_STYLE;
     }, [settings.overlay_position, settings.overlay_custom_x, settings.overlay_custom_y]);
 
-    // Don't render if disabled or (no alerts AND no sleep inhibitor AND no missed alerts)
-    if (!settings.overlay_enabled || (alerts.length === 0 && !sleepInhibitorActive && !hasNewMissedAlerts)) {
+    if (!settings.overlay_enabled || !hasContent) {
         return null;
     }
 
-    // Display mode filtering
     const displayMode = settings.overlay_display_mode || 'always';
     if (displayMode === 'gaming_only' && !isGameRunning) {
         return null;
     }
 
+    const overlayDuring = settings.overlay_during_screensaver ?? true;
+    const showClock = settings.overlay_screensaver_show_clock ?? true;
+    const showDate = settings.overlay_screensaver_show_date ?? true;
+    const showExtra = screensaverVisible && (showClock || showDate || showBattery || batteryPct !== null);
+    const now = new Date();
+
     return (
         <div style={{
             position: 'fixed',
             ...positionStyle,
-            zIndex: 7100,
+            zIndex: overlayDuring ? 2147483647 : 2147483645,
             pointerEvents: 'none',
             opacity: settings.overlay_opacity ?? 0.85,
-            color: '#8b8b8b',  // Match SteamOS muted text color
+            color: '#8b8b8b',
             fontFamily: 'system-ui, -apple-system, sans-serif',
             userSelect: 'none',
             display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12
+            flexDirection: showExtra ? 'column' : 'row',
+            alignItems: showExtra ? 'flex-start' : 'center',
+            gap: showExtra ? 2 : 12,
+            transform: `translate(${pxX}px, ${pxY}px)`,
+            transition: 'transform 2s ease'
         }}>
-            {/* Badges Container */}
-            {((settings.overlay_show_prevent_sleep_badge ?? true) && sleepInhibitorActive) || 
-             ((settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts) ? (
+            {/* Main line */}
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {/* Badges Container */}
+                {((settings.overlay_show_prevent_sleep_badge ?? true) && inhibitorActive) || 
+                 ((settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts) ? (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                    }}>
+                        {(settings.overlay_show_prevent_sleep_badge ?? true) && inhibitorActive && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#e69900'
+                            }}>
+                                <FaShieldAlt size={settings.overlay_text_size ?? 11} />
+                            </div>
+                        )}
+                        
+                        {(settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#ff4444'
+                            }}>
+                                <FaBellSlash size={settings.overlay_text_size ?? 11} />
+                            </div>
+                        )}
+                    </div>
+                ) : null}
+
+                {/* Separator between badges and alerts if both exist */}
+                {(((settings.overlay_show_prevent_sleep_badge ?? true) && inhibitorActive) || 
+                  ((settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts)) && 
+                 alerts.length > 0 && (
+                    <div style={{ 
+                        width: 1, 
+                        height: (settings.overlay_text_size ?? 11) + 2, 
+                        backgroundColor: '#8b8b8b', 
+                        opacity: 0.3 
+                    }} />
+                )}
+
+                {/* Horizontal bar layout - alerts separated by dots */}
+                {alerts.map((alert, index) => (
+                    <div key={alert.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {index > 0 && (
+                            <span style={{
+                                opacity: 0.4,
+                                fontSize: 10,
+                                lineHeight: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                height: '100%',
+                                marginBottom: -1
+                            }}>·</span>
+                        )}
+                        <OverlayAlertItem
+                            alert={alert}
+                            textSize={settings.overlay_text_size ?? 11}
+                            use24h={settings.time_format_24h}
+                            compactMode={settings.overlay_compact_mode}
+                            showPreventSleepBadge={(settings.overlay_show_prevent_sleep_badge ?? true) && alerts.length > 1}
+                        />
+                    </div>
+                ))}
+            </div>
+
+            {/* Second line: extra info during screensaver */}
+            {showExtra && (
                 <div style={{
                     display: 'flex',
+                    flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 6
+                    gap: 10,
+                    fontSize: settings.overlay_text_size ?? 11,
+                    fontWeight: 600,
+                    opacity: 0.85
                 }}>
-                    {/* Sleep Inhibitor Indicator */}
-                    {(settings.overlay_show_prevent_sleep_badge ?? true) && sleepInhibitorActive && (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            color: '#e69900' // Elegant yellow-orange hue
-                        }}>
-                            <FaShieldAlt size={settings.overlay_text_size ?? 11} />
-                        </div>
-                    )}
-                    
-                    {/* Missed Alerts Indicator */}
-                    {(settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts && (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            color: '#ff4444' // Red alert hue
-                        }}>
-                            <FaBellSlash size={settings.overlay_text_size ?? 11} />
-                        </div>
-                    )}
-                </div>
-            ) : null}
-
-            {/* Separator between badges and alerts if both exist */}
-            {(((settings.overlay_show_prevent_sleep_badge ?? true) && sleepInhibitorActive) || 
-              ((settings.overlay_show_missed_badge ?? true) && hasNewMissedAlerts)) && 
-             alerts.length > 0 && (
-                <div style={{ 
-                    width: 1, 
-                    height: (settings.overlay_text_size ?? 11) + 2, 
-                    backgroundColor: '#8b8b8b', 
-                    opacity: 0.3 
-                }} />
-            )}
-
-            {/* Horizontal bar layout - alerts separated by dots */}
-            {alerts.map((alert, index) => (
-                <div key={alert.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {index > 0 && (
+                    {showClock && (
                         <span style={{
-                            opacity: 0.4,
-                            fontSize: 10,
-                            lineHeight: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            height: '100%',
-                            marginBottom: -1
-                        }}>•</span>
+                            fontFamily: 'monospace',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {formatTime(now.getHours(), now.getMinutes(), settings.time_format_24h)}
+                        </span>
                     )}
-                    <OverlayAlertItem
-                        alert={alert}
-                        textSize={settings.overlay_text_size ?? 11}
-                        use24h={settings.time_format_24h}
-                        compactMode={settings.overlay_compact_mode}
-                        showPreventSleepBadge={(settings.overlay_show_prevent_sleep_badge ?? true) && alerts.length > 1}
-                    />
+                    {showClock && showDate && (
+                        <span style={{ opacity: 0.3 }}>·</span>
+                    )}
+                    {showDate && (
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                            {now.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
+                    )}
+                    {(showClock || showDate) && showBattery && batteryPct !== null && (
+                        <span style={{ opacity: 0.3 }}>·</span>
+                    )}
+                    {showBattery && batteryPct !== null && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+                            <FaBatteryFull size={(settings.overlay_text_size ?? 11) - 1} />
+                            {batteryPct}%
+                        </span>
+                    )}
                 </div>
-            ))}
+            )}
         </div>
     );
 };

@@ -29,6 +29,7 @@ import { ReminderNotification } from "./components/ReminderNotification";
 import { GameOverlay } from "./components/GameOverlay";
 import showMissedReportModal from "./components/MissedReportModal";
 import { showSleepInhibitorModal } from "./components/SleepInhibitorModal";
+import { ScreensaverOverlay } from "./components/ScreensaverOverlay";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
@@ -564,6 +565,10 @@ export default definePlugin(() => {
     const OVERLAY_COMPONENT_NAME = 'AlarMeGameOverlay';
     routerHook.addGlobalComponent(OVERLAY_COMPONENT_NAME, GameOverlay);
 
+    // Register screensaver overlay
+    const SCREENSAVER_COMPONENT_NAME = 'AlarMeScreensaverOverlay';
+    routerHook.addGlobalComponent(SCREENSAVER_COMPONENT_NAME, () => <ScreensaverOverlay />);
+
     return {
         name: "AlarMe",
         titleView: (
@@ -585,6 +590,7 @@ export default definePlugin(() => {
             // Unregister settings route and overlay
             routerHook.removeRoute(SETTINGS_ROUTE);
             routerHook.removeGlobalComponent(OVERLAY_COMPONENT_NAME);
+            routerHook.removeGlobalComponent(SCREENSAVER_COMPONENT_NAME);
             if (unregisterGameListener) {
                 if (typeof unregisterGameListener === 'function') {
                     unregisterGameListener();

@@ -27,7 +27,7 @@ const QUICK_RECURRING_OPTIONS: DropdownOption[] = [
 
 interface AlarmEditorModalProps {
     alarm?: Alarm;
-    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean, preventSleep?: boolean, preventSleepWindow?: number) => Promise<void>;
+    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean, preventSleep?: boolean, preventSleepWindow?: number, screensaverMode?: string) => Promise<void>;
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
     closeModal?: () => void;
@@ -147,6 +147,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
     const [autoSuspend, setAutoSuspend] = useState(alarm?.auto_suspend ?? false);
     const [preventSleep, setPreventSleep] = useState(alarm?.prevent_sleep ?? false);
     const [preventSleepWindow, setPreventSleepWindow] = useState(alarm?.prevent_sleep_window ?? 60);
+    const [screensaverMode, setScreensaverMode] = useState<'off' | 'black' | 'dim'>(alarm?.screensaver_mode ?? 'off');
     const [volume, setVolume] = useState(alarm?.volume ?? 100);
 
     // Sound preview
@@ -353,7 +354,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
             recurring = quickRecurring as RecurringType;
         }
 
-        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow);
+        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode);
         closeModal?.();
     };
 
@@ -787,6 +788,87 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                 <div style={{ fontSize: 10, color: '#666666', marginTop: 4 }}>
                                     Device will stay awake starting this long before the alarm is due.
                                 </div>
+                            </div>
+                        )}
+                        {preventSleep && (
+                            <div style={{ paddingLeft: 12, paddingTop: 8 }}>
+                                <div style={{ fontSize: 11, color: '#888888', marginBottom: 6 }}>
+                                    Screensaver:
+                                </div>
+                                <Focusable
+                                    onActivate={() => setScreensaverMode(screensaverMode !== 'off' ? 'off' : 'black')}
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '6px 10px',
+                                        backgroundColor: '#ffffff11',
+                                        borderRadius: 6,
+                                        marginBottom: 6
+                                    }}
+                                >
+                                    <div>
+                                        <div style={{ fontSize: 12 }}>Dim / Black screen</div>
+                                        <div style={{ fontSize: 10, color: '#666666' }}>
+                                            {screensaverMode === 'off' ? 'Disabled' : (screensaverMode === 'black' ? 'Full Black' : 'Dim Screen')}
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        width: 36,
+                                        height: 20,
+                                        backgroundColor: screensaverMode !== 'off' ? '#44aa44' : '#ffffff33',
+                                        borderRadius: 10,
+                                        position: 'relative',
+                                        transition: 'all 0.2s'
+                                    }}>
+                                        <div style={{
+                                            width: 16,
+                                            height: 16,
+                                            backgroundColor: '#ffffff',
+                                            borderRadius: 8,
+                                            position: 'absolute',
+                                            top: 2,
+                                            left: screensaverMode !== 'off' ? 18 : 2,
+                                            transition: 'all 0.2s'
+                                        }} />
+                                    </div>
+                                </Focusable>
+                                {screensaverMode !== 'off' && (
+                                    <Focusable style={{ display: 'flex', backgroundColor: '#1a1f2c', borderRadius: 16, padding: 3, gap: 3 }}>
+                                        <Focusable
+                                            onActivate={() => setScreensaverMode('black')}
+                                            style={{
+                                                flex: 1,
+                                                padding: '5px 8px',
+                                                borderRadius: 13,
+                                                backgroundColor: screensaverMode === 'black' ? '#1a9fff' : 'transparent',
+                                                color: screensaverMode === 'black' ? 'white' : '#888',
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                textAlign: 'center',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                        >
+                                            Full Black
+                                        </Focusable>
+                                        <Focusable
+                                            onActivate={() => setScreensaverMode('dim')}
+                                            style={{
+                                                flex: 1,
+                                                padding: '5px 8px',
+                                                borderRadius: 13,
+                                                backgroundColor: screensaverMode === 'dim' ? '#1a9fff' : 'transparent',
+                                                color: screensaverMode === 'dim' ? 'white' : '#888',
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                textAlign: 'center',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                        >
+                                            Dim Screen
+                                        </Focusable>
+                                    </Focusable>
+                                )}
                             </div>
                         )}
                     </Focusable>

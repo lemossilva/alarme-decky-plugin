@@ -11,6 +11,7 @@ import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration } from "../utils/time";
 import { PomodoroStatsPanel } from "./PomodoroStatsPanel";
+import { BinarySelector } from "./BinarySelector";
 
 export function PomodoroPanel() {
     const {
@@ -173,6 +174,31 @@ export function PomodoroPanel() {
                         onChange={(value) => updateSetting('pomodoro_prevent_sleep', value)}
                     />
                 </PanelSectionRow>
+
+                {settings.pomodoro_prevent_sleep && (
+                    <>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<span style={{ fontSize: 14 }}>🖥️</span>}
+                                label="Screensaver"
+                                description="Dim or black out the screen while preventing sleep"
+                                checked={(settings.pomodoro_screensaver_mode ?? 'off') !== 'off'}
+                                onChange={(val) => updateSetting('pomodoro_screensaver_mode', val ? 'black' : 'off')}
+                            />
+                        </PanelSectionRow>
+                        {(settings.pomodoro_screensaver_mode ?? 'off') !== 'off' && (
+                            <div style={{ paddingLeft: '40px' }}>
+                                <BinarySelector
+                                    label="Screensaver Mode"
+                                    leftOption={{ value: 'black', label: 'Full Black' }}
+                                    rightOption={{ value: 'dim', label: 'Dim Screen' }}
+                                    value={settings.pomodoro_screensaver_mode ?? 'black'}
+                                    onChange={(val) => updateSetting('pomodoro_screensaver_mode', val)}
+                                />
+                            </div>
+                        )}
+                    </>
+                )}
             </PanelSection>
 
             {/* Pomodoro Info */}

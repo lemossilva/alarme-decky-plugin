@@ -33,6 +33,19 @@ const DEFAULT_SETTINGS: UserSettings = {
     // Missed Alerts settings
     missed_alerts_enabled: true,
     missed_alerts_window: 24,
+    // Screensaver settings
+    screensaver_mode: 'off' as 'off' | 'black' | 'dim',
+    screensaver_dim_opacity: 0.92,
+    pomodoro_screensaver_mode: 'off' as 'off' | 'black' | 'dim',
+    screensaver_idle_seconds: 15,
+    overlay_during_screensaver: true,
+    overlay_screensaver_show_clock: true,
+    overlay_screensaver_show_date: true,
+    overlay_screensaver_show_battery: true,
+    // Pixel shift for OLED burn-in prevention
+    pixel_shift_enabled: true,
+    pixel_shift_range: 3,
+    pixel_shift_interval_seconds: 60,
     // Suspend Behavior
     reminder_suspend_behavior: 'continue', // 'continue' = missed alerts, 'pause' = shift schedule
     pomodoro_suspend_behavior: 'continue', // 'continue' = missed session, 'pause' = shift session

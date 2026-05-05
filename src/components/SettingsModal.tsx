@@ -12,12 +12,13 @@ import {
     ToggleField
 } from "@decky/ui";
 import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useAlarms } from "../hooks/useAlarms";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
+import { BinarySelector } from "./BinarySelector";
 import type { SoundFile } from "../types";
 
 // Backend callables
@@ -116,95 +117,7 @@ const SoundPreviewButton = ({
 };
 
 // Binary selector for suspend behavior options
-const BinarySelector = ({
-    label,
-    description,
-    leftOption,
-    rightOption,
-    value,
-    onChange,
-    icon
-}: {
-    label: string,
-    description?: string,
-    leftOption: { value: any, label: string },
-    rightOption: { value: any, label: string },
-    value: any,
-    onChange: (value: any) => void,
-    icon?: React.ReactNode
-}) => {
-    const [focusedLeft, setFocusedLeft] = useState(false);
-    const [focusedRight, setFocusedRight] = useState(false);
-
-    return (
-        <PanelSectionRow>
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: '1 1 auto', minWidth: '150px' }}>
-                    {icon && <div style={{ color: '#888', display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</div>}
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 500 }}>{label}</span>
-                        {description && <span style={{ fontSize: 12, color: '#888' }}>{description}</span>}
-                    </div>
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    backgroundColor: '#1a1f2c',
-                    borderRadius: 20,
-                    padding: 4,
-                    gap: 4,
-                    flex: '0 0 auto'
-                }}>
-                    <Focusable
-                        onActivate={() => onChange(leftOption.value)}
-                        onFocus={() => setFocusedLeft(true)}
-                        onBlur={() => setFocusedLeft(false)}
-                        style={{
-                            padding: '6px 10px',
-                            borderRadius: 16,
-                            backgroundColor: value === leftOption.value ? '#1a9fff' : (focusedLeft ? '#ffffff22' : 'transparent'),
-                            color: value === leftOption.value ? 'white' : '#888',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            textAlign: 'center',
-                            minWidth: 60,
-                            transition: 'all 0.2s ease',
-                            border: focusedLeft ? '1px solid white' : '1px solid transparent'
-                        }}
-                    >
-                        {leftOption.label}
-                    </Focusable>
-                    <Focusable
-                        onActivate={() => onChange(rightOption.value)}
-                        onFocus={() => setFocusedRight(true)}
-                        onBlur={() => setFocusedRight(false)}
-                        style={{
-                            padding: '6px 10px',
-                            borderRadius: 16,
-                            backgroundColor: value === rightOption.value ? '#1a9fff' : (focusedRight ? '#ffffff22' : 'transparent'),
-                            color: value === rightOption.value ? 'white' : '#888',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            textAlign: 'center',
-                            minWidth: 60,
-                            transition: 'all 0.2s ease',
-                            border: focusedRight ? '1px solid white' : '1px solid transparent'
-                        }}
-                    >
-                        {rightOption.label}
-                    </Focusable>
-                </div>
-            </div>
-        </PanelSectionRow>
-    );
-};
+// ==================== BinarySelector is now in ./BinarySelector.tsx ====================
 
 // Timer Settings Page
 const TimerSettingsPage = () => {
@@ -671,6 +584,159 @@ const GeneralSettingsPage = () => {
     );
 };
 
+// Screensaver Settings Page
+const ScreensaverSettingsPage = () => {
+    const { settings, updateSetting } = useSettings();
+
+    const idleOptions = [
+        { data: 5, label: '5 seconds' },
+        { data: 15, label: '15 seconds' },
+        { data: 30, label: '30 seconds' },
+        { data: 60, label: '1 minute' },
+        { data: 120, label: '2 minutes' },
+        { data: 300, label: '5 minutes' },
+        { data: 600, label: '10 minutes' },
+    ];
+
+    return (
+        <ScrollableContent>
+            <PanelSection title="Screensaver">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                        When Prevent Sleep is active, the screensaver dims or blacks out the screen after a period of inactivity.
+                    </div>
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                        <FaClock style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Idle Before Screensaver</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Dropdown
+                                rgOptions={idleOptions}
+                                selectedOption={settings.screensaver_idle_seconds ?? 15}
+                                onChange={(option) => updateSetting('screensaver_idle_seconds', option.data as number)}
+                                strDefaultLabel="Select Time"
+                            />
+                        </div>
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
+                        Screen dims after this much idle time. Any button press or touch wakes the screen.
+                    </div>
+                </PanelSectionRow>
+
+                <PanelSectionRow>
+                    <SliderField
+                        label="Dim Intensity"
+                        description={`${Math.round((settings.screensaver_dim_opacity ?? 0.92) * 100)}%`}
+                        value={Math.round((settings.screensaver_dim_opacity ?? 0.92) * 100)}
+                        min={70}
+                        max={99}
+                        step={1}
+                        onChange={(value) => updateSetting('screensaver_dim_opacity', value / 100)}
+                        icon={<FaEye size={16} />}
+                    />
+                </PanelSectionRow>
+            </PanelSection>
+
+            <PanelSection title="Overlay During Screensaver">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaEye size={16} />}
+                        label="Show Overlay"
+                        description="When on, the alert overlay stays visible above the screensaver. When off, the overlay is hidden behind the dim/black screen."
+                        checked={settings.overlay_during_screensaver ?? true}
+                        onChange={(value) => updateSetting('overlay_during_screensaver', value)}
+                    />
+                </PanelSectionRow>
+
+                {(settings.overlay_during_screensaver ?? true) && (
+                    <>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaClock size={16} />}
+                                label="Show Clock"
+                                description="Display the current time on a second line"
+                                checked={settings.overlay_screensaver_show_clock ?? true}
+                                onChange={(value) => updateSetting('overlay_screensaver_show_clock', value)}
+                            />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaCalendarAlt size={16} />}
+                                label="Show Date"
+                                description="Display the current date on a second line"
+                                checked={settings.overlay_screensaver_show_date ?? true}
+                                onChange={(value) => updateSetting('overlay_screensaver_show_date', value)}
+                            />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaBatteryFull size={16} />}
+                                label="Show Battery"
+                                description="Display the battery percentage on a second line"
+                                checked={settings.overlay_screensaver_show_battery ?? true}
+                                onChange={(value) => updateSetting('overlay_screensaver_show_battery', value)}
+                            />
+                        </PanelSectionRow>
+                    </>
+                )}
+            </PanelSection>
+
+            <PanelSection title="OLED Protection">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                        The overlay slowly orbits in a circle to prevent static elements from burning into OLED screens.
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaShieldAlt size={16} />}
+                        label="Pixel Shift"
+                        description="Slowly move overlay content to prevent OLED burn-in"
+                        checked={settings.pixel_shift_enabled ?? true}
+                        onChange={(value) => updateSetting('pixel_shift_enabled', value)}
+                    />
+                </PanelSectionRow>
+                {(settings.pixel_shift_enabled ?? true) && (
+                    <>
+                        <PanelSectionRow>
+                            <div style={{ paddingLeft: '40px' }}>
+                                <SliderField
+                                    label="Shift Range"
+                                    description={`±${settings.pixel_shift_range ?? 3} pixels`}
+                                    value={settings.pixel_shift_range ?? 3}
+                                    min={1}
+                                    max={10}
+                                    step={1}
+                                    onChange={(value) => updateSetting('pixel_shift_range', value)}
+                                    icon={<FaDesktop size={16} />}
+                                />
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <div style={{ paddingLeft: '40px' }}>
+                                <SliderField
+                                    label="Shift Interval"
+                                    description={`Every ${settings.pixel_shift_interval_seconds ?? 60} seconds`}
+                                    value={settings.pixel_shift_interval_seconds ?? 60}
+                                    min={10}
+                                    max={300}
+                                    step={10}
+                                    onChange={(value) => updateSetting('pixel_shift_interval_seconds', value)}
+                                    icon={<FaClock size={16} />}
+                                />
+                            </div>
+                        </PanelSectionRow>
+                    </>
+                )}
+            </PanelSection>
+        </ScrollableContent>
+    );
+};
+
 // Backup Settings Page
 const BackupSettingsPage = () => {
     return (
@@ -1057,10 +1123,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.6.3');
+    const [version, setVersion] = useState('1.7.0');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.6.3')).catch(() => setVersion('1.6.3'));
+        getVersionCall().then(v => setVersion(v || '1.7.0')).catch(() => setVersion('1.7.0'));
     }, []);
 
     const handleReset = async () => {
@@ -1164,6 +1230,11 @@ export const SettingsPage = () => {
             title: "Overlay",
             icon: <FaEye size={16} />,
             content: <OverlaySettingsPage />
+        },
+        {
+            title: "Screensaver",
+            icon: <FaDesktop size={16} />,
+            content: <ScreensaverSettingsPage />
         },
         {
             title: "Backup",
