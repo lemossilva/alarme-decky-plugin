@@ -13,7 +13,7 @@ import { useRef, useEffect, useState } from "react";
 
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
-import { BinarySelector } from "./BinarySelector";
+
 import type { Reminder, SoundFile } from "../types";
 
 // Frequency options (in minutes)
@@ -100,6 +100,7 @@ function ReminderEditorModalContent({
     const [subtleMode, setSubtleMode] = useState(reminder?.subtle_mode ?? false);
     const [preventSleep, setPreventSleep] = useState(reminder?.prevent_sleep ?? false);
     const [screensaverMode, setScreensaverMode] = useState<'off' | 'black' | 'dim'>(reminder?.screensaver_mode ?? 'off');
+
 
     // Force disable Prevent Sleep if Only While Gaming is active
     useEffect(() => {
@@ -688,26 +689,16 @@ function ReminderEditorModalContent({
 
                 {/* Screensaver sub-row */}
                 {preventSleep && !onlyWhileGaming && (
-                    <>
-                        <div style={{ paddingLeft: '60px' }}>
-                            <ToggleField
-                                label="Screensaver"
-                                description="Dim or black out the screen while preventing sleep"
-                                checked={screensaverMode !== 'off'}
-                                onChange={(val) => setScreensaverMode(val ? 'black' : 'off')}
-                            />
-                        </div>
-                        {screensaverMode !== 'off' && (
-                            <BinarySelector
-                                label="Screensaver Mode"
-                                leftOption={{ value: 'black', label: 'Full Black' }}
-                                rightOption={{ value: 'dim', label: 'Dim Screen' }}
-                                value={screensaverMode !== 'off' ? screensaverMode : 'black'}
-                                onChange={(val) => setScreensaverMode(val as 'off' | 'black' | 'dim')}
-                            />
-                        )}
-                    </>
+                    <div style={{ paddingLeft: '60px' }}>
+                        <ToggleField
+                            label="Screensaver"
+                            description="Show screensaver while preventing sleep"
+                            checked={screensaverMode !== 'off'}
+                            onChange={(val) => setScreensaverMode(val ? 'black' : 'off')}
+                        />
+                    </div>
                 )}
+
 
                 {/* Delete Button (only when editing) */}
                 {isEditing && onDelete && (

@@ -184,7 +184,7 @@ export interface UserSettings {
     // Tab Order
     tab_order?: string[];
     // Screensaver settings
-    screensaver_mode: 'off' | 'black' | 'dim';
+    screensaver_mode: 'off' | 'black' | 'dim' | 'wallpaper';
     screensaver_dim_opacity: number;
     pomodoro_screensaver_mode: 'off' | 'black' | 'dim';
     screensaver_idle_seconds: number;
@@ -192,6 +192,27 @@ export interface UserSettings {
     overlay_screensaver_show_clock?: boolean;
     overlay_screensaver_show_date?: boolean;
     overlay_screensaver_show_battery?: boolean;
+    // Screensaver 2.0 settings
+    screensaver_standalone_enabled?: boolean;
+    screensaver_standalone_idle_seconds?: number;
+    overlay_screensaver_layout?: ScreensaverLayout;
+    screensaver_clock_style?: ClockStyle;
+    screensaver_clock_size?: number;
+    screensaver_accent_color?: AccentColorPreset;
+    screensaver_show_day_of_week?: boolean;
+    screensaver_show_year?: boolean;
+    screensaver_show_calendar_grid?: boolean;
+    screensaver_battery_show_bar?: boolean;
+    screensaver_battery_low_threshold?: number;
+    screensaver_show_alerts_list?: boolean;
+    screensaver_show_system_stats?: boolean;
+    screensaver_show_network_info?: boolean;
+    screensaver_wallpaper_provider?: WallpaperProvider;
+    screensaver_wallpaper_fit?: WallpaperFit;
+    screensaver_wallpaper_blur?: WallpaperBlur;
+    screensaver_wallpaper_dim?: number;
+    screensaver_wallpaper_interval?: number;
+    screensaver_floating_drift_range?: number;
     // Pixel shift
     pixel_shift_enabled?: boolean;
     pixel_shift_range?: number;
@@ -219,7 +240,7 @@ export interface SleepInhibitorStatus {
     active: boolean;
     reason?: string;
     items?: SleepInhibitorItem[];
-    screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_mode?: 'off' | 'black' | 'dim' | 'wallpaper';
     screensaver_dim_opacity?: number;
     screensaver_idle_seconds?: number;
     overlay_during_screensaver?: boolean;
@@ -314,3 +335,45 @@ export interface StopwatchState {
 
 // Tab types
 export type TabId = 'timers' | 'alarms' | 'stopwatch' | 'pomodoro' | 'reminders' | 'settings';
+
+// Screensaver 2.0 types
+export type ScreensaverLayout = 'compact' | 'large' | 'fullscreen' | 'floating';
+
+export type ClockStyle = 'digital' | 'digital_seconds' | 'digital_large' | 'analog';
+
+export type AccentColorPreset = 'muted_gray' | 'white' | 'warm_amber' | 'cool_blue' | 'soft_red' | 'mint_green' | 'dim_orange';
+
+export const ACCENT_COLORS: Record<AccentColorPreset, string> = {
+    muted_gray: '#8b8b8b',
+    white: '#e0e0e0',
+    warm_amber: '#e6a817',
+    cool_blue: '#4499cc',
+    soft_red: '#cc5544',
+    mint_green: '#66bb88',
+    dim_orange: '#cc7733'
+};
+
+export type WallpaperProvider = 'none' | 'picsum' | 'bing_daily' | 'local_folder';
+
+export type WallpaperFit = 'cover' | 'contain';
+
+export type WallpaperBlur = 'none' | 'light' | 'heavy';
+
+export interface SystemStats {
+    cpu_temp: number | null;
+    cpu_usage: number | null;
+    ram_used_gb: number | null;
+    ram_total_gb: number | null;
+    gpu_temp: number | null;
+    fan_rpm: number | null;
+}
+
+export interface WifiInfo {
+    ssid: string | null;
+    signal: number | null;
+}
+
+export interface WallpaperState {
+    url: string | null;
+    provider: WallpaperProvider;
+}

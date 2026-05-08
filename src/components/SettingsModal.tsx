@@ -19,11 +19,12 @@ import { useAlarms } from "../hooks/useAlarms";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
-import type { SoundFile } from "../types";
+import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur } from "../types";
 
 // Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
 const getVersionCall = callable<[], string>('get_version');
+const checkWallpaperProviderCall = callable<[provider: string], { reachable: boolean; message?: string }>('check_wallpaper_provider');
 
 // Scrollable wrapper for SidebarNavigation content pages
 const ScrollableContent = ({ children }: { children: React.ReactNode }) => (
@@ -237,7 +238,7 @@ const ReminderSettingsPage = () => {
                     leftOption={{ value: 'pause', label: 'Shift (Pause)' }}
                     rightOption={{ value: 'continue', label: 'Miss (Continue)' }}
                     value={settings.reminder_suspend_behavior || 'continue'}
-                    onChange={(val) => updateSetting('reminder_suspend_behavior', val)}
+                    onChange={(val) => updateSetting('reminder_suspend_behavior', val as 'continue' | 'pause')}
                     icon={<FaRedo size={16} />}
                 />
                 <PanelSectionRow>
@@ -380,7 +381,7 @@ const PomodoroSettingsPage = () => {
                     leftOption={{ value: 'pause', label: 'Shift (Pause)' }}
                     rightOption={{ value: 'continue', label: 'Miss (Continue)' }}
                     value={settings.pomodoro_suspend_behavior || 'continue'}
-                    onChange={(val) => updateSetting('pomodoro_suspend_behavior', val)}
+                    onChange={(val) => updateSetting('pomodoro_suspend_behavior', val as 'continue' | 'pause')}
                     icon={<FaBrain size={16} />}
                 />
             </PanelSection>
@@ -587,6 +588,39 @@ const GeneralSettingsPage = () => {
 // Screensaver Settings Page
 const ScreensaverSettingsPage = () => {
     const { settings, updateSetting } = useSettings();
+    const mode = settings.screensaver_mode ?? 'off';
+
+    const [wallpaperStatus, setWallpaperStatus] = useState<{ reachable: boolean | null; message?: string }>({ reachable: null });
+
+    const checkWallpaperReachable = async (prov: string) => {
+        if (prov === 'none') {
+            setWallpaperStatus({ reachable: null });
+            return;
+        }
+        setWallpaperStatus({ reachable: null });
+        try {
+            const result = await checkWallpaperProviderCall(prov);
+            setWallpaperStatus({ reachable: result.reachable, message: result.message });
+        } catch {
+            setWallpaperStatus({ reachable: false, message: 'Check failed' });
+        }
+    };
+
+    useEffect(() => {
+        const prov = settings.screensaver_wallpaper_provider || 'none';
+        if (prov !== 'none') {
+            checkWallpaperReachable(prov);
+        } else {
+            setWallpaperStatus({ reachable: null });
+        }
+    }, [settings.screensaver_wallpaper_provider]);
+
+    const modeOptions = [
+        { data: 'off' as const, label: 'Off' },
+        { data: 'black' as const, label: 'Black' },
+        { data: 'dim' as const, label: 'Dim' },
+        { data: 'wallpaper' as const, label: 'Wallpaper' },
+    ];
 
     const idleOptions = [
         { data: 5, label: '5 seconds' },
@@ -598,141 +632,559 @@ const ScreensaverSettingsPage = () => {
         { data: 600, label: '10 minutes' },
     ];
 
+    const layoutOptions = [
+        { data: 'compact', label: 'Compact (Top-Left)' },
+        { data: 'large', label: 'Large (Centered)' },
+        { data: 'fullscreen', label: 'Fullscreen' },
+        { data: 'floating', label: 'Floating (Drifting)' },
+    ];
+
+    const clockStyleOptions = [
+        { data: 'digital', label: 'Digital (HH:MM)' },
+        { data: 'digital_seconds', label: 'Digital + Seconds' },
+        { data: 'digital_large', label: 'Digital Large (Blinking)' },
+        { data: 'analog', label: 'Analog' },
+    ];
+
+    const accentColorOptions = [
+        { data: 'muted_gray', label: 'Muted Gray' },
+        { data: 'white', label: 'White' },
+        { data: 'warm_amber', label: 'Warm Amber' },
+        { data: 'cool_blue', label: 'Cool Blue' },
+        { data: 'soft_red', label: 'Soft Red' },
+        { data: 'mint_green', label: 'Mint Green' },
+        { data: 'dim_orange', label: 'Dim Orange' },
+    ];
+
+    const wallpaperProviderOptions = [
+        { data: 'picsum', label: 'Lorem Picsum' },
+        { data: 'bing_daily', label: 'Bing Daily' },
+        { data: 'local_folder', label: 'Local Folder' },
+    ];
+
+    const fitOptions = [
+        { data: 'cover', label: 'Cover (Fill)' },
+        { data: 'contain', label: 'Contain (Letterbox)' },
+    ];
+
+    const blurOptions = [
+        { data: 'none', label: 'None' },
+        { data: 'light', label: 'Light' },
+        { data: 'heavy', label: 'Heavy' },
+    ];
+
+    const handlePreview = () => {
+        import("../hooks/useScreensaver").then(mod => {
+            mod.triggerScreensaverPreview();
+        });
+    };
+
+    const provider = settings.screensaver_wallpaper_provider || 'none';
+
     return (
         <ScrollableContent>
-            <PanelSection title="Screensaver">
+            {/* === Mode === */}
+            <PanelSection title="Screensaver Mode">
                 <PanelSectionRow>
                     <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
-                        When Prevent Sleep is active, the screensaver dims or blacks out the screen after a period of inactivity.
+                        Choose the background behavior when the screensaver activates.
                     </div>
                 </PanelSectionRow>
-
                 <PanelSectionRow>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <FaClock style={{ color: '#888', flexShrink: 0 }} />
-                        <span style={{ flexShrink: 0 }}>Idle Before Screensaver</span>
+                        <FaDesktop style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Background</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <Dropdown
-                                rgOptions={idleOptions}
-                                selectedOption={settings.screensaver_idle_seconds ?? 15}
-                                onChange={(option) => updateSetting('screensaver_idle_seconds', option.data as number)}
-                                strDefaultLabel="Select Time"
+                                rgOptions={modeOptions}
+                                selectedOption={mode}
+                                onChange={(option) => updateSetting('screensaver_mode', option.data)}
+                                strDefaultLabel="Select Mode"
                             />
                         </div>
                     </div>
                 </PanelSectionRow>
                 <PanelSectionRow>
                     <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
-                        Screen dims after this much idle time. Any button press or touch wakes the screen.
+                        {mode === 'off' && 'Screensaver is disabled.'}
+                        {mode === 'black' && 'Screen turns completely black.'}
+                        {mode === 'dim' && 'Screen dims to a configurable opacity.'}
+                        {mode === 'wallpaper' && 'A wallpaper image is shown behind the clock and widgets.'}
                     </div>
-                </PanelSectionRow>
-
-                <PanelSectionRow>
-                    <SliderField
-                        label="Dim Intensity"
-                        description={`${Math.round((settings.screensaver_dim_opacity ?? 0.92) * 100)}%`}
-                        value={Math.round((settings.screensaver_dim_opacity ?? 0.92) * 100)}
-                        min={70}
-                        max={99}
-                        step={1}
-                        onChange={(value) => updateSetting('screensaver_dim_opacity', value / 100)}
-                        icon={<FaEye size={16} />}
-                    />
                 </PanelSectionRow>
             </PanelSection>
 
-            <PanelSection title="Overlay During Screensaver">
-                <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaEye size={16} />}
-                        label="Show Overlay"
-                        description="When on, the alert overlay stays visible above the screensaver. When off, the overlay is hidden behind the dim/black screen."
-                        checked={settings.overlay_during_screensaver ?? true}
-                        onChange={(value) => updateSetting('overlay_during_screensaver', value)}
-                    />
-                </PanelSectionRow>
+            {mode !== 'off' && (
+                <>
+                    {/* === Activation === */}
+                    <PanelSection title="Activation">
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                                The screensaver activates after a period of inactivity.
+                            </div>
+                        </PanelSectionRow>
 
-                {(settings.overlay_during_screensaver ?? true) && (
-                    <>
                         <PanelSectionRow>
                             <ToggleField
-                                icon={<FaClock size={16} />}
-                                label="Show Clock"
-                                description="Display the current time on a second line"
-                                checked={settings.overlay_screensaver_show_clock ?? true}
-                                onChange={(value) => updateSetting('overlay_screensaver_show_clock', value)}
+                                icon={<FaDesktop size={16} />}
+                                label="Standalone Mode"
+                                description="Activate screensaver based on inactivity. Overrides alert screensaver settings when enabled."
+                                checked={settings.screensaver_standalone_enabled ?? false}
+                                onChange={(value) => updateSetting('screensaver_standalone_enabled', value)}
                             />
                         </PanelSectionRow>
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaCalendarAlt size={16} />}
-                                label="Show Date"
-                                description="Display the current date on a second line"
-                                checked={settings.overlay_screensaver_show_date ?? true}
-                                onChange={(value) => updateSetting('overlay_screensaver_show_date', value)}
-                            />
-                        </PanelSectionRow>
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaBatteryFull size={16} />}
-                                label="Show Battery"
-                                description="Display the battery percentage on a second line"
-                                checked={settings.overlay_screensaver_show_battery ?? true}
-                                onChange={(value) => updateSetting('overlay_screensaver_show_battery', value)}
-                            />
-                        </PanelSectionRow>
-                    </>
-                )}
-            </PanelSection>
 
-            <PanelSection title="OLED Protection">
-                <PanelSectionRow>
-                    <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
-                        The overlay slowly orbits in a circle to prevent static elements from burning into OLED screens.
-                    </div>
-                </PanelSectionRow>
-                <PanelSectionRow>
-                    <ToggleField
-                        icon={<FaShieldAlt size={16} />}
-                        label="Pixel Shift"
-                        description="Slowly move overlay content to prevent OLED burn-in"
-                        checked={settings.pixel_shift_enabled ?? true}
-                        onChange={(value) => updateSetting('pixel_shift_enabled', value)}
-                    />
-                </PanelSectionRow>
-                {(settings.pixel_shift_enabled ?? true) && (
-                    <>
+                        {settings.screensaver_standalone_enabled && (
+                            <PanelSectionRow>
+                                <div style={{ paddingLeft: '40px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                        <FaClock style={{ color: '#888', flexShrink: 0 }} />
+                                        <span style={{ flexShrink: 0 }}>Standalone Idle Time</span>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <Dropdown
+                                                rgOptions={idleOptions}
+                                                selectedOption={settings.screensaver_standalone_idle_seconds ?? 60}
+                                                onChange={(option) => updateSetting('screensaver_standalone_idle_seconds', option.data as number)}
+                                                strDefaultLabel="Select Time"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </PanelSectionRow>
+                        )}
+
                         <PanelSectionRow>
-                            <div style={{ paddingLeft: '40px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaClock style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Inhibitor Idle Time</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={idleOptions}
+                                        selectedOption={settings.screensaver_idle_seconds ?? 15}
+                                        onChange={(option) => updateSetting('screensaver_idle_seconds', option.data as number)}
+                                        strDefaultLabel="Select Time"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
+                                Idle time used when alerts are preventing sleep. Any button press or touch wakes the screen.
+                            </div>
+                        </PanelSectionRow>
+
+                        {mode === 'dim' && (
+                            <PanelSectionRow>
                                 <SliderField
-                                    label="Shift Range"
-                                    description={`±${settings.pixel_shift_range ?? 3} pixels`}
-                                    value={settings.pixel_shift_range ?? 3}
-                                    min={1}
-                                    max={10}
+                                    label="Dim Intensity"
+                                    description={`${Math.round((settings.screensaver_dim_opacity ?? 0.92) * 100)}%`}
+                                    value={Math.round((settings.screensaver_dim_opacity ?? 0.92) * 100)}
+                                    min={70}
+                                    max={99}
                                     step={1}
-                                    onChange={(value) => updateSetting('pixel_shift_range', value)}
+                                    onChange={(value) => updateSetting('screensaver_dim_opacity', value / 100)}
+                                    icon={<FaEye size={16} />}
+                                />
+                            </PanelSectionRow>
+                        )}
+                    </PanelSection>
+
+                    {/* === Layout === */}
+                    <PanelSection title="Layout">
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaDesktop style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Layout Mode</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={layoutOptions}
+                                        selectedOption={settings.overlay_screensaver_layout || 'compact'}
+                                        onChange={(option) => updateSetting('overlay_screensaver_layout', option.data as ScreensaverLayout)}
+                                        strDefaultLabel="Select Layout"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
+                                Compact keeps the existing behavior. Large/Fullscreen/Floating show a dedicated clock screen.
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <SliderField
+                                label="Clock Size"
+                                description={`${settings.screensaver_clock_size ?? 20}px`}
+                                value={settings.screensaver_clock_size ?? 20}
+                                min={24}
+                                max={96}
+                                step={2}
+                                onChange={(value) => updateSetting('screensaver_clock_size', value)}
+                                icon={<FaClock size={16} />}
+                            />
+                        </PanelSectionRow>
+
+                        {(settings.overlay_screensaver_layout || 'compact') === 'floating' && (
+                            <PanelSectionRow>
+                                <SliderField
+                                    label="Drift Range"
+                                    description={`±${settings.screensaver_floating_drift_range ?? 40}px`}
+                                    value={settings.screensaver_floating_drift_range ?? 40}
+                                    min={20}
+                                    max={100}
+                                    step={5}
+                                    onChange={(value) => updateSetting('screensaver_floating_drift_range', value)}
                                     icon={<FaDesktop size={16} />}
                                 />
+                            </PanelSectionRow>
+                        )}
+                    </PanelSection>
+
+                    {/* === Clock === */}
+                    <PanelSection title="Clock">
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaClock style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Clock Style</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={clockStyleOptions}
+                                        selectedOption={settings.screensaver_clock_style || 'digital'}
+                                        onChange={(option) => updateSetting('screensaver_clock_style', option.data as ClockStyle)}
+                                        strDefaultLabel="Select Style"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Accent Color</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={accentColorOptions}
+                                        selectedOption={settings.screensaver_accent_color || 'muted_gray'}
+                                        onChange={(option) => updateSetting('screensaver_accent_color', option.data as AccentColorPreset)}
+                                        strDefaultLabel="Select Color"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                    </PanelSection>
+
+                    {/* === Widgets === */}
+                    <PanelSection title="Widgets">
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>
+                                Widgets shown on the screensaver (Large/Fullscreen/Floating layouts only).
+                            </div>
+                        </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaEye size={16} />}
+                                label="Show Overlay During"
+                                description="Keep alert bar visible above screensaver"
+                                checked={settings.overlay_during_screensaver ?? true}
+                                onChange={(value) => updateSetting('overlay_during_screensaver', value)}
+                            />
+                        </PanelSectionRow>
+
+                        {(settings.overlay_during_screensaver ?? true) && (
+                            <>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaClock size={16} />}
+                                        label="Show Clock Widget"
+                                        checked={settings.overlay_screensaver_show_clock ?? true}
+                                        onChange={(value) => updateSetting('overlay_screensaver_show_clock', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCalendarAlt size={16} />}
+                                        label="Show Date Widget"
+                                        checked={settings.overlay_screensaver_show_date ?? true}
+                                        onChange={(value) => updateSetting('overlay_screensaver_show_date', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCalendarAlt size={16} />}
+                                        label="Show Day of Week"
+                                        checked={settings.screensaver_show_day_of_week ?? true}
+                                        onChange={(value) => updateSetting('screensaver_show_day_of_week', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCalendarAlt size={16} />}
+                                        label="Show Year"
+                                        checked={settings.screensaver_show_year ?? false}
+                                        onChange={(value) => updateSetting('screensaver_show_year', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCalendarAlt size={16} />}
+                                        label="Show Calendar Grid"
+                                        description="Mini monthly calendar (large/fullscreen layouts)"
+                                        checked={settings.screensaver_show_calendar_grid ?? false}
+                                        onChange={(value) => updateSetting('screensaver_show_calendar_grid', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaBatteryFull size={16} />}
+                                        label="Show Battery Widget"
+                                        checked={settings.overlay_screensaver_show_battery ?? true}
+                                        onChange={(value) => updateSetting('overlay_screensaver_show_battery', value)}
+                                    />
+                                </PanelSectionRow>
+                                {settings.overlay_screensaver_show_battery && (
+                                    <>
+                                        <PanelSectionRow>
+                                            <div style={{ paddingLeft: '40px' }}>
+                                                <ToggleField
+                                                    icon={<FaBatteryFull size={16} />}
+                                                    label="Show Battery Bar"
+                                                    checked={settings.screensaver_battery_show_bar ?? false}
+                                                    onChange={(value) => updateSetting('screensaver_battery_show_bar', value)}
+                                                />
+                                            </div>
+                                        </PanelSectionRow>
+                                        <PanelSectionRow>
+                                            <div style={{ paddingLeft: '40px' }}>
+                                                <SliderField
+                                                    label="Low Battery Threshold"
+                                                    description={`${settings.screensaver_battery_low_threshold ?? 20}%`}
+                                                    value={settings.screensaver_battery_low_threshold ?? 20}
+                                                    min={5}
+                                                    max={50}
+                                                    step={5}
+                                                    onChange={(value) => updateSetting('screensaver_battery_low_threshold', value)}
+                                                    icon={<FaBatteryFull size={16} />}
+                                                />
+                                            </div>
+                                        </PanelSectionRow>
+                                    </>
+                                )}
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaBell size={16} />}
+                                        label="Show Alerts List"
+                                        description="Active alerts as cards (large/fullscreen)"
+                                        checked={settings.screensaver_show_alerts_list ?? true}
+                                        onChange={(value) => updateSetting('screensaver_show_alerts_list', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaDesktop size={16} />}
+                                        label="Show System Stats"
+                                        description="CPU temp, RAM usage, fan speed"
+                                        checked={settings.screensaver_show_system_stats ?? false}
+                                        onChange={(value) => updateSetting('screensaver_show_system_stats', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaDesktop size={16} />}
+                                        label="Show Network Info"
+                                        description="Wi-Fi SSID and signal strength"
+                                        checked={settings.screensaver_show_network_info ?? false}
+                                        onChange={(value) => updateSetting('screensaver_show_network_info', value)}
+                                    />
+                                </PanelSectionRow>
+                            </>
+                        )}
+                    </PanelSection>
+
+                    {/* === Wallpaper (only when mode === 'wallpaper') === */}
+                    {mode === 'wallpaper' && (
+                        <PanelSection title="Wallpaper">
+                            <PanelSectionRow>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                    <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                                    <span style={{ flexShrink: 0 }}>Provider</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Dropdown
+                                            rgOptions={wallpaperProviderOptions}
+                                            selectedOption={provider}
+                                            onChange={(option) => updateSetting('screensaver_wallpaper_provider', option.data as WallpaperProvider)}
+                                            strDefaultLabel="Select Provider"
+                                        />
+                                    </div>
+                                </div>
+                            </PanelSectionRow>
+
+                            {provider !== 'none' && (
+                                <>
+                                    <PanelSectionRow>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                            <FaDesktop style={{ color: '#888', flexShrink: 0 }} />
+                                            <span style={{ flexShrink: 0 }}>Fit Mode</span>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <Dropdown
+                                                    rgOptions={fitOptions}
+                                                    selectedOption={settings.screensaver_wallpaper_fit || 'cover'}
+                                                    onChange={(option) => updateSetting('screensaver_wallpaper_fit', option.data as WallpaperFit)}
+                                                    strDefaultLabel="Select Fit"
+                                                />
+                                            </div>
+                                        </div>
+                                    </PanelSectionRow>
+
+                                    <PanelSectionRow>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                            <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                                            <span style={{ flexShrink: 0 }}>Blur</span>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <Dropdown
+                                                    rgOptions={blurOptions}
+                                                    selectedOption={settings.screensaver_wallpaper_blur || 'none'}
+                                                    onChange={(option) => updateSetting('screensaver_wallpaper_blur', option.data as WallpaperBlur)}
+                                                    strDefaultLabel="Select Blur"
+                                                />
+                                            </div>
+                                        </div>
+                                    </PanelSectionRow>
+
+                                    <PanelSectionRow>
+                                        <SliderField
+                                            label="Dim Overlay"
+                                            description={`${Math.round((settings.screensaver_wallpaper_dim ?? 0.4) * 100)}%`}
+                                            value={Math.round((settings.screensaver_wallpaper_dim ?? 0.4) * 100)}
+                                            min={0}
+                                            max={80}
+                                            step={5}
+                                            onChange={(value) => updateSetting('screensaver_wallpaper_dim', value / 100)}
+                                            icon={<FaEye size={16} />}
+                                        />
+                                    </PanelSectionRow>
+
+                                    {provider !== 'bing_daily' && (
+                                        <PanelSectionRow>
+                                            <SliderField
+                                                label="Refresh Interval"
+                                                description={`${Math.round((settings.screensaver_wallpaper_interval ?? 300) / 60)} minutes`}
+                                                value={settings.screensaver_wallpaper_interval ?? 300}
+                                                min={60}
+                                                max={1800}
+                                                step={60}
+                                                onChange={(value) => updateSetting('screensaver_wallpaper_interval', value)}
+                                                icon={<FaClock size={16} />}
+                                            />
+                                        </PanelSectionRow>
+                                    )}
+                                </>
+                            )}
+
+                            {provider !== 'none' && (
+                                <PanelSectionRow>
+                                    <div style={{ fontSize: 11, padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span style={{
+                                                display: 'inline-block',
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: '50%',
+                                                backgroundColor: wallpaperStatus.reachable === null ? '#888' : wallpaperStatus.reachable ? '#4caf50' : '#f44336',
+                                            }} />
+                                            <span style={{ color: wallpaperStatus.reachable === null ? '#888' : wallpaperStatus.reachable ? '#8f8' : '#f88' }}>
+                                                {wallpaperStatus.reachable === null
+                                                    ? 'Checking...'
+                                                    : wallpaperStatus.reachable
+                                                        ? 'Reachable'
+                                                        : wallpaperStatus.message || 'Unreachable'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </PanelSectionRow>
+                            )}
+
+                            <PanelSectionRow>
+                                <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>
+                                    {provider === 'local_folder'
+                                        ? <>Place images in <code>~/homebrew/plugins/AlarMe/wallpapers/</code></>
+                                        : provider !== 'none'
+                                            ? <>Downloads random beautiful photos each refresh cycle.</>
+                                            : <>Select a provider to show wallpapers behind the clock.</>}
+                                </div>
+                            </PanelSectionRow>
+                        </PanelSection>
+                    )}
+
+                    {/* === OLED Protection === */}
+                    <PanelSection title="OLED Protection">
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                                The overlay slowly orbits in a circle to prevent static elements from burning into OLED screens.
                             </div>
                         </PanelSectionRow>
                         <PanelSectionRow>
-                            <div style={{ paddingLeft: '40px' }}>
-                                <SliderField
-                                    label="Shift Interval"
-                                    description={`Every ${settings.pixel_shift_interval_seconds ?? 60} seconds`}
-                                    value={settings.pixel_shift_interval_seconds ?? 60}
-                                    min={10}
-                                    max={300}
-                                    step={10}
-                                    onChange={(value) => updateSetting('pixel_shift_interval_seconds', value)}
-                                    icon={<FaClock size={16} />}
-                                />
+                            <ToggleField
+                                icon={<FaShieldAlt size={16} />}
+                                label="Pixel Shift"
+                                description="Slowly move overlay content to prevent OLED burn-in"
+                                checked={settings.pixel_shift_enabled ?? true}
+                                onChange={(value) => updateSetting('pixel_shift_enabled', value)}
+                            />
+                        </PanelSectionRow>
+                        {(settings.pixel_shift_enabled ?? true) && (
+                            <>
+                                <PanelSectionRow>
+                                    <div style={{ paddingLeft: '40px' }}>
+                                        <SliderField
+                                            label="Shift Range"
+                                            description={`±${settings.pixel_shift_range ?? 3} pixels`}
+                                            value={settings.pixel_shift_range ?? 3}
+                                            min={1}
+                                            max={10}
+                                            step={1}
+                                            onChange={(value) => updateSetting('pixel_shift_range', value)}
+                                            icon={<FaDesktop size={16} />}
+                                        />
+                                    </div>
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <div style={{ paddingLeft: '40px' }}>
+                                        <SliderField
+                                            label="Shift Interval"
+                                            description={`Every ${settings.pixel_shift_interval_seconds ?? 60} seconds`}
+                                            value={settings.pixel_shift_interval_seconds ?? 60}
+                                            min={10}
+                                            max={300}
+                                            step={10}
+                                            onChange={(value) => updateSetting('pixel_shift_interval_seconds', value)}
+                                            icon={<FaClock size={16} />}
+                                        />
+                                    </div>
+                                </PanelSectionRow>
+                            </>
+                        )}
+                    </PanelSection>
+
+                    {/* === Preview === */}
+                    <PanelSection title="Preview">
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0' }}>
+                                Test the screensaver immediately. Press any button or touch the screen to dismiss.
                             </div>
                         </PanelSectionRow>
-                    </>
-                )}
-            </PanelSection>
+                        <PanelSectionRow>
+                            <ButtonItem
+                                layout="below"
+                                icon={<FaEye size={16} />}
+                                onClick={handlePreview}
+                            >
+                                Preview Screensaver
+                            </ButtonItem>
+                        </PanelSectionRow>
+                    </PanelSection>
+                </>
+            )}
         </ScrollableContent>
     );
 };
@@ -1123,10 +1575,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.7.0');
+    const [version, setVersion] = useState('1.7.1');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.7.0')).catch(() => setVersion('1.7.0'));
+        getVersionCall().then(v => setVersion(v || '1.7.1')).catch(() => setVersion('1.7.1'));
     }, []);
 
     const handleReset = async () => {

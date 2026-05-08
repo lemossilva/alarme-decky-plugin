@@ -13,7 +13,7 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaShieldAlt } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaShieldAlt, FaMoon } from "react-icons/fa";
 import { useState, useEffect, useRef, useMemo } from "react";
 
 // Components
@@ -310,6 +310,50 @@ function Content() {
                             {sleepInhibitorActive ? 'Awake' : 'Sleep'}
                         </span>
                     </Focusable>
+
+                    {/* Screensaver Preview Button */}
+                    {(() => {
+                        const screensaverMode = userSettings.screensaver_mode || 'off';
+                        if (screensaverMode === 'off') return null;
+                        return (
+                            <Focusable
+                                onActivate={() => {
+                                    import("./hooks/useScreensaver").then(mod => {
+                                        mod.triggerScreensaverPreview();
+                                    });
+                                }}
+                                style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 6,
+                                    padding: 8,
+                                    backgroundColor: '#ffffff08',
+                                    borderRadius: 12,
+                                    border: '2px solid transparent',
+                                    cursor: 'pointer',
+                                    opacity: 0.7,
+                                    transition: 'all 0.1s ease-in-out'
+                                }}
+                                onFocus={(e: any) => {
+                                    e.target.style.backgroundColor = '#4488aa';
+                                    e.target.style.borderColor = 'white';
+                                    e.target.style.opacity = '1';
+                                }}
+                                onBlur={(e: any) => {
+                                    e.target.style.backgroundColor = '#ffffff08';
+                                    e.target.style.borderColor = 'transparent';
+                                    e.target.style.opacity = '0.7';
+                                }}
+                            >
+                                <FaMoon size={14} style={{ color: '#888888' }} />
+                                <span style={{ fontSize: 12, color: '#888888', fontWeight: 500 }}>
+                                    Preview
+                                </span>
+                            </Focusable>
+                        );
+                    })()}
 
                     {/* Settings Button */}
                     <Focusable

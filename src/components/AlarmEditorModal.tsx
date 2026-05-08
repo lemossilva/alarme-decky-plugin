@@ -148,6 +148,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
     const [preventSleep, setPreventSleep] = useState(alarm?.prevent_sleep ?? false);
     const [preventSleepWindow, setPreventSleepWindow] = useState(alarm?.prevent_sleep_window ?? 60);
     const [screensaverMode, setScreensaverMode] = useState<'off' | 'black' | 'dim'>(alarm?.screensaver_mode ?? 'off');
+
     const [volume, setVolume] = useState(alarm?.volume ?? 100);
 
     // Sound preview
@@ -790,6 +791,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                 </div>
                             </div>
                         )}
+
                         {preventSleep && (
                             <div style={{ paddingLeft: 12, paddingTop: 8 }}>
                                 <div style={{ fontSize: 11, color: '#888888', marginBottom: 6 }}>
@@ -804,14 +806,10 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                         padding: '6px 10px',
                                         backgroundColor: '#ffffff11',
                                         borderRadius: 6,
-                                        marginBottom: 6
                                     }}
                                 >
-                                    <div>
-                                        <div style={{ fontSize: 12 }}>Dim / Black screen</div>
-                                        <div style={{ fontSize: 10, color: '#666666' }}>
-                                            {screensaverMode === 'off' ? 'Disabled' : (screensaverMode === 'black' ? 'Full Black' : 'Dim Screen')}
-                                        </div>
+                                    <div style={{ fontSize: 12 }}>
+                                        {screensaverMode === 'off' ? 'Disabled' : 'Enabled'}
                                     </div>
                                     <div style={{
                                         width: 36,
@@ -833,44 +831,9 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                         }} />
                                     </div>
                                 </Focusable>
-                                {screensaverMode !== 'off' && (
-                                    <Focusable style={{ display: 'flex', backgroundColor: '#1a1f2c', borderRadius: 16, padding: 3, gap: 3 }}>
-                                        <Focusable
-                                            onActivate={() => setScreensaverMode('black')}
-                                            style={{
-                                                flex: 1,
-                                                padding: '5px 8px',
-                                                borderRadius: 13,
-                                                backgroundColor: screensaverMode === 'black' ? '#1a9fff' : 'transparent',
-                                                color: screensaverMode === 'black' ? 'white' : '#888',
-                                                fontSize: 11,
-                                                fontWeight: 600,
-                                                textAlign: 'center',
-                                                transition: 'all 0.2s ease'
-                                            }}
-                                        >
-                                            Full Black
-                                        </Focusable>
-                                        <Focusable
-                                            onActivate={() => setScreensaverMode('dim')}
-                                            style={{
-                                                flex: 1,
-                                                padding: '5px 8px',
-                                                borderRadius: 13,
-                                                backgroundColor: screensaverMode === 'dim' ? '#1a9fff' : 'transparent',
-                                                color: screensaverMode === 'dim' ? 'white' : '#888',
-                                                fontSize: 11,
-                                                fontWeight: 600,
-                                                textAlign: 'center',
-                                                transition: 'all 0.2s ease'
-                                            }}
-                                        >
-                                            Dim Screen
-                                        </Focusable>
-                                    </Focusable>
-                                )}
                             </div>
                         )}
+
                     </Focusable>
                 </div>
 

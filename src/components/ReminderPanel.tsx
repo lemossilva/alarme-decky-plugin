@@ -133,6 +133,7 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                         {reminder.only_while_gaming && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>🎮</span>}
                         {reminder.subtle_mode && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>📵</span>}
                         {reminder.prevent_sleep && <span style={{ color: cardFocused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
+                        {reminder.screensaver_mode && reminder.screensaver_mode !== 'off' && <span style={{ color: cardFocused ? '#bbbbdd' : '#8888aa' }}>🌙</span>}
                     </div>
 
                     {/* Row 3: Next trigger */}

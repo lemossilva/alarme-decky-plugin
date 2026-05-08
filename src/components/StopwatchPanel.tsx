@@ -11,7 +11,6 @@ import { useStopwatch } from "../hooks/useStopwatch";
 import { formatStopwatch, formatLapSplit } from "../utils/time";
 import type { StopwatchLap } from "../types";
 import { useEffect, useRef, useState } from "react";
-import { BinarySelector } from "./BinarySelector";
 
 export function StopwatchPanel() {
     const {
@@ -248,34 +247,23 @@ export function StopwatchPanel() {
                         label="Prevent Sleep"
                         description="Keep device awake while stopwatch is running"
                         checked={preventSleep}
-                        onChange={setPreventSleep}
+                        onChange={(val) => setPreventSleep(val)}
                     />
                 </PanelSectionRow>
 
                 {preventSleep && (
-                    <>
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<span style={{ fontSize: 14 }}>🖥️</span>}
-                                label="Screensaver"
-                                description="Dim or black out the screen while preventing sleep"
-                                checked={screensaverMode !== 'off'}
-                                onChange={(val) => setPreventSleep(true, val ? 'black' : 'off')}
-                            />
-                        </PanelSectionRow>
-                        {screensaverMode !== 'off' && (
-                            <div style={{ paddingLeft: '40px' }}>
-                                <BinarySelector
-                                    label="Screensaver Mode"
-                                    leftOption={{ value: 'black', label: 'Full Black' }}
-                                    rightOption={{ value: 'dim', label: 'Dim Screen' }}
-                                    value={screensaverMode !== 'off' ? screensaverMode : 'black'}
-                                    onChange={(val) => setPreventSleep(true, val as 'off' | 'black' | 'dim')}
-                                />
-                            </div>
-                        )}
-                    </>
+                    <PanelSectionRow>
+                        <ToggleField
+                            icon={<span style={{ fontSize: 14 }}>🖥️</span>}
+                            label="Screensaver"
+                            description="Show screensaver while preventing sleep"
+                            checked={screensaverMode !== 'off'}
+                            onChange={(val) => setPreventSleep(true, val ? 'black' : 'off')}
+                        />
+                    </PanelSectionRow>
                 )}
+
+
             </PanelSection>
 
             {/* Lap List */}

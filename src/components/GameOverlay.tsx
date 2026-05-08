@@ -154,7 +154,7 @@ export const GameOverlay = () => {
     const alerts = useOverlayData(settings, isGameRunning);
     const { inhibitorActive, overlayVisible: screensaverVisible } = useScreensaver();
     const { hasNewMissedAlerts } = useMissedAlerts();
-    const hasContent = alerts.length > 0 || inhibitorActive || hasNewMissedAlerts;
+    const hasContent = alerts.length > 0 || inhibitorActive || hasNewMissedAlerts || screensaverVisible;
     const overlayActive = settings.overlay_enabled && hasContent;
     const { x: pxX, y: pxY } = usePixelShift(overlayActive);
     const [batteryPct, setBatteryPct] = useState<number | null>(null);
@@ -195,6 +195,11 @@ export const GameOverlay = () => {
     }, [settings.overlay_position, settings.overlay_custom_x, settings.overlay_custom_y]);
 
     if (!settings.overlay_enabled || !hasContent) {
+        return null;
+    }
+
+    // Hide GameOverlay during non-compact screensaver — ScreensaverContent handles all rendering
+    if (screensaverVisible && (settings.overlay_screensaver_layout || "compact") !== "compact") {
         return null;
     }
 

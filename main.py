@@ -11,6 +11,15 @@ import uuid
 import json
 import fcntl
 import struct
+import ssl
+
+# SSL context that doesn't verify certificates (Steam Deck Python may lack CA bundles)
+_NO_VERIFY_SSL = ssl.create_default_context()
+_NO_VERIFY_SSL.check_hostname = False
+_NO_VERIFY_SSL.verify_mode = ssl.CERT_NONE
+
+# Browser-like User-Agent for all HTTP requests
+_BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # Initialize settings
 settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
@@ -87,7 +96,7 @@ DEFAULT_SETTINGS = {
     # Tab Order
     "tab_order": ["timers", "alarms", "pomodoro", "reminders", "stopwatch"],
     # Screensaver settings
-    "screensaver_mode": "off",           # "off" | "black" | "dim" — global default
+        "screensaver_mode": "dim",           # "off" | "black" | "dim" | "wallpaper" — global default
     "screensaver_dim_opacity": 0.92,     # opacity of the dim overlay (0.0–1.0)
     "pomodoro_screensaver_mode": "off",  # pomodoro screensaver mode
     # Screensaver timer
@@ -98,6 +107,27 @@ DEFAULT_SETTINGS = {
     "overlay_screensaver_show_clock": True,
     "overlay_screensaver_show_date": True,
     "overlay_screensaver_show_battery": True,
+    # Screensaver 2.0 settings
+    "screensaver_standalone_enabled": False,
+    "screensaver_standalone_idle_seconds": 60,
+    "overlay_screensaver_layout": "compact",
+    "screensaver_clock_style": "digital",
+    "screensaver_clock_size": 20,
+    "screensaver_accent_color": "muted_gray",
+    "screensaver_show_day_of_week": True,
+    "screensaver_show_year": False,
+    "screensaver_show_calendar_grid": False,
+    "screensaver_battery_show_bar": False,
+    "screensaver_battery_low_threshold": 20,
+    "screensaver_show_alerts_list": True,
+    "screensaver_show_system_stats": False,
+    "screensaver_show_network_info": False,
+    "screensaver_wallpaper_provider": "picsum",
+    "screensaver_wallpaper_fit": "cover",
+    "screensaver_wallpaper_blur": "none",
+    "screensaver_wallpaper_dim": 0.4,
+    "screensaver_wallpaper_interval": 300,
+    "screensaver_floating_drift_range": 40,
     # Pixel shift for OLED burn-in prevention
     "pixel_shift_enabled": True,
     "pixel_shift_range": 3,          # max pixel displacement (1-10)
@@ -190,89 +220,88 @@ class Plugin:
 
     # ==================== SLEEP INHIBITOR METHODS ====================
 
-    def _compute_effective_screensaver_mode(self, items_with_screensaver: list) -> str:
-        """Compute the effective screensaver mode from a list of mode strings.
-        'black' wins over 'dim'. Returns 'off' if no items."""
-        if not items_with_screensaver:
-            return "off"
-        modes = set(items_with_screensaver)
-        if "black" in modes:
-            return "black"
-        if "dim" in modes:
-            return "dim"
-        return "off"
+    def _compute_effective_screensaver_mode(self, user_settings: dict) -> str:
+        """Return the global screensaver mode. Per-alert modes are no longer used."""
+        return user_settings.get("screensaver_mode", "off")
 
     async def _update_sleep_inhibitor(self):
-        """Update the sleep inhibitor based on per-item prevent_sleep flags."""
+        """Update the sleep inhibitor based on per-item prevent_sleep flags.
+        Per-alert screensaver_mode determines whether that alert contributes to the screensaver.
+        The global screensaver_mode determines the visual behavior."""
         should_inhibit = False
         reason_parts = []
         inhibiting_items = []
-        screensaver_modes = []
+        timer_count = 0
+        alarm_count = 0
+        reminder_count = 0
         
-        # Check timers with prevent_sleep=True
+        user_settings = await self._get_user_settings()
+        global_mode = user_settings.get("screensaver_mode", "off")
+        
+        # Check timers with prevent_sleep=True AND screensaver_mode != "off"
         timers = await self._get_timers()
         for timer_id, timer in timers.items():
             if not timer.get("paused", False) and timer.get("prevent_sleep", False):
                 should_inhibit = True
                 mode = timer.get("screensaver_mode", "off")
-                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": mode})
-                screensaver_modes.append(mode)
-        if inhibiting_items:
-            reason_parts.append(f"{len(inhibiting_items)} timer(s)")
+                # Only include if screensaver is enabled for this timer
+                if mode != "off":
+                    timer_count += 1
+                    inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": global_mode})
         
-        # Check pomodoro with prevent_sleep=True (uses global setting)
-        user_settings = await self._get_user_settings()
+        # Check pomodoro with prevent_sleep=True AND screensaver enabled
         pomodoro = await self._get_pomodoro_state()
         if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
             should_inhibit = True
-            mode = user_settings.get("pomodoro_screensaver_mode", "off")
-            reason_parts.append("Pomodoro")
-            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Pomodoro", "screensaver_mode": mode})
-            screensaver_modes.append(mode)
+            pomo_mode = user_settings.get("pomodoro_screensaver_mode", "off")
+            if pomo_mode != "off":
+                reason_parts.append("Pomodoro")
+                inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Pomodoro", "screensaver_mode": global_mode})
         
-        # Check alarms with prevent_sleep=True (enabled and upcoming within per-alarm window)
+        # Check alarms with prevent_sleep=True AND screensaver enabled
         alarms = await self._get_alarms()
         now = time.time()
-        alarm_count = 0
         for alarm_id, alarm in alarms.items():
             if not alarm.get("enabled", False) or not alarm.get("prevent_sleep", False):
                 continue
-            # Use per-alarm window (default 60 minutes)
+            alarm_mode = alarm.get("screensaver_mode", "off")
+            if alarm_mode == "off":
+                continue
             window_minutes = alarm.get("prevent_sleep_window", 60)
             window_seconds = window_minutes * 60
             next_trigger = self._calculate_next_trigger(alarm)
             if next_trigger and 0 < (next_trigger - now) <= window_seconds:
                 should_inhibit = True
                 alarm_count += 1
-                mode = alarm.get("screensaver_mode", "off")
-                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": mode})
-                screensaver_modes.append(mode)
-        if alarm_count > 0:
-            reason_parts.append(f"{alarm_count} alarm(s)")
+                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": global_mode})
         
-        # Check reminders with prevent_sleep=True
+        # Check reminders with prevent_sleep=True AND screensaver enabled
         reminders = await self._get_reminders()
-        reminder_count = 0
         for reminder_id, reminder in reminders.items():
             if reminder.get("enabled", False) and reminder.get("prevent_sleep", False):
                 should_inhibit = True
-                reminder_count += 1
-                mode = reminder.get("screensaver_mode", "off")
-                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": mode})
-                screensaver_modes.append(mode)
-        if reminder_count > 0:
-            reason_parts.append(f"{reminder_count} reminder(s)")
+                rem_mode = reminder.get("screensaver_mode", "off")
+                if rem_mode != "off":
+                    reminder_count += 1
+                    inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": global_mode})
         
-        # Check stopwatch with prevent_sleep=True
+        # Check stopwatch with prevent_sleep=True AND screensaver enabled
         stopwatch = await self._get_stopwatch_state()
         if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
             should_inhibit = True
-            mode = stopwatch.get("screensaver_mode", "off")
-            reason_parts.append("Stopwatch")
-            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": mode})
-            screensaver_modes.append(mode)
+            sw_mode = stopwatch.get("screensaver_mode", "off")
+            if sw_mode != "off":
+                reason_parts.append("Stopwatch")
+                inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": global_mode})
         
-        effective_mode = self._compute_effective_screensaver_mode(screensaver_modes)
+        # Build reason string
+        if timer_count > 0:
+            reason_parts.insert(0, f"{timer_count} timer(s)")
+        if alarm_count > 0:
+            reason_parts.append(f"{alarm_count} alarm(s)")
+        if reminder_count > 0:
+            reason_parts.append(f"{reminder_count} reminder(s)")
+        
         dim_opacity = user_settings.get("screensaver_dim_opacity", 0.92)
         idle_seconds = user_settings.get("screensaver_idle_seconds", 15)
         overlay_during = user_settings.get("overlay_during_screensaver", True)
@@ -284,22 +313,14 @@ class Plugin:
                 "active": True,
                 "reason": reason,
                 "items": inhibiting_items,
-                "screensaver_mode": effective_mode,
+                "screensaver_mode": global_mode,
                 "screensaver_dim_opacity": dim_opacity,
                 "screensaver_idle_seconds": idle_seconds,
                 "overlay_during_screensaver": overlay_during
             })
         else:
             await self._release_sleep_inhibitor()
-            await decky.emit("alarme_sleep_inhibitor_updated", {
-                "active": False,
-                "reason": "",
-                "items": [],
-                "screensaver_mode": "off",
-                "screensaver_dim_opacity": dim_opacity,
-                "screensaver_idle_seconds": idle_seconds,
-                "overlay_during_screensaver": overlay_during
-            })
+            # Do NOT emit a second event — _release_sleep_inhibitor already emits one
 
     async def _jiggler_loop(self):
         """Simulate activity periodically to prevent sleep using uinput keyboard events."""
@@ -422,10 +443,15 @@ class Plugin:
                 
             self._sleep_inhibitor_active = False
             decky.logger.info("AlarMe: Sleep inhibitor released")
+            user_settings = await self._get_user_settings()
             await decky.emit("alarme_sleep_inhibitor_updated", {
                 "active": False,
-                "screensaver_mode": "off",
-                "screensaver_dim_opacity": 0.92
+                "reason": "",
+                "items": [],
+                "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+                "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92),
+                "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
+                "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True)
             })
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to release sleep inhibitor: {e}")
@@ -440,57 +466,56 @@ class Plugin:
             self._sleep_inhibitor_active = False
 
     async def get_sleep_inhibitor_status(self) -> dict:
-        """Get current sleep inhibitor status."""
+        """Get current sleep inhibitor status. Only items with screensaver_mode != 'off' are included."""
         inhibiting_items = []
-        screensaver_modes = []
-        
-        # Collect all items that are preventing sleep
-        timers = await self._get_timers()
-        for timer_id, timer in timers.items():
-            if not timer.get("paused", False) and timer.get("prevent_sleep", False):
-                mode = timer.get("screensaver_mode", "off")
-                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": mode})
-                screensaver_modes.append(mode)
         
         user_settings = await self._get_user_settings()
+        global_mode = user_settings.get("screensaver_mode", "off")
+        
+        # Collect all items that are preventing sleep AND have screensaver enabled
+        timers = await self._get_timers()
+        for timer_id, timer in timers.items():
+            if (not timer.get("paused", False) and 
+                timer.get("prevent_sleep", False) and 
+                timer.get("screensaver_mode", "off") != "off"):
+                inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": global_mode})
+        
         pomodoro = await self._get_pomodoro_state()
-        if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
-            mode = user_settings.get("pomodoro_screensaver_mode", "off")
-            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Focus Session", "screensaver_mode": mode})
-            screensaver_modes.append(mode)
+        if (pomodoro.get("active", False) and 
+            user_settings.get("pomodoro_prevent_sleep", False) and
+            user_settings.get("pomodoro_screensaver_mode", "off") != "off"):
+            inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Focus Session", "screensaver_mode": global_mode})
         
         alarms = await self._get_alarms()
         now = time.time()
         for alarm_id, alarm in alarms.items():
-            if not alarm.get("enabled", False) or not alarm.get("prevent_sleep", False):
+            if (not alarm.get("enabled", False) or 
+                not alarm.get("prevent_sleep", False) or
+                alarm.get("screensaver_mode", "off") == "off"):
                 continue
             window_minutes = alarm.get("prevent_sleep_window", 60)
             window_seconds = window_minutes * 60
             next_trigger = self._calculate_next_trigger(alarm)
             if next_trigger and 0 < (next_trigger - now) <= window_seconds:
-                mode = alarm.get("screensaver_mode", "off")
-                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": mode})
-                screensaver_modes.append(mode)
+                inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": global_mode})
         
         reminders = await self._get_reminders()
         for reminder_id, reminder in reminders.items():
-            if reminder.get("enabled", False) and reminder.get("prevent_sleep", False):
-                mode = reminder.get("screensaver_mode", "off")
-                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": mode})
-                screensaver_modes.append(mode)
+            if (reminder.get("enabled", False) and 
+                reminder.get("prevent_sleep", False) and
+                reminder.get("screensaver_mode", "off") != "off"):
+                inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": global_mode})
         
         stopwatch = await self._get_stopwatch_state()
-        if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
-            mode = stopwatch.get("screensaver_mode", "off")
-            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": mode})
-            screensaver_modes.append(mode)
-        
-        effective_mode = self._compute_effective_screensaver_mode(screensaver_modes)
+        if (stopwatch.get("status") == "running" and 
+            stopwatch.get("prevent_sleep", False) and
+            stopwatch.get("screensaver_mode", "off") != "off"):
+            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": global_mode})
         
         return {
             "active": self._sleep_inhibitor_active,
             "items": inhibiting_items,
-            "screensaver_mode": effective_mode,
+            "screensaver_mode": global_mode,
             "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92)
         }
 
@@ -537,7 +562,7 @@ class Plugin:
 
     async def set_screensaver_mode(self, mode: str, dim_opacity: float = None) -> dict:
         """Update screensaver mode and optionally dim opacity. Emits update if inhibitor is active."""
-        if mode not in ("off", "black", "dim"):
+        if mode not in ("off", "black", "dim", "wallpaper"):
             return {"success": False, "error": "Invalid mode"}
         
         user_settings = await self._get_user_settings()
@@ -563,6 +588,359 @@ class Plugin:
             "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
             "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True)
         }
+
+    async def get_system_stats(self) -> dict:
+        """Get real-time system stats from sysfs/proc for the screensaver widget."""
+        result = {
+            "cpu_temp": None,
+            "cpu_usage": None,
+            "ram_used_gb": None,
+            "ram_total_gb": None,
+            "gpu_temp": None,
+            "fan_rpm": None
+        }
+
+        # CPU temperature from thermal zones
+        try:
+            thermal_base = "/sys/class/thermal/thermal_zone"
+            if os.path.exists(thermal_base):
+                for i in range(10):
+                    zone_dir = f"{thermal_base}{i}"
+                    type_file = os.path.join(zone_dir, "type")
+                    temp_file = os.path.join(zone_dir, "temp")
+                    if os.path.exists(type_file) and os.path.exists(temp_file):
+                        with open(type_file, "r") as f:
+                            zone_type = f.read().strip()
+                        with open(temp_file, "r") as f:
+                            temp_raw = f.read().strip()
+                        temp = int(temp_raw) / 1000.0
+                        if zone_type in ("x86_pkg_temp", "cpu-thermal", "Tctl", "k10temp"):
+                            result["cpu_temp"] = temp
+                        elif zone_type in ("gpu", "GPU", "amdgpu", "iwlwifi_1"):
+                            pass  # not GPU temp
+                        elif result["gpu_temp"] is None and temp > 20:
+                            result["gpu_temp"] = temp
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: Error reading temps: {e}")
+
+        # Try GPU temp from hwmon
+        try:
+            hwmon_base = "/sys/class/hwmon"
+            if os.path.exists(hwmon_base):
+                for hwmon_name in os.listdir(hwmon_base):
+                    hwmon_dir = os.path.join(hwmon_base, hwmon_name)
+                    name_file = os.path.join(hwmon_dir, "name")
+                    if os.path.exists(name_file):
+                        with open(name_file, "r") as f:
+                            name = f.read().strip()
+                        for label_idx in range(1, 6):
+                            label_file = os.path.join(hwmon_dir, f"temp{label_idx}_label")
+                            temp_file = os.path.join(hwmon_dir, f"temp{label_idx}_input")
+                            if os.path.exists(label_file) and os.path.exists(temp_file):
+                                with open(label_file, "r") as f:
+                                    label = f.read().strip().lower()
+                                if "gpu" in label or "edge" in label or "junction" in label:
+                                    with open(temp_file, "r") as f:
+                                        result["gpu_temp"] = int(f.read().strip()) / 1000.0
+                                    break
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: Error reading GPU temp: {e}")
+
+        # CPU usage from /proc/stat
+        try:
+            with open("/proc/stat", "r") as f:
+                for line in f:
+                    if line.startswith("cpu "):
+                        parts = line.split()
+                        if len(parts) >= 8:
+                            user = int(parts[1])
+                            nice = int(parts[2])
+                            system = int(parts[3])
+                            idle = int(parts[4])
+                            total = user + nice + system + idle
+                            if total > 0:
+                                result["cpu_usage"] = round((1 - idle / total) * 100, 1)
+                        break
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: Error reading CPU usage: {e}")
+
+        # RAM from /proc/meminfo
+        try:
+            mem_total = 0
+            mem_avail = 0
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        mem_total = int(line.split()[1])
+                    elif line.startswith("MemAvailable:"):
+                        mem_avail = int(line.split()[1])
+                    if mem_total and mem_avail:
+                        break
+            if mem_total > 0:
+                result["ram_total_gb"] = round(mem_total / 1024 / 1024, 1)
+                result["ram_used_gb"] = round((mem_total - mem_avail) / 1024 / 1024, 1)
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: Error reading RAM: {e}")
+
+        # Fan speed from hwmon
+        try:
+            for hwmon_name in os.listdir(hwmon_base) if os.path.exists("/sys/class/hwmon") else []:
+                hwmon_dir = os.path.join("/sys/class/hwmon", hwmon_name)
+                for fan_idx in range(1, 4):
+                    fan_file = os.path.join(hwmon_dir, f"fan{fan_idx}_input")
+                    if os.path.exists(fan_file):
+                        with open(fan_file, "r") as f:
+                            result["fan_rpm"] = int(f.read().strip())
+                        break
+                if result["fan_rpm"] is not None:
+                    break
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: Error reading fan: {e}")
+
+        return result
+
+    async def fetch_wallpaper(self, provider: str) -> dict:
+        """Fetch a wallpaper as base64 data for CEF rendering."""
+        import urllib.request
+        import base64
+
+        result = {"success": False, "url": None, "is_base64": False, "provider_status": None, "last_fetch": None}
+        wallpapers_dir = os.path.join(settingsDir, "wallpapers")
+        os.makedirs(wallpapers_dir, exist_ok=True)
+
+        def _cleanup_old_wallpapers(directory: str, prefix: str, keep: int = 3):
+            try:
+                files = [os.path.join(directory, f) for f in os.listdir(directory) if f.startswith(prefix)]
+                files.sort(key=os.path.getmtime, reverse=True)
+                for old_file in files[keep:]:
+                    os.remove(old_file)
+            except Exception:
+                pass
+
+        def _img_to_data_url(img_data: bytes, filename: str) -> str:
+            if filename.lower().endswith(".png"):
+                mime = "image/png"
+            elif filename.lower().endswith(".webp"):
+                mime = "image/webp"
+            else:
+                mime = "image/jpeg"
+            b64 = base64.b64encode(img_data).decode("ascii")
+            return f"data:{mime};base64,{b64}"
+
+        def _read_as_data_url(path: str) -> str | None:
+            try:
+                with open(path, "rb") as f:
+                    img_data = f.read()
+                return _img_to_data_url(img_data, path)
+            except Exception:
+                return None
+
+        try:
+            if provider == "picsum":
+                req = urllib.request.Request(
+                    "https://picsum.photos/1280/800?random",
+                    headers={"User-Agent": _BROWSER_UA}
+                )
+                with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
+                    img_data = resp.read()
+                path = os.path.join(wallpapers_dir, f"picsum_{int(time.time())}.jpg")
+                with open(path, "wb") as f:
+                    f.write(img_data)
+                data_url = _img_to_data_url(img_data, path)
+                _cleanup_old_wallpapers(wallpapers_dir, "picsum")
+                result["url"] = data_url
+                result["is_base64"] = True
+                result["success"] = True
+                result["last_fetch"] = datetime.now().isoformat()
+
+            elif provider == "bing_daily":
+                import json as json_mod
+
+                user_settings = await self._get_user_settings()
+                bing_date = user_settings.get("_bing_date", "")
+                today = datetime.now().strftime("%Y-%m-%d")
+                cached_path = os.path.join(wallpapers_dir, f"bing_{today}.jpg")
+
+                if bing_date == today and os.path.exists(cached_path):
+                    data_url = _read_as_data_url(cached_path)
+                    if data_url:
+                        result["url"] = data_url
+                        result["is_base64"] = True
+                        result["success"] = True
+                        result["last_fetch"] = today
+                    else:
+                        pass
+                if not result["success"]:
+                    req = urllib.request.Request(
+                        "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US",
+                        headers={"User-Agent": _BROWSER_UA}
+                    )
+                    with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
+                        data = json_mod.loads(resp.read().decode("utf-8"))
+                    if data.get("images"):
+                        img_path = data["images"][0].get("urlbase", data["images"][0]["url"])
+                        img_url = f"https://www.bing.com{img_path}_1280x800.jpg"
+                        try:
+                            img_req = urllib.request.Request(img_url, headers={"User-Agent": _BROWSER_UA})
+                            with urllib.request.urlopen(img_req, timeout=10, context=_NO_VERIFY_SSL) as img_resp:
+                                img_data = img_resp.read()
+                        except Exception:
+                            img_url = f"https://www.bing.com{data['images'][0]['url']}"
+                            img_req = urllib.request.Request(img_url, headers={"User-Agent": _BROWSER_UA})
+                            with urllib.request.urlopen(img_req, timeout=10, context=_NO_VERIFY_SSL) as img_resp:
+                                img_data = img_resp.read()
+
+                        data_url = _img_to_data_url(img_data, "bing.jpg")
+                        path = os.path.join(wallpapers_dir, f"bing_{today}.jpg")
+                        with open(path, "wb") as f:
+                            f.write(img_data)
+                        _cleanup_old_wallpapers(wallpapers_dir, "bing")
+
+                        user_settings = await self._get_user_settings()
+                        user_settings["_bing_date"] = today
+                        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, user_settings)
+                        await self.settings_commit()
+
+                        result["url"] = data_url
+                        result["is_base64"] = True
+                        result["success"] = True
+                        result["last_fetch"] = today
+
+            elif provider == "local_folder":
+                local_dir = os.path.join(os.path.dirname(settingsDir), "AlarMe", "wallpapers")
+                if os.path.exists(local_dir):
+                    valid_exts = (".jpg", ".jpeg", ".png", ".webp")
+                    files = [f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)]
+                    if files:
+                        import random
+                        chosen = random.choice(files)
+                        file_path = os.path.join(local_dir, chosen)
+                        with open(file_path, "rb") as f:
+                            img_data = f.read()
+                        data_url = _img_to_data_url(img_data, chosen)
+                        result["url"] = data_url
+                        result["is_base64"] = True
+                        result["success"] = True
+                        result["last_fetch"] = datetime.now().isoformat()
+                    else:
+                        result["provider_status"] = "No images found in wallpapers folder"
+                else:
+                    result["provider_status"] = "Wallpapers folder not found. Place images in ~/homebrew/plugins/AlarMe/wallpapers/"
+
+        except urllib.error.URLError as e:
+            decky.logger.error(f"AlarMe: Network error fetching wallpaper ({provider}): {e}")
+            result["provider_status"] = f"Network error: {e.reason}"
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to fetch wallpaper ({provider}): {e}")
+            result["provider_status"] = str(e)
+
+        return result
+
+    async def check_wallpaper_provider(self, provider: str) -> dict:
+        """Check if a wallpaper provider is reachable."""
+        import urllib.request
+
+        result = {"reachable": False, "message": None}
+
+        try:
+            if provider == "picsum":
+                req = urllib.request.Request(
+                    "https://picsum.photos",
+                    headers={"User-Agent": _BROWSER_UA},
+                    method="HEAD"
+                )
+                urllib.request.urlopen(req, timeout=5, context=_NO_VERIFY_SSL)
+                result["reachable"] = True
+
+            elif provider == "bing_daily":
+                req = urllib.request.Request(
+                    "https://www.bing.com",
+                    headers={"User-Agent": _BROWSER_UA},
+                    method="HEAD"
+                )
+                urllib.request.urlopen(req, timeout=5, context=_NO_VERIFY_SSL)
+                result["reachable"] = True
+
+            elif provider == "local_folder":
+                local_dir = os.path.join(os.path.dirname(settingsDir), "AlarMe", "wallpapers")
+                if os.path.exists(local_dir):
+                    valid_exts = (".jpg", ".jpeg", ".png", ".webp")
+                    files = [f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)]
+                    if files:
+                        result["reachable"] = True
+                    else:
+                        result["message"] = "No images found in wallpapers folder"
+                else:
+                    result["message"] = "Wallpapers folder not found"
+
+        except Exception as e:
+            result["message"] = f"Unreachable: {e}"
+
+        return result
+
+    async def get_wifi_info(self) -> dict:
+        """Get current Wi-Fi SSID and signal strength.
+
+        Signal strength is converted from dBm to a 0-100 percentage:
+        -30 dBm or better = 100%, -90 dBm or worse = 0%.
+        """
+        import subprocess
+
+        def dbm_to_quality(dbm: int) -> int:
+            """Convert dBm signal strength to a 0-100 quality percentage."""
+            if dbm >= -30:
+                return 100
+            if dbm <= -90:
+                return 0
+            return int((dbm + 90) / 60 * 100)
+
+        result = {"ssid": None, "signal": None}
+
+        try:
+            proc = subprocess.run(["iw", "dev", "wlan0", "link"], capture_output=True, text=True, timeout=3)
+            if proc.returncode == 0:
+                for line in proc.stdout.split("\n"):
+                    line = line.strip()
+                    if line.startswith("SSID:"):
+                        result["ssid"] = line.split(":", 1)[1].strip()
+                    elif line.startswith("signal:"):
+                        signal_str = line.split(":", 1)[1].strip().split()[0]
+                        dbm = int(signal_str)
+                        result["signal"] = dbm_to_quality(dbm)
+                if result["ssid"] or result["signal"] is not None:
+                    return result
+        except Exception:
+            pass
+
+        try:
+            proc = subprocess.run(["iwconfig", "wlan0"], capture_output=True, text=True, timeout=3)
+            if proc.returncode == 0:
+                for line in proc.stdout.split("\n"):
+                    line = line.strip()
+                    if "ESSID:" in line:
+                        ssid = line.split("ESSID:")[1].strip().strip('"')
+                        if ssid != "off/any":
+                            result["ssid"] = ssid
+                    if "Signal level=" in line:
+                        part = line.split("Signal level=")[1].split()[0]
+                        if "/" in part:
+                            num, denom = part.split("/")
+                            result["signal"] = int(float(num) / float(denom) * 100)
+                        else:
+                            dbm = int(part)
+                            result["signal"] = dbm_to_quality(dbm)
+        except Exception:
+            pass
+
+        return result
+
+    async def list_local_wallpapers(self) -> list:
+        """List available files in the local wallpapers folder."""
+        local_dir = os.path.join(os.path.dirname(settingsDir), "AlarMe", "wallpapers")
+        if not os.path.exists(local_dir):
+            return []
+        valid_exts = (".jpg", ".jpeg", ".png", ".webp")
+        return sorted([f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)])
 
     # ==================== TIMER METHODS ====================
 
