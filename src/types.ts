@@ -340,11 +340,19 @@ export interface StopwatchState {
 export type TabId = 'timers' | 'alarms' | 'stopwatch' | 'pomodoro' | 'reminders' | 'settings';
 
 // Screensaver 2.0 types
-export type ScreensaverLayout = 'compact' | 'large' | 'fullscreen' | 'floating';
+export type ScreensaverLayout = 'compact' | 'large' | 'fullscreen';
 
 export type ClockStyle = 'digital' | 'digital_seconds' | 'digital_large' | 'analog';
 
-export type AccentColorPreset = 'muted_gray' | 'white' | 'warm_amber' | 'cool_blue' | 'soft_red' | 'mint_green' | 'dim_orange';
+export type AccentColorPreset =
+    | 'muted_gray'
+    | 'white'
+    | 'warm_amber'
+    | 'cool_blue'
+    | 'soft_red'
+    | 'mint_green'
+    | 'dim_orange'
+    | 'contrast_auto';
 
 export const ACCENT_COLORS: Record<AccentColorPreset, string> = {
     muted_gray: '#8b8b8b',
@@ -353,7 +361,8 @@ export const ACCENT_COLORS: Record<AccentColorPreset, string> = {
     cool_blue: '#4499cc',
     soft_red: '#cc5544',
     mint_green: '#66bb88',
-    dim_orange: '#cc7733'
+    dim_orange: '#cc7733',
+    contrast_auto: '#e0e0e0',
 };
 
 export type WallpaperProvider =

@@ -551,6 +551,19 @@ class Plugin:
             "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92)
         }
 
+    async def _emit_screensaver_reset_state(self) -> None:
+        """Reset frontend runtime screensaver state after plugin startup."""
+        user_settings = await self._get_user_settings()
+        await decky.emit("alarme_sleep_inhibitor_updated", {
+            "active": False,
+            "reason": "",
+            "items": [],
+            "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+            "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92),
+            "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
+            "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True),
+        })
+
     async def disable_all_sleep_inhibitors(self) -> bool:
         """Disable all mechanisms preventing sleep."""
         decky.logger.info("AlarMe: Disabling all sleep inhibitors")
@@ -3326,6 +3339,10 @@ class Plugin:
         elif current_position not in {"default", "custom"}:
             merged["overlay_position"] = "default"
 
+        # Remove legacy floating layout mode in favor of large + pixel shift drift.
+        if merged.get("overlay_screensaver_layout") == "floating":
+            merged["overlay_screensaver_layout"] = "large"
+
         valid_wallpaper_providers = frozenset(
             {"none", "picsum", "bing_daily", "lorem_flickr", "nasa_apod", "local_folder"}
         )
@@ -3373,6 +3390,10 @@ class Plugin:
         current_position = updated.get("overlay_position")
         if current_position in position_map:
             updated["overlay_position"] = position_map[current_position]
+            changed = True
+
+        if updated.get("overlay_screensaver_layout") == "floating":
+            updated["overlay_screensaver_layout"] = "large"
             changed = True
 
         if "overlay_custom_x" not in updated:
@@ -4040,6 +4061,7 @@ class Plugin:
         await self.settings_read()
         await self._migrate_settings_schema()
         await self._migrate_timer_settings()
+        await self._emit_screensaver_reset_state()
 
         # Resume any active timers
         timers = await self._get_timers()

@@ -687,7 +687,6 @@ const ScreensaverSettingsPage = () => {
         { data: 'compact', label: 'Compact (Top-Left)' },
         { data: 'large', label: 'Large (Centered)' },
         { data: 'fullscreen', label: 'Fullscreen' },
-        { data: 'floating', label: 'Floating (Drifting)' },
     ];
 
     const clockStyleOptions = [
@@ -705,6 +704,7 @@ const ScreensaverSettingsPage = () => {
         { data: 'soft_red', label: 'Soft Red' },
         { data: 'mint_green', label: 'Mint Green' },
         { data: 'dim_orange', label: 'Dim Orange' },
+        ...(mode === 'wallpaper' ? [{ data: 'contrast_auto' as const, label: 'Contrast with Background' }] : []),
     ];
 
     const wallpaperProviderOptions = [
@@ -732,6 +732,7 @@ const ScreensaverSettingsPage = () => {
     };
 
     const provider = settings.screensaver_wallpaper_provider || 'none';
+    const rawLayoutMode = (settings.overlay_screensaver_layout as unknown as string | undefined) || 'compact';
     const poolSz = clampWallpaperPoolSize(settings.screensaver_wallpaper_pool_size);
     const autoRotateWallpaper = settings.screensaver_wallpaper_auto_rotate ?? true;
     const cacheUpdatedLabel = (() => {
@@ -849,11 +850,15 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <SliderField
                                         label="Rotation interval"
-                                        description={`Next image every ${Math.round((settings.screensaver_wallpaper_interval ?? 300) / 60)} min`}
+                                        description={
+                                            (settings.screensaver_wallpaper_interval ?? 300) < 60
+                                                ? `Next image every ${settings.screensaver_wallpaper_interval ?? 300}s`
+                                                : `Next image every ${Math.round((settings.screensaver_wallpaper_interval ?? 300) / 60)} min`
+                                        }
                                         value={settings.screensaver_wallpaper_interval ?? 300}
-                                        min={60}
+                                        min={30}
                                         max={1800}
-                                        step={60}
+                                        step={30}
                                         onChange={(value) => updateSetting('screensaver_wallpaper_interval', value)}
                                         icon={<FaClock size={16} />}
                                     />
@@ -1086,7 +1091,7 @@ const ScreensaverSettingsPage = () => {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <Dropdown
                                         rgOptions={layoutOptions}
-                                        selectedOption={settings.overlay_screensaver_layout || 'compact'}
+                                        selectedOption={rawLayoutMode === 'floating' ? 'large' : rawLayoutMode}
                                         onChange={(option) => updateSetting('overlay_screensaver_layout', option.data as ScreensaverLayout)}
                                         strDefaultLabel="Select Layout"
                                     />
@@ -1095,7 +1100,9 @@ const ScreensaverSettingsPage = () => {
                         </PanelSectionRow>
                         <PanelSectionRow>
                             <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
-                                Compact keeps the existing behavior. Large/Fullscreen/Floating show a dedicated clock screen.
+                                {(settings.overlay_screensaver_layout || 'compact') === 'compact' && 'Compact keeps a minimal top-left overlay with existing behavior.'}
+                                {(settings.overlay_screensaver_layout || 'compact') === 'large' && 'Large keeps the clock/date centered in a stable card with grouped widgets beneath it. With OLED burn-in protection on, this layout also drifts.'}
+                                {(settings.overlay_screensaver_layout || 'compact') === 'fullscreen' && 'Fullscreen uses centered content without a card and gives grouped widgets more horizontal room. With OLED burn-in protection on, content drifts too.'}
                             </div>
                         </PanelSectionRow>
 
@@ -1112,7 +1119,7 @@ const ScreensaverSettingsPage = () => {
                             />
                         </PanelSectionRow>
 
-                        {(settings.overlay_screensaver_layout || 'compact') === 'floating' && (
+                        {(settings.overlay_screensaver_layout || 'compact') !== 'compact' && (settings.pixel_shift_enabled ?? true) && (
                             <PanelSectionRow>
                                 <SliderField
                                     label="Drift Range"
@@ -1152,13 +1159,24 @@ const ScreensaverSettingsPage = () => {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <Dropdown
                                         rgOptions={accentColorOptions}
-                                        selectedOption={settings.screensaver_accent_color || 'muted_gray'}
+                                        selectedOption={
+                                            (settings.screensaver_accent_color === 'contrast_auto' && mode !== 'wallpaper')
+                                                ? 'muted_gray'
+                                                : (settings.screensaver_accent_color || 'muted_gray')
+                                        }
                                         onChange={(option) => updateSetting('screensaver_accent_color', option.data as AccentColorPreset)}
                                         strDefaultLabel="Select Color"
                                     />
                                 </div>
                             </div>
                         </PanelSectionRow>
+                        {mode === 'wallpaper' && (
+                            <PanelSectionRow>
+                                <div style={{ fontSize: 11, color: '#666', padding: '2px 0 6px 40px' }}>
+                                    Contrast with Background auto-picks the widget accent color after each wallpaper change.
+                                </div>
+                            </PanelSectionRow>
+                        )}
                     </PanelSection>
 
                     {/* === Widgets === */}
@@ -1748,10 +1766,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.7.2');
+    const [version, setVersion] = useState('1.7.3');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.7.2')).catch(() => setVersion('1.7.2'));
+        getVersionCall().then(v => setVersion(v || '1.7.3')).catch(() => setVersion('1.7.3'));
     }, []);
 
     const handleReset = async () => {

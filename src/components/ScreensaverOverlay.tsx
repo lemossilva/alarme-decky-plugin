@@ -5,6 +5,8 @@ import { useCatchAllGamepad } from "../hooks/useCatchAllGamepad";
 import { ScreensaverContent } from "./ScreensaverContent";
 import { WallpaperLayer } from "./screensaver/WallpaperLayer";
 import { useSettings } from "../hooks/useSettings";
+import { usePixelShift } from "../hooks/usePixelShift";
+import { FaBell, FaMoon, FaDesktop } from "react-icons/fa";
 
 export const ScreensaverOverlay = () => {
     const { settings } = useSettings();
@@ -27,18 +29,27 @@ export const ScreensaverOverlay = () => {
     const level = overlayVisible ? UIComposition.Overlay : UIComposition.Notification;
     useUIComposition(level);
 
-    // Gamepad capture: works for both timer-based and standalone modes.
-    // SetCatchAllGamepadInput intercepts controller input at the system level.
+    // Gamepad capture for both timer-based and standalone screensavers.
+    // After a Steam Deck reboot the SteamUI NavigationManager can initialize
+    // late or get swapped out, so the binding is refreshed on a short cadence
+    // (each subscribe call attaches against the current manager).
     useEffect(() => {
+        if (!shouldListen) {
+            release();
+            return;
+        }
+
         const handler = () => {
             wakeUpRef.current();
         };
-        if (shouldListen) {
+
+        subscribe(handler);
+        const rebindTimer = window.setInterval(() => {
             subscribe(handler);
-        } else {
-            release();
-        }
+        }, 2000);
+
         return () => {
+            window.clearInterval(rebindTimer);
             release();
         };
     }, [shouldListen, subscribe, release]);
@@ -69,8 +80,11 @@ export const ScreensaverOverlay = () => {
 
     const isBlack = effectiveMode === "black";
     const isWallpaper = effectiveMode === "wallpaper";
-    const layout = settings.overlay_screensaver_layout || "compact";
+    const rawLayout = (settings.overlay_screensaver_layout as unknown as string | undefined) || "compact";
+    const layout = rawLayout === "floating" ? "large" : rawLayout;
     const isNonCompact = layout !== "compact";
+    const shiftVisible = overlayVisible && isNonCompact;
+    const { x: shiftX, y: shiftY } = usePixelShift(shiftVisible);
 
     return (
         <div
@@ -93,19 +107,39 @@ export const ScreensaverOverlay = () => {
         >
             {isWallpaper && <WallpaperLayer show={overlayVisible} />}
             {isNonCompact && <ScreensaverContent />}
-            {overlayVisible && (isPreview || isStandaloneIdle) && (
+            {overlayVisible && (
                 <div style={{
                     position: "absolute",
                     bottom: 12,
                     right: 16,
                     fontSize: 10,
                     fontFamily: "system-ui, sans-serif",
-                    color: "rgba(255,255,255,0.25)",
+                    color: "rgba(255,255,255,0.5)",
                     letterSpacing: 1,
                     userSelect: "none",
                     pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    transform: `translate(${shiftX}px, ${shiftY}px)`,
+                    transition: "transform 2s linear",
                 }}>
-                    {isPreview ? "PREVIEW" : "STANDALONE"}
+                    {isPreview ? (
+                        <>
+                            <FaMoon size={10} />
+                            <span>PREVIEW</span>
+                        </>
+                    ) : isStandaloneIdle ? (
+                        <>
+                            <FaDesktop size={10} />
+                            <span>STANDALONE</span>
+                        </>
+                    ) : (
+                        <FaBell size={10} />
+                    )}
                 </div>
             )}
         </div>

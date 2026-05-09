@@ -7,6 +7,7 @@ import type { WallpaperProvider, WallpaperState } from "../types";
 export const WALLPAPER_POOL_MAX = 20;
 
 const WALLPAPER_POOL_DEBOUNCE_MS = 500;
+const DAILY_REFRESH_MS = 24 * 60 * 60 * 1000;
 
 function shuffledSlotIndices(pool: number): number[] {
     if (pool <= 0) return [];
@@ -67,6 +68,7 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
     const rotationOrderRef = useRef<number[]>([0]);
     const rotationPosRef = useRef(0);
     const mountedRef = useRef(true);
+    const dailyRefreshAttemptedRef = useRef<string | null>(null);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -137,13 +139,36 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
         if (screensaverMode !== "wallpaper" || provider === "none") return;
 
         let cancelled = false;
-        prefetchWallpapersCall(provider, debouncedPoolSize).catch(e => {
+        const shouldRefreshDaily = (() => {
+            const updated = settings.screensaver_wallpaper_cache_updated_at;
+            if (!updated) return true;
+            const ts = Date.parse(updated);
+            if (!Number.isFinite(ts)) return true;
+            return (Date.now() - ts) >= DAILY_REFRESH_MS;
+        })();
+        const dailyKey = `${provider}:${debouncedPoolSize}:${settings.screensaver_wallpaper_cache_updated_at ?? "none"}`;
+        if (dailyRefreshAttemptedRef.current === dailyKey) return;
+
+        const run = async () => {
+            if (provider === "local_folder") {
+                await prefetchWallpapersCall(provider, debouncedPoolSize);
+                return;
+            }
+
+            if (!shouldRefreshDaily) return;
+            const reachability = await checkProviderCall(provider);
+            if (!reachability.reachable) return;
+            await prefetchWallpapersCall(provider, debouncedPoolSize);
+        };
+
+        dailyRefreshAttemptedRef.current = dailyKey;
+        run().catch(e => {
             if (!cancelled) console.error("[AlarMe] prefetch_wallpapers:", e);
         });
         return () => {
             cancelled = true;
         };
-    }, [screensaverMode, provider, debouncedPoolSize]);
+    }, [screensaverMode, provider, debouncedPoolSize, settings.screensaver_wallpaper_cache_updated_at]);
 
     useEffect(() => {
         if (!show || provider === "none") {

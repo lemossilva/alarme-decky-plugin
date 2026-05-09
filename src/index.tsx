@@ -217,6 +217,7 @@ function Content() {
         markAsSeen();
         showMissedReportModal(missedItems, use24h);
     };
+    const screensaverEnabled = (userSettings.screensaver_mode || 'off') !== 'off';
 
     return (
         <div ref={contentRef}>
@@ -290,7 +291,7 @@ function Content() {
 
                     {/* Sleep Inhibitor Button */}
                     <Focusable
-                        onActivate={sleepInhibitorActive ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
+                        onActivate={(sleepInhibitorActive && screensaverEnabled) ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
                         style={{
                             flex: '1 1 0',
                             minWidth: 0,
@@ -299,28 +300,28 @@ function Content() {
                             justifyContent: 'center',
                             gap: 6,
                             padding: 8,
-                            backgroundColor: sleepInhibitorActive ? '#e6990022' : '#ffffff08',
+                            backgroundColor: (sleepInhibitorActive && screensaverEnabled) ? '#e6990022' : '#ffffff08',
                             borderRadius: 12,
                             border: '2px solid transparent',
-                            cursor: sleepInhibitorActive ? 'pointer' : 'default',
-                            opacity: sleepInhibitorActive ? 1 : 0.6,
+                            cursor: (sleepInhibitorActive && screensaverEnabled) ? 'pointer' : 'default',
+                            opacity: (sleepInhibitorActive && screensaverEnabled) ? 1 : 0.6,
                             transition: 'all 0.1s ease-in-out'
                         }}
                         onFocus={(e: any) => {
-                            if (sleepInhibitorActive) {
+                            if (sleepInhibitorActive && screensaverEnabled) {
                                 e.target.style.backgroundColor = '#4488aa';
                                 e.target.style.borderColor = 'white';
                             }
                         }}
                         onBlur={(e: any) => {
-                            e.target.style.backgroundColor = sleepInhibitorActive ? '#e6990022' : '#ffffff08';
+                            e.target.style.backgroundColor = (sleepInhibitorActive && screensaverEnabled) ? '#e6990022' : '#ffffff08';
                             e.target.style.borderColor = 'transparent';
                         }}
                     >
-                        <FaShieldAlt size={14} style={{ color: sleepInhibitorActive ? '#e69900' : '#666666' }} />
+                        <FaShieldAlt size={14} style={{ color: (sleepInhibitorActive && screensaverEnabled) ? '#e69900' : '#666666' }} />
                         <span style={{
                             fontSize: 12,
-                            color: sleepInhibitorActive ? '#e69900' : '#666666',
+                            color: (sleepInhibitorActive && screensaverEnabled) ? '#e69900' : '#666666',
                             fontWeight: 500,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',

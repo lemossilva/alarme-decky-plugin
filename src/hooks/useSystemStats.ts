@@ -28,7 +28,7 @@ export function useSystemStats(show: boolean): SystemStats {
         };
 
         fetch();
-        intervalRef.current = setInterval(fetch, 5000);
+        intervalRef.current = setInterval(fetch, 1000);
         return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }, [show]);
 

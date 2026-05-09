@@ -157,6 +157,19 @@ export function useScreensaver() {
     const standaloneIdleSeconds =
         settings.screensaver_standalone_idle_seconds ?? 60;
 
+    useEffect(() => {
+        // Clean runtime-only screensaver state when plugin UI mounts.
+        stopSharedIdleTimer();
+        stopStandaloneTimer();
+        sharedIsIdle = false;
+        sharedStandaloneIdle = false;
+        sharedPreviewActive = false;
+        sharedPreviewLockoutUntil = 0;
+        sharedLastActivity = Date.now();
+        notifyIdleListeners();
+        notifyPreviewListeners();
+    }, []);
+
     // Sync module-level vars on every render so reportActivity sees latest values.
     useEffect(() => {
         sharedInhibitorActive = inhibitorActive;
