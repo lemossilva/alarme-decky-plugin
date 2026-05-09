@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy script for AlarMe Decky Plugin (No Build)
+# Deploy script for AlarMe Decky Plugin (no local build step)
 # Usage: ./deploy_no_build.sh [DECK_IP]
 
 PLUGIN_NAME="alarme-decky-plugin"
@@ -8,22 +8,18 @@ DECK_IP="${1:-${DECK_IP:-192.168.1.100}}"
 PLUGIN_PATH="/home/deck/homebrew/plugins/${PLUGIN_NAME}"
 TMP_PATH="/home/deck/tmp/${PLUGIN_NAME}"
 
-echo "=== AlarMe Deployment Script (No Build) ==="
+SSH_OPTS="-o ControlMaster=auto -o ControlPath=/tmp/ssh_alarme_%h -o ControlPersist=60"
+
+echo "=== AlarMe Deployment Script (no build) ==="
 echo "Target: ${DECK_USER}@${DECK_IP}"
 echo ""
 
-# Prepare temp dir on Deck
 echo "Preparing temporary directory on Deck..."
-ssh ${DECK_USER}@${DECK_IP} "mkdir -p ${TMP_PATH}"
+ssh $SSH_OPTS ${DECK_USER}@${DECK_IP} "mkdir -p ${TMP_PATH}"
 
-if [ $? -ne 0 ]; then
-    echo "Failed to create temp directory. Check SSH connection."
-    exit 1
-fi
-
-# Sync to temp dir
 echo "Copying files to temporary directory..."
 rsync -avz --delete \
+    -e "ssh $SSH_OPTS" \
     --exclude 'node_modules' \
     --exclude '.git' \
     --exclude 'out' \
@@ -36,23 +32,18 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Install with sudo
-echo "Installing plugin (requires sudo permissions)..."
-echo "You may be asked for the 'deck' user password."
-ssh -t ${DECK_USER}@${DECK_IP} "sudo mkdir -p ${PLUGIN_PATH} && sudo rsync -av --delete ${TMP_PATH}/ ${PLUGIN_PATH}/ && sudo chmod -R 755 ${PLUGIN_PATH} && sudo chown -R root:root ${PLUGIN_PATH} && rm -rf ${TMP_PATH}"                       
+echo "Installing plugin..."
+ssh $SSH_OPTS -t ${DECK_USER}@${DECK_IP} "sudo mkdir -p ${PLUGIN_PATH} && sudo rsync -av --delete ${TMP_PATH}/ ${PLUGIN_PATH}/ && sudo chmod -R 755 ${PLUGIN_PATH} && sudo chown -R root:root ${PLUGIN_PATH} && rm -rf ${TMP_PATH}"
+
 if [ $? -ne 0 ]; then
     echo "Installation failed!"
     exit 1
 fi
 
-# Restart
-echo ""
-read -p "Restart Decky Loader? (y/N) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Restarting Decky Loader..."
-    ssh -t ${DECK_USER}@${DECK_IP} "sudo systemctl restart plugin_loader"
-fi
+echo "Restarting Decky Loader..."
+ssh $SSH_OPTS -t ${DECK_USER}@${DECK_IP} "sudo systemctl restart plugin_loader"
+
+ssh -O exit -o ControlPath=/tmp/ssh_alarme_%h ${DECK_USER}@${DECK_IP} 2>/dev/null
 
 echo ""
-echo "Deployment complete!"
+echo "AlarMe deployment complete."

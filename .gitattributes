@@ -1,0 +1,11 @@
+# Preserve project line-ending standards and avoid accidental EOL churn.
+README.md -text
+main.py -text
+.gitignore -text
+package.json -text
+plugin.json -text
+src/index.tsx -text
+src/types.ts -text
+src/hooks/useSettings.ts -text
+
+*.sh text eol=lf

@@ -21,11 +21,40 @@ _NO_VERIFY_SSL.verify_mode = ssl.CERT_NONE
 # Browser-like User-Agent for all HTTP requests
 _BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+_WALLPAPER_POOL_MAX = 20
+
+
+def _http_get_bytes(url: str, timeout: int = 20) -> bytes:
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+    with urllib.request.urlopen(req, timeout=timeout, context=_NO_VERIFY_SSL) as resp:
+        return resp.read()
+
+
 # Initialize settings
 settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
+runtimeDir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
 decky.logger.info(f'AlarMe: Settings path = {os.path.join(settingsDir, "settings.json")}')
+decky.logger.info(f"AlarMe: Runtime data path = {runtimeDir}")
 settings = SettingsManager(name="settings", settings_directory=settingsDir)
 settings.read()
+
+
+def _wallpaper_cache_dir() -> str:
+    d = os.path.join(runtimeDir, "wallpaper_cache")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _local_wallpapers_dir() -> str:
+    d = os.path.join(runtimeDir, "wallpapers")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _legacy_settings_wallpapers_dir() -> str:
+    return os.path.join(settingsDir, "wallpapers")
 
 # Settings keys
 SETTINGS_KEY_TIMERS = "active_timers"
@@ -127,6 +156,9 @@ DEFAULT_SETTINGS = {
     "screensaver_wallpaper_blur": "none",
     "screensaver_wallpaper_dim": 0.4,
     "screensaver_wallpaper_interval": 300,
+    "screensaver_wallpaper_pool_size": 5,
+    "screensaver_wallpaper_auto_rotate": True,
+    "screensaver_wallpaper_cache_updated_at": None,
     "screensaver_floating_drift_range": 40,
     # Pixel shift for OLED burn-in prevention
     "pixel_shift_enabled": True,
@@ -699,14 +731,34 @@ class Plugin:
 
         return result
 
-    async def fetch_wallpaper(self, provider: str) -> dict:
+    async def _wallpaper_pool_size(self) -> int:
+        user_settings = await self._get_user_settings()
+        try:
+            n = int(user_settings.get("screensaver_wallpaper_pool_size", 5))
+        except (TypeError, ValueError):
+            n = 5
+        return max(1, min(n, _WALLPAPER_POOL_MAX))
+
+    async def _wallpaper_mark_cache_refreshed(self) -> None:
+        user_settings = await self._get_user_settings()
+        user_settings["screensaver_wallpaper_cache_updated_at"] = datetime.now().isoformat(timespec="seconds")
+        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, user_settings)
+        await self.settings_commit()
+        await decky.emit("alarme_settings_updated", user_settings)
+
+    async def fetch_wallpaper(self, provider: str, slot: int = 0) -> dict:
         """Fetch a wallpaper as base64 data for CEF rendering."""
         import urllib.request
         import base64
+        import json as json_mod
 
         result = {"success": False, "url": None, "is_base64": False, "provider_status": None, "last_fetch": None}
-        wallpapers_dir = os.path.join(settingsDir, "wallpapers")
-        os.makedirs(wallpapers_dir, exist_ok=True)
+        legacy_wallpapers_dir = _legacy_settings_wallpapers_dir()
+        os.makedirs(legacy_wallpapers_dir, exist_ok=True)
+        cache_dir = _wallpaper_cache_dir()
+
+        pool_sz = await self._wallpaper_pool_size()
+        slot_idx = slot % pool_sz if slot >= 0 else 0
 
         def _cleanup_old_wallpapers(directory: str, prefix: str, keep: int = 3):
             try:
@@ -737,43 +789,47 @@ class Plugin:
 
         try:
             if provider == "picsum":
-                req = urllib.request.Request(
-                    "https://picsum.photos/1280/800?random",
-                    headers={"User-Agent": _BROWSER_UA}
-                )
-                with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
-                    img_data = resp.read()
-                path = os.path.join(wallpapers_dir, f"picsum_{int(time.time())}.jpg")
-                with open(path, "wb") as f:
-                    f.write(img_data)
-                data_url = _img_to_data_url(img_data, path)
-                _cleanup_old_wallpapers(wallpapers_dir, "picsum")
-                result["url"] = data_url
-                result["is_base64"] = True
-                result["success"] = True
-                result["last_fetch"] = datetime.now().isoformat()
+                path = os.path.join(cache_dir, f"picsum_slot_{slot_idx}.jpg")
+                if os.path.exists(path):
+                    data_url = _read_as_data_url(path)
+                    if data_url:
+                        result["url"] = data_url
+                        result["is_base64"] = True
+                        result["success"] = True
+                        result["last_fetch"] = datetime.now().isoformat()
+                if not result["success"]:
+                    img_data = _http_get_bytes(f"https://picsum.photos/seed/{10000 + slot_idx}/1280/800")
+                    with open(path, "wb") as f:
+                        f.write(img_data)
+                    result["url"] = _img_to_data_url(img_data, path)
+                    result["is_base64"] = True
+                    result["success"] = True
+                    result["last_fetch"] = datetime.now().isoformat()
+                    _cleanup_old_wallpapers(legacy_wallpapers_dir, "picsum")
 
             elif provider == "bing_daily":
-                import json as json_mod
-
-                user_settings = await self._get_user_settings()
-                bing_date = user_settings.get("_bing_date", "")
                 today = datetime.now().strftime("%Y-%m-%d")
-                cached_path = os.path.join(wallpapers_dir, f"bing_{today}.jpg")
+                cached_new = os.path.join(cache_dir, f"bing_{today}.jpg")
+                cached_legacy = os.path.join(legacy_wallpapers_dir, f"bing_{today}.jpg")
 
-                if bing_date == today and os.path.exists(cached_path):
-                    data_url = _read_as_data_url(cached_path)
+                chosen_cache = None
+                if os.path.exists(cached_new):
+                    chosen_cache = cached_new
+                elif os.path.exists(cached_legacy):
+                    chosen_cache = cached_legacy
+
+                if chosen_cache:
+                    data_url = _read_as_data_url(chosen_cache)
                     if data_url:
                         result["url"] = data_url
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = today
-                    else:
-                        pass
+
                 if not result["success"]:
                     req = urllib.request.Request(
                         "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US",
-                        headers={"User-Agent": _BROWSER_UA}
+                        headers={"User-Agent": _BROWSER_UA},
                     )
                     with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
                         data = json_mod.loads(resp.read().decode("utf-8"))
@@ -790,42 +846,103 @@ class Plugin:
                             with urllib.request.urlopen(img_req, timeout=10, context=_NO_VERIFY_SSL) as img_resp:
                                 img_data = img_resp.read()
 
-                        data_url = _img_to_data_url(img_data, "bing.jpg")
-                        path = os.path.join(wallpapers_dir, f"bing_{today}.jpg")
+                        path = cached_new
                         with open(path, "wb") as f:
                             f.write(img_data)
-                        _cleanup_old_wallpapers(wallpapers_dir, "bing")
+                        _cleanup_old_wallpapers(legacy_wallpapers_dir, "bing")
 
                         user_settings = await self._get_user_settings()
                         user_settings["_bing_date"] = today
                         await self.settings_setSetting(SETTINGS_KEY_SETTINGS, user_settings)
                         await self.settings_commit()
 
-                        result["url"] = data_url
+                        result["url"] = _img_to_data_url(img_data, path)
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = today
 
-            elif provider == "local_folder":
-                local_dir = os.path.join(os.path.dirname(settingsDir), "AlarMe", "wallpapers")
-                if os.path.exists(local_dir):
-                    valid_exts = (".jpg", ".jpeg", ".png", ".webp")
-                    files = [f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)]
-                    if files:
-                        import random
-                        chosen = random.choice(files)
-                        file_path = os.path.join(local_dir, chosen)
-                        with open(file_path, "rb") as f:
-                            img_data = f.read()
-                        data_url = _img_to_data_url(img_data, chosen)
+            elif provider == "lorem_flickr":
+                path = os.path.join(cache_dir, f"loremflickr_slot_{slot_idx}.jpg")
+                if os.path.exists(path):
+                    data_url = _read_as_data_url(path)
+                    if data_url:
                         result["url"] = data_url
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = datetime.now().isoformat()
+                if not result["success"]:
+                    img_data = _http_get_bytes(f"https://loremflickr.com/1280/800?lock={slot_idx + 1}")
+                    with open(path, "wb") as f:
+                        f.write(img_data)
+                    result["url"] = _img_to_data_url(img_data, path)
+                    result["is_base64"] = True
+                    result["success"] = True
+                    result["last_fetch"] = datetime.now().isoformat()
+
+            elif provider == "nasa_apod":
+                today_key = datetime.now().strftime("%Y-%m-%d")
+                path_guess = os.path.join(cache_dir, f"nasa_apod_{today_key}.jpg")
+                if os.path.exists(path_guess):
+                    data_url = _read_as_data_url(path_guess)
+                    if data_url:
+                        result["url"] = data_url
+                        result["is_base64"] = True
+                        result["success"] = True
+                        result["last_fetch"] = today_key
+                if not result["success"]:
+                    req = urllib.request.Request(
+                        "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY",
+                        headers={"User-Agent": _BROWSER_UA},
+                    )
+                    with urllib.request.urlopen(req, timeout=15, context=_NO_VERIFY_SSL) as resp:
+                        meta = json_mod.loads(resp.read().decode("utf-8"))
+                    if meta.get("media_type") != "image":
+                        result["provider_status"] = "Today's APOD is not a still image"
+                        return result
+                    apod_date = meta.get("date") or today_key
+                    path = os.path.join(cache_dir, f"nasa_apod_{apod_date}.jpg")
+                    if os.path.exists(path):
+                        data_url = _read_as_data_url(path)
+                        if data_url:
+                            result["url"] = data_url
+                            result["is_base64"] = True
+                            result["success"] = True
+                            result["last_fetch"] = apod_date
                     else:
-                        result["provider_status"] = "No images found in wallpapers folder"
+                        img_link = meta.get("hdurl") or meta.get("url")
+                        if not img_link:
+                            result["provider_status"] = "APOD response missing image URL"
+                            return result
+                        img_data = _http_get_bytes(img_link)
+                        with open(path, "wb") as f:
+                            f.write(img_data)
+                        result["url"] = _img_to_data_url(img_data, path)
+                        result["is_base64"] = True
+                        result["success"] = True
+                        result["last_fetch"] = apod_date
+
+            elif provider == "local_folder":
+                local_dir = _local_wallpapers_dir()
+                valid_exts = (".jpg", ".jpeg", ".png", ".webp")
+                try:
+                    names = sorted(
+                        f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)
+                    )
+                except FileNotFoundError:
+                    names = []
+                if names:
+                    cycle = min(pool_sz, len(names))
+                    pick = names[slot_idx % cycle]
+                    file_path = os.path.join(local_dir, pick)
+                    with open(file_path, "rb") as f:
+                        img_data = f.read()
+                    data_url = _img_to_data_url(img_data, pick)
+                    result["url"] = data_url
+                    result["is_base64"] = True
+                    result["success"] = True
+                    result["last_fetch"] = datetime.now().isoformat()
                 else:
-                    result["provider_status"] = "Wallpapers folder not found. Place images in ~/homebrew/plugins/AlarMe/wallpapers/"
+                    result["provider_status"] = f"No images found in {local_dir}"
 
         except urllib.error.URLError as e:
             decky.logger.error(f"AlarMe: Network error fetching wallpaper ({provider}): {e}")
@@ -833,6 +950,151 @@ class Plugin:
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to fetch wallpaper ({provider}): {e}")
             result["provider_status"] = str(e)
+
+        return result
+
+    async def prefetch_wallpapers(self, provider: str, count: int | None = None) -> dict:
+        """Download or validate wallpaper pool under DECKY_PLUGIN_RUNTIME_DIR/wallpaper_cache/."""
+        import urllib.request
+        import json as json_mod
+
+        result: dict = {"success": False, "provider_status": None}
+        cache_dir = _wallpaper_cache_dir()
+        pool = await self._wallpaper_pool_size()
+        n = pool
+        if count is not None:
+            try:
+                n = max(1, min(int(count), pool, _WALLPAPER_POOL_MAX))
+            except (TypeError, ValueError):
+                n = pool
+
+        async def emit_progress(step: int, total: int) -> None:
+            try:
+                await decky.emit(
+                    "alarme_wallpaper_prefetch_progress",
+                    {"step": step, "total": total, "provider": provider},
+                )
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: wallpaper prefetch progress emit: {e}")
+
+        try:
+            if provider in ("none",):
+                result["success"] = True
+                return result
+
+            if provider == "local_folder":
+                local_dir = _local_wallpapers_dir()
+                valid_exts = (".jpg", ".jpeg", ".png", ".webp")
+                try:
+                    names = sorted(f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts))
+                except FileNotFoundError:
+                    names = []
+                total_steps = max(1, min(n, len(names)))
+                if not names:
+                    result["provider_status"] = f"No images in {local_dir}"
+                    result["success"] = False
+                    return result
+                for i in range(total_steps):
+                    await emit_progress(i + 1, total_steps)
+                result["success"] = True
+                await self._wallpaper_mark_cache_refreshed()
+                return result
+
+            if provider == "picsum":
+                for i in range(n):
+                    await emit_progress(i + 1, n)
+                    path = os.path.join(cache_dir, f"picsum_slot_{i}.jpg")
+                    if os.path.exists(path) and os.path.getsize(path) > 512:
+                        continue
+                    img_data = _http_get_bytes(f"https://picsum.photos/seed/{10000 + i}/1280/800")
+                    with open(path, "wb") as f:
+                        f.write(img_data)
+
+            elif provider == "bing_daily":
+                await emit_progress(1, 1)
+                today = datetime.now().strftime("%Y-%m-%d")
+                path = os.path.join(cache_dir, f"bing_{today}.jpg")
+                if not (os.path.exists(path) and os.path.getsize(path) > 512):
+                    req = urllib.request.Request(
+                        "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US",
+                        headers={"User-Agent": _BROWSER_UA},
+                    )
+                    with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
+                        data = json_mod.loads(resp.read().decode("utf-8"))
+                    if data.get("images"):
+                        img_path = data["images"][0].get("urlbase", data["images"][0]["url"])
+                        img_url = f"https://www.bing.com{img_path}_1280x800.jpg"
+                        try:
+                            img_req = urllib.request.Request(img_url, headers={"User-Agent": _BROWSER_UA})
+                            with urllib.request.urlopen(img_req, timeout=10, context=_NO_VERIFY_SSL) as img_resp:
+                                img_data = img_resp.read()
+                        except Exception:
+                            img_url = f"https://www.bing.com{data['images'][0]['url']}"
+                            img_req = urllib.request.Request(img_url, headers={"User-Agent": _BROWSER_UA})
+                            with urllib.request.urlopen(img_req, timeout=10, context=_NO_VERIFY_SSL) as img_resp:
+                                img_data = img_resp.read()
+                        with open(path, "wb") as f:
+                            f.write(img_data)
+                        user_settings = await self._get_user_settings()
+                        user_settings["_bing_date"] = today
+                        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, user_settings)
+                        await self.settings_commit()
+
+            elif provider == "lorem_flickr":
+                for i in range(n):
+                    await emit_progress(i + 1, n)
+                    path = os.path.join(cache_dir, f"loremflickr_slot_{i}.jpg")
+                    if os.path.exists(path) and os.path.getsize(path) > 512:
+                        continue
+                    img_data = _http_get_bytes(f"https://loremflickr.com/1280/800?lock={i + 1}")
+                    with open(path, "wb") as f:
+                        f.write(img_data)
+
+            elif provider == "nasa_apod":
+                await emit_progress(1, 1)
+                req = urllib.request.Request(
+                    "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY",
+                    headers={"User-Agent": _BROWSER_UA},
+                )
+                with urllib.request.urlopen(req, timeout=15, context=_NO_VERIFY_SSL) as resp:
+                    meta = json_mod.loads(resp.read().decode("utf-8"))
+                if meta.get("media_type") != "image":
+                    result["provider_status"] = "Today's APOD is not a still image"
+                    result["success"] = True
+                    await self._wallpaper_mark_cache_refreshed()
+                    return result
+                apod_date = meta.get("date") or datetime.now().strftime("%Y-%m-%d")
+                path = os.path.join(cache_dir, f"nasa_apod_{apod_date}.jpg")
+                if not (os.path.exists(path) and os.path.getsize(path) > 512):
+                    img_link = meta.get("hdurl") or meta.get("url")
+                    if img_link:
+                        img_data = _http_get_bytes(img_link)
+                        with open(path, "wb") as f:
+                            f.write(img_data)
+            else:
+                result["provider_status"] = f"Unknown provider: {provider}"
+                return result
+
+            result["success"] = True
+            await self._wallpaper_mark_cache_refreshed()
+        except urllib.error.URLError as e:
+            decky.logger.error(f"AlarMe: prefetch_wallpapers network error ({provider}): {e}")
+            result["provider_status"] = f"Network error: {e.reason}"
+        except Exception as e:
+            decky.logger.error(f"AlarMe: prefetch_wallpapers failed ({provider}): {e}")
+            result["provider_status"] = str(e)
+        finally:
+            try:
+                await decky.emit(
+                    "alarme_wallpaper_prefetch_complete",
+                    {
+                        "success": result.get("success", False),
+                        "provider": provider,
+                        "message": result.get("provider_status"),
+                    },
+                )
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: wallpaper prefetch complete emit: {e}")
 
         return result
 
@@ -847,7 +1109,7 @@ class Plugin:
                 req = urllib.request.Request(
                     "https://picsum.photos",
                     headers={"User-Agent": _BROWSER_UA},
-                    method="HEAD"
+                    method="HEAD",
                 )
                 urllib.request.urlopen(req, timeout=5, context=_NO_VERIFY_SSL)
                 result["reachable"] = True
@@ -856,27 +1118,50 @@ class Plugin:
                 req = urllib.request.Request(
                     "https://www.bing.com",
                     headers={"User-Agent": _BROWSER_UA},
-                    method="HEAD"
+                    method="HEAD",
                 )
                 urllib.request.urlopen(req, timeout=5, context=_NO_VERIFY_SSL)
                 result["reachable"] = True
 
+            elif provider == "lorem_flickr":
+                req = urllib.request.Request(
+                    "https://loremflickr.com/",
+                    headers={"User-Agent": _BROWSER_UA},
+                    method="HEAD",
+                )
+                urllib.request.urlopen(req, timeout=8, context=_NO_VERIFY_SSL)
+                result["reachable"] = True
+
+            elif provider == "nasa_apod":
+                req = urllib.request.Request(
+                    "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY",
+                    headers={"User-Agent": _BROWSER_UA},
+                    method="HEAD",
+                )
+                urllib.request.urlopen(req, timeout=8, context=_NO_VERIFY_SSL)
+                result["reachable"] = True
+
             elif provider == "local_folder":
-                local_dir = os.path.join(os.path.dirname(settingsDir), "AlarMe", "wallpapers")
-                if os.path.exists(local_dir):
-                    valid_exts = (".jpg", ".jpeg", ".png", ".webp")
-                    files = [f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)]
-                    if files:
-                        result["reachable"] = True
-                    else:
-                        result["message"] = "No images found in wallpapers folder"
+                local_dir = _local_wallpapers_dir()
+                valid_exts = (".jpg", ".jpeg", ".png", ".webp")
+                files = [f for f in os.listdir(local_dir) if f.lower().endswith(valid_exts)]
+                if files:
+                    result["reachable"] = True
                 else:
-                    result["message"] = "Wallpapers folder not found"
+                    result["message"] = "No images found in wallpapers folder"
 
         except Exception as e:
             result["message"] = f"Unreachable: {e}"
 
         return result
+
+    async def get_wallpaper_storage_paths(self) -> dict:
+        """Paths under DECKY_PLUGIN_RUNTIME_DIR for wallpaper cache and user images."""
+        return {
+            "runtime_dir": runtimeDir,
+            "wallpaper_cache_dir": _wallpaper_cache_dir(),
+            "local_wallpapers_dir": _local_wallpapers_dir(),
+        }
 
     async def get_wifi_info(self) -> dict:
         """Get current Wi-Fi SSID and signal strength.
@@ -936,7 +1221,7 @@ class Plugin:
 
     async def list_local_wallpapers(self) -> list:
         """List available files in the local wallpapers folder."""
-        local_dir = os.path.join(os.path.dirname(settingsDir), "AlarMe", "wallpapers")
+        local_dir = _local_wallpapers_dir()
         if not os.path.exists(local_dir):
             return []
         valid_exts = (".jpg", ".jpeg", ".png", ".webp")
@@ -3041,6 +3326,13 @@ class Plugin:
         elif current_position not in {"default", "custom"}:
             merged["overlay_position"] = "default"
 
+        valid_wallpaper_providers = frozenset(
+            {"none", "picsum", "bing_daily", "lorem_flickr", "nasa_apod", "local_folder"}
+        )
+        wp_provider = merged.get("screensaver_wallpaper_provider")
+        if wp_provider not in valid_wallpaper_providers:
+            merged["screensaver_wallpaper_provider"] = DEFAULT_SETTINGS["screensaver_wallpaper_provider"]
+
         return merged
 
     async def _migrate_settings_schema(self):
@@ -3748,7 +4040,7 @@ class Plugin:
         await self.settings_read()
         await self._migrate_settings_schema()
         await self._migrate_timer_settings()
-        
+
         # Resume any active timers
         timers = await self._get_timers()
         current_time = time.time()

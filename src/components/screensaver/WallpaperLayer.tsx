@@ -10,6 +10,8 @@ const BLUR_VALUES: Record<string, string> = {
 const PROVIDER_LABELS: Record<string, string> = {
     picsum: "Lorem Picsum",
     bing_daily: "Bing Daily",
+    lorem_flickr: "Lorem Flickr",
+    nasa_apod: "NASA Astronomy Picture",
     local_folder: "Local Folder",
     none: "None",
 };

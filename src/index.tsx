@@ -41,6 +41,7 @@ import { usePomodoro } from "./hooks/usePomodoro";
 import { useReminders } from "./hooks/useReminders";
 import { useGameStatus } from "./hooks/useGameStatus";
 import { useMissedAlerts } from "./hooks/useMissedAlerts";
+import { triggerScreensaverPreviewAfterClosingMenus } from "./hooks/useScreensaver";
 
 // Types
 import type {
@@ -227,14 +228,17 @@ function Content() {
                         display: 'flex',
                         alignItems: 'stretch',
                         gap: 8,
-                        width: '100%'
+                        width: '100%',
+                        minWidth: 0,
+                        overflow: 'hidden'
                     }}
                 >
                     {/* Missed Alerts Button */}
                     <Focusable
                         onActivate={hasMissedAlerts ? handleOpenMissedModal : undefined}
                         style={{
-                            flex: 1,
+                            flex: '1 1 0',
+                            minWidth: 0,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -260,7 +264,14 @@ function Content() {
                         }}
                     >
                         <FaBell size={14} style={{ color: hasMissedAlerts ? '#ff4444' : '#666666' }} />
-                        <span style={{ fontSize: 12, color: hasMissedAlerts ? '#ff6666' : '#666666', fontWeight: 500 }}>
+                        <span style={{
+                            fontSize: 12,
+                            color: hasMissedAlerts ? '#ff6666' : '#666666',
+                            fontWeight: 500,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
                             {hasMissedAlerts ? `${missedItems.length} Missed` : 'Missed'}
                         </span>
                         {/* New report indicator (red dot) */}
@@ -281,7 +292,8 @@ function Content() {
                     <Focusable
                         onActivate={sleepInhibitorActive ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
                         style={{
-                            flex: 1,
+                            flex: '1 1 0',
+                            minWidth: 0,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -306,7 +318,14 @@ function Content() {
                         }}
                     >
                         <FaShieldAlt size={14} style={{ color: sleepInhibitorActive ? '#e69900' : '#666666' }} />
-                        <span style={{ fontSize: 12, color: sleepInhibitorActive ? '#e69900' : '#666666', fontWeight: 500 }}>
+                        <span style={{
+                            fontSize: 12,
+                            color: sleepInhibitorActive ? '#e69900' : '#666666',
+                            fontWeight: 500,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
                             {sleepInhibitorActive ? 'Awake' : 'Sleep'}
                         </span>
                     </Focusable>
@@ -317,40 +336,32 @@ function Content() {
                         if (screensaverMode === 'off') return null;
                         return (
                             <Focusable
-                                onActivate={() => {
-                                    import("./hooks/useScreensaver").then(mod => {
-                                        mod.triggerScreensaverPreview();
-                                    });
-                                }}
+                                onActivate={() => triggerScreensaverPreviewAfterClosingMenus()}
                                 style={{
-                                    flex: 1,
+                                    flex: '0 0 auto',
+                                    padding: 8,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: 6,
-                                    padding: 8,
                                     backgroundColor: '#ffffff08',
                                     borderRadius: 12,
                                     border: '2px solid transparent',
                                     cursor: 'pointer',
-                                    opacity: 0.7,
+                                    color: '#888888',
                                     transition: 'all 0.1s ease-in-out'
                                 }}
                                 onFocus={(e: any) => {
                                     e.target.style.backgroundColor = '#4488aa';
                                     e.target.style.borderColor = 'white';
-                                    e.target.style.opacity = '1';
+                                    e.target.style.color = 'white';
                                 }}
                                 onBlur={(e: any) => {
                                     e.target.style.backgroundColor = '#ffffff08';
                                     e.target.style.borderColor = 'transparent';
-                                    e.target.style.opacity = '0.7';
+                                    e.target.style.color = '#888888';
                                 }}
                             >
-                                <FaMoon size={14} style={{ color: '#888888' }} />
-                                <span style={{ fontSize: 12, color: '#888888', fontWeight: 500 }}>
-                                    Preview
-                                </span>
+                                <FaMoon size={16} />
                             </Focusable>
                         );
                     })()}
@@ -359,6 +370,7 @@ function Content() {
                     <Focusable
                         onActivate={navigateToSettings}
                         style={{
+                            flex: '0 0 auto',
                             padding: 8,
                             display: 'flex',
                             alignItems: 'center',

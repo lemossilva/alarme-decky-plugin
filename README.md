@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.7.1-green)
+![Version](https://img.shields.io/badge/release-v1.7.2-green)
 ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://plugins.deckbrew.xyz/plugins?query=AlarMe&query=$[:1].downloads&suffix=%20downloads&label=Decky%20Store&color=blue)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
@@ -76,7 +76,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ### 🌙 Screensaver Mode
 - **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, or stopwatch alongside Prevent Sleep
-- **Wallpaper backgrounds** - Beautiful wallpapers from Lorem Picsum, Bing Daily, or your own local folder
+- **Wallpaper backgrounds** - Lorem Picsum, Bing Daily, Lorem Flickr, NASA APOD, or a local folder; cache and personal images live under Decky’s runtime data (`DECKY_PLUGIN_RUNTIME_DIR`, typically under `~/homebrew/data/`); images prefetch before idle so the overlay rarely shows a loading state; automatic rotation walks the pool in a random order each cycle
 - **4 clock styles** - Digital, Digital + Seconds, Large (blinking colon), Analog
 - **4 layout modes** - Compact (overlay bar), Large (centered card), Fullscreen, Floating (drifts to prevent burn-in)
 - **Full Black, Dim, or Wallpaper** - Choose between a fully opaque black screen, a configurable dim overlay, or live wallpapers
@@ -85,7 +85,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Idle timer** - Configurable delay before the screensaver activates after your last input
 - **Gamepad & touch dismiss** - Any button press or screen tap temporarily wakes the screen
 - **System stats & network info** - Optionally show CPU temp, RAM, Wi-Fi signal during screensaver
-- **Quick preview** - Activate the screensaver instantly from the header bar to test your settings
+- **Quick preview** - **Screen** in the header closes the QAM and runs the screensaver immediately for a clean test
 - **Badge indicators** - 🌙 badge shows which items have screensaver enabled
 
 > **Note**: The overlay appears when you open the Quick Access Menu (•••) or Steam Menu. It uses the empty black bar space reserved by SteamOS to display your upcoming alarms and timers without obstructing any interface elements.

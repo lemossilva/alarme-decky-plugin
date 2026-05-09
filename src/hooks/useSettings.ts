@@ -62,6 +62,9 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_wallpaper_blur: 'none' as const,
     screensaver_wallpaper_dim: 0.4,
     screensaver_wallpaper_interval: 300,
+    screensaver_wallpaper_pool_size: 5,
+    screensaver_wallpaper_auto_rotate: true,
+    screensaver_wallpaper_cache_updated_at: null,
     screensaver_floating_drift_range: 40,
     // Pixel shift for OLED burn-in prevention
     pixel_shift_enabled: true,

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { addEventListener, removeEventListener, callable } from "@decky/api";
+import { Navigation } from "@decky/ui";
 import { useSettings } from "./useSettings";
 import type { SleepInhibitorStatus } from "../types";
 
@@ -117,6 +118,15 @@ export function triggerScreensaverPreview() {
     sharedStandaloneIdle = false;
     notifyIdleListeners();
     notifyPreviewListeners();
+}
+
+const PREVIEW_QAM_CLOSE_MS = 100;
+
+export function triggerScreensaverPreviewAfterClosingMenus() {
+    Navigation.CloseSideMenus?.();
+    window.setTimeout(() => {
+        triggerScreensaverPreview();
+    }, PREVIEW_QAM_CLOSE_MS);
 }
 
 export function dismissScreensaverPreview() {

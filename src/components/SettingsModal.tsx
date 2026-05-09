@@ -6,25 +6,35 @@ import {
     Navigation,
     PanelSection,
     PanelSectionRow,
+    ProgressBarWithInfo,
     showModal,
     SidebarNavigation,
     SliderField,
     ToggleField
 } from "@decky/ui";
-import { callable } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull } from "react-icons/fa";
+import { addEventListener, callable, removeEventListener } from "@decky/api";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
+import { triggerScreensaverPreviewAfterClosingMenus } from "../hooks/useScreensaver";
 import { useAlarms } from "../hooks/useAlarms";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
 import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur } from "../types";
+import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 
 // Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
 const getVersionCall = callable<[], string>('get_version');
 const checkWallpaperProviderCall = callable<[provider: string], { reachable: boolean; message?: string }>('check_wallpaper_provider');
+const getWallpaperStoragePathsCall = callable<
+    [],
+    { runtime_dir: string; wallpaper_cache_dir: string; local_wallpapers_dir: string }
+>('get_wallpaper_storage_paths');
+const prefetchWallpapersCall = callable<[provider: string, count?: number], { success: boolean; provider_status?: string }>(
+    'prefetch_wallpapers'
+);
 
 // Scrollable wrapper for SidebarNavigation content pages
 const ScrollableContent = ({ children }: { children: React.ReactNode }) => (
@@ -591,6 +601,27 @@ const ScreensaverSettingsPage = () => {
     const mode = settings.screensaver_mode ?? 'off';
 
     const [wallpaperStatus, setWallpaperStatus] = useState<{ reachable: boolean | null; message?: string }>({ reachable: null });
+    const [wallpaperPaths, setWallpaperPaths] = useState<{
+        runtime_dir: string;
+        wallpaper_cache_dir: string;
+        local_wallpapers_dir: string;
+    } | null>(null);
+    const [prefetchProgress, setPrefetchProgress] = useState<{ step: number; total: number } | null>(null);
+    const [prefetchBusy, setPrefetchBusy] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        getWallpaperStoragePathsCall()
+            .then(paths => {
+                if (!cancelled) setWallpaperPaths(paths);
+            })
+            .catch(() => {
+                if (!cancelled) setWallpaperPaths(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const checkWallpaperReachable = async (prov: string) => {
         if (prov === 'none') {
@@ -613,6 +644,26 @@ const ScreensaverSettingsPage = () => {
         } else {
             setWallpaperStatus({ reachable: null });
         }
+    }, [settings.screensaver_wallpaper_provider]);
+
+    useEffect(() => {
+        const onProgress = (payload: { step: number; total: number; provider: string }) => {
+            const prov = settings.screensaver_wallpaper_provider || 'none';
+            if (payload.provider !== prov) return;
+            setPrefetchProgress({ step: payload.step, total: Math.max(1, payload.total) });
+        };
+        const onComplete = (payload: { success: boolean; provider: string }) => {
+            const prov = settings.screensaver_wallpaper_provider || 'none';
+            if (payload.provider !== prov) return;
+            setPrefetchBusy(false);
+            setPrefetchProgress(null);
+        };
+        addEventListener('alarme_wallpaper_prefetch_progress', onProgress);
+        addEventListener('alarme_wallpaper_prefetch_complete', onComplete);
+        return () => {
+            removeEventListener('alarme_wallpaper_prefetch_progress', onProgress);
+            removeEventListener('alarme_wallpaper_prefetch_complete', onComplete);
+        };
     }, [settings.screensaver_wallpaper_provider]);
 
     const modeOptions = [
@@ -657,8 +708,11 @@ const ScreensaverSettingsPage = () => {
     ];
 
     const wallpaperProviderOptions = [
+        { data: 'none' as const, label: 'None' },
         { data: 'picsum', label: 'Lorem Picsum' },
         { data: 'bing_daily', label: 'Bing Daily' },
+        { data: 'lorem_flickr', label: 'Lorem Flickr' },
+        { data: 'nasa_apod', label: 'NASA Astronomy Picture' },
         { data: 'local_folder', label: 'Local Folder' },
     ];
 
@@ -674,12 +728,35 @@ const ScreensaverSettingsPage = () => {
     ];
 
     const handlePreview = () => {
-        import("../hooks/useScreensaver").then(mod => {
-            mod.triggerScreensaverPreview();
-        });
+        triggerScreensaverPreviewAfterClosingMenus();
     };
 
     const provider = settings.screensaver_wallpaper_provider || 'none';
+    const poolSz = clampWallpaperPoolSize(settings.screensaver_wallpaper_pool_size);
+    const autoRotateWallpaper = settings.screensaver_wallpaper_auto_rotate ?? true;
+    const cacheUpdatedLabel = (() => {
+        const iso = settings.screensaver_wallpaper_cache_updated_at;
+        if (!iso) return 'Never';
+        try {
+            return new Date(iso).toLocaleString();
+        } catch {
+            return iso;
+        }
+    })();
+
+    const handlePrefetchWallpapers = async () => {
+        if (provider === 'none' || prefetchBusy) return;
+        const sz = clampWallpaperPoolSize(settings.screensaver_wallpaper_pool_size);
+        setPrefetchBusy(true);
+        setPrefetchProgress({ step: 0, total: sz });
+        try {
+            await prefetchWallpapersCall(provider, sz);
+        } catch (e) {
+            console.error('[AlarMe] prefetch_wallpapers:', e);
+            setPrefetchBusy(false);
+            setPrefetchProgress(null);
+        }
+    };
 
     return (
         <ScrollableContent>
@@ -713,6 +790,217 @@ const ScreensaverSettingsPage = () => {
                     </div>
                 </PanelSectionRow>
             </PanelSection>
+
+            {mode === 'wallpaper' && (
+                <PanelSection title="Wallpaper">
+                    <PanelSectionRow>
+                        <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                            Wallpapers are prefetched while this mode is selected so the screensaver can open without waiting on the network.
+                        </div>
+                    </PanelSectionRow>
+                    <PanelSectionRow>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                            <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                            <span style={{ flexShrink: 0 }}>Provider</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <Dropdown
+                                    rgOptions={wallpaperProviderOptions}
+                                    selectedOption={provider}
+                                    onChange={(option) => updateSetting('screensaver_wallpaper_provider', option.data as WallpaperProvider)}
+                                    strDefaultLabel="Select Provider"
+                                />
+                            </div>
+                        </div>
+                    </PanelSectionRow>
+
+                    {provider !== 'none' && (
+                        <>
+                            {(provider === 'picsum' || provider === 'lorem_flickr' || provider === 'local_folder') && (
+                                <PanelSectionRow>
+                                    <SliderField
+                                        label="Rotation pool size"
+                                        description={`${poolSz} image${poolSz === 1 ? '' : 's'} in the cycle (max ${WALLPAPER_POOL_MAX})`}
+                                        value={poolSz}
+                                        min={1}
+                                        max={WALLPAPER_POOL_MAX}
+                                        step={1}
+                                        onChange={(value) => updateSetting('screensaver_wallpaper_pool_size', value)}
+                                        icon={<FaPhotoVideo size={16} />}
+                                    />
+                                </PanelSectionRow>
+                            )}
+                            {(provider === 'bing_daily' || provider === 'nasa_apod') && (
+                                <PanelSectionRow>
+                                    <div style={{ fontSize: 11, color: '#888', padding: '4px 0' }}>
+                                        This provider exposes one image per day; rotation pool applies to other providers only.
+                                    </div>
+                                </PanelSectionRow>
+                            )}
+                            <PanelSectionRow>
+                                <ToggleField
+                                    icon={<FaRedo size={16} />}
+                                    label="Rotate automatically"
+                                    description="Advance through the pool on a timer in random order (each image once per cycle). When off, the first image stays until you refresh."
+                                    checked={autoRotateWallpaper}
+                                    onChange={(value) => updateSetting('screensaver_wallpaper_auto_rotate', value)}
+                                />
+                            </PanelSectionRow>
+                            {autoRotateWallpaper && provider !== 'bing_daily' && provider !== 'nasa_apod' && (
+                                <PanelSectionRow>
+                                    <SliderField
+                                        label="Rotation interval"
+                                        description={`Next image every ${Math.round((settings.screensaver_wallpaper_interval ?? 300) / 60)} min`}
+                                        value={settings.screensaver_wallpaper_interval ?? 300}
+                                        min={60}
+                                        max={1800}
+                                        step={60}
+                                        onChange={(value) => updateSetting('screensaver_wallpaper_interval', value)}
+                                        icon={<FaClock size={16} />}
+                                    />
+                                </PanelSectionRow>
+                            )}
+                            <PanelSectionRow>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                    <FaDesktop style={{ color: '#888', flexShrink: 0 }} />
+                                    <span style={{ flexShrink: 0 }}>Fit Mode</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Dropdown
+                                            rgOptions={fitOptions}
+                                            selectedOption={settings.screensaver_wallpaper_fit || 'cover'}
+                                            onChange={(option) => updateSetting('screensaver_wallpaper_fit', option.data as WallpaperFit)}
+                                            strDefaultLabel="Select Fit"
+                                        />
+                                    </div>
+                                </div>
+                            </PanelSectionRow>
+                            <PanelSectionRow>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                    <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                                    <span style={{ flexShrink: 0 }}>Blur</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Dropdown
+                                            rgOptions={blurOptions}
+                                            selectedOption={settings.screensaver_wallpaper_blur || 'none'}
+                                            onChange={(option) => updateSetting('screensaver_wallpaper_blur', option.data as WallpaperBlur)}
+                                            strDefaultLabel="Select Blur"
+                                        />
+                                    </div>
+                                </div>
+                            </PanelSectionRow>
+                            <PanelSectionRow>
+                                <SliderField
+                                    label="Dim Overlay"
+                                    description={`${Math.round((settings.screensaver_wallpaper_dim ?? 0.4) * 100)}%`}
+                                    value={Math.round((settings.screensaver_wallpaper_dim ?? 0.4) * 100)}
+                                    min={0}
+                                    max={80}
+                                    step={5}
+                                    onChange={(value) => updateSetting('screensaver_wallpaper_dim', value / 100)}
+                                    icon={<FaEye size={16} />}
+                                />
+                            </PanelSectionRow>
+
+                            <PanelSectionRow>
+                                <div style={{ fontSize: 11, color: '#aaa', padding: '4px 0', lineHeight: 1.45 }}>
+                                    <div>Last prefetch: {cacheUpdatedLabel}</div>
+                                    <div style={{ marginTop: 6 }}>
+                                        Online cache directory:{' '}
+                                        <code style={{ fontSize: 10 }}>{wallpaperPaths?.wallpaper_cache_dir ?? '…'}</code>
+                                    </div>
+                                    <div style={{ marginTop: 6 }}>
+                                        Personal wallpapers folder:{' '}
+                                        <code style={{ fontSize: 10 }}>{wallpaperPaths?.local_wallpapers_dir ?? '…'}</code>
+                                    </div>
+                                </div>
+                            </PanelSectionRow>
+
+                            {(prefetchBusy || prefetchProgress !== null) && (
+                                <PanelSectionRow>
+                                    <ProgressBarWithInfo
+                                        nProgress={
+                                            prefetchProgress && prefetchProgress.total > 0
+                                                ? (prefetchProgress.step / prefetchProgress.total) * 100
+                                                : 0
+                                        }
+                                        sOperationText={
+                                            prefetchProgress
+                                                ? `Prefetch ${prefetchProgress.step}/${prefetchProgress.total}`
+                                                : 'Prefetch…'
+                                        }
+                                    />
+                                </PanelSectionRow>
+                            )}
+
+                            <PanelSectionRow>
+                                <ButtonItem layout="below" disabled={prefetchBusy} onClick={handlePrefetchWallpapers}>
+                                    <FaRedo size={12} style={{ marginRight: 8 }} />
+                                    Refetch wallpaper cache
+                                </ButtonItem>
+                            </PanelSectionRow>
+
+                            <PanelSectionRow>
+                                <div style={{ fontSize: 11, padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span
+                                            style={{
+                                                display: 'inline-block',
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: '50%',
+                                                backgroundColor:
+                                                    wallpaperStatus.reachable === null
+                                                        ? '#888'
+                                                        : wallpaperStatus.reachable
+                                                          ? '#4caf50'
+                                                          : '#f44336',
+                                            }}
+                                        />
+                                        <span
+                                            style={{
+                                                color:
+                                                    wallpaperStatus.reachable === null
+                                                        ? '#888'
+                                                        : wallpaperStatus.reachable
+                                                          ? '#8f8'
+                                                          : '#f88',
+                                            }}
+                                        >
+                                            {wallpaperStatus.reachable === null
+                                                ? 'Checking…'
+                                                : wallpaperStatus.reachable
+                                                  ? 'Reachable'
+                                                  : wallpaperStatus.message || 'Unreachable'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </PanelSectionRow>
+
+                            <PanelSectionRow>
+                                <div style={{ fontSize: 11, color: '#666', padding: '4px 0', lineHeight: 1.45 }}>
+                                    {provider === 'local_folder' ? (
+                                        <>
+                                            Uses JPG, PNG, or WebP files from the personal folder above (sorted alphabetically). Subfolders are not scanned.
+                                            Refetch checks that folder so &quot;Last prefetch&quot; stays meaningful when you add or remove files.
+                                        </>
+                                    ) : (
+                                        <>
+                                            Images are downloaded into the online cache path on disk and rotated within the pool size for this provider only.
+                                        </>
+                                    )}
+                                </div>
+                            </PanelSectionRow>
+                        </>
+                    )}
+
+                    {provider === 'none' && (
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>
+                                Choose a provider to show a wallpaper behind the clock, or leave None for a blank background.
+                            </div>
+                        </PanelSectionRow>
+                    )}
+                </PanelSection>
+            )}
 
             {mode !== 'off' && (
                 <>
@@ -1000,121 +1288,6 @@ const ScreensaverSettingsPage = () => {
                             </>
                         )}
                     </PanelSection>
-
-                    {/* === Wallpaper (only when mode === 'wallpaper') === */}
-                    {mode === 'wallpaper' && (
-                        <PanelSection title="Wallpaper">
-                            <PanelSectionRow>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                                    <FaEye style={{ color: '#888', flexShrink: 0 }} />
-                                    <span style={{ flexShrink: 0 }}>Provider</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <Dropdown
-                                            rgOptions={wallpaperProviderOptions}
-                                            selectedOption={provider}
-                                            onChange={(option) => updateSetting('screensaver_wallpaper_provider', option.data as WallpaperProvider)}
-                                            strDefaultLabel="Select Provider"
-                                        />
-                                    </div>
-                                </div>
-                            </PanelSectionRow>
-
-                            {provider !== 'none' && (
-                                <>
-                                    <PanelSectionRow>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                                            <FaDesktop style={{ color: '#888', flexShrink: 0 }} />
-                                            <span style={{ flexShrink: 0 }}>Fit Mode</span>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <Dropdown
-                                                    rgOptions={fitOptions}
-                                                    selectedOption={settings.screensaver_wallpaper_fit || 'cover'}
-                                                    onChange={(option) => updateSetting('screensaver_wallpaper_fit', option.data as WallpaperFit)}
-                                                    strDefaultLabel="Select Fit"
-                                                />
-                                            </div>
-                                        </div>
-                                    </PanelSectionRow>
-
-                                    <PanelSectionRow>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                                            <FaEye style={{ color: '#888', flexShrink: 0 }} />
-                                            <span style={{ flexShrink: 0 }}>Blur</span>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <Dropdown
-                                                    rgOptions={blurOptions}
-                                                    selectedOption={settings.screensaver_wallpaper_blur || 'none'}
-                                                    onChange={(option) => updateSetting('screensaver_wallpaper_blur', option.data as WallpaperBlur)}
-                                                    strDefaultLabel="Select Blur"
-                                                />
-                                            </div>
-                                        </div>
-                                    </PanelSectionRow>
-
-                                    <PanelSectionRow>
-                                        <SliderField
-                                            label="Dim Overlay"
-                                            description={`${Math.round((settings.screensaver_wallpaper_dim ?? 0.4) * 100)}%`}
-                                            value={Math.round((settings.screensaver_wallpaper_dim ?? 0.4) * 100)}
-                                            min={0}
-                                            max={80}
-                                            step={5}
-                                            onChange={(value) => updateSetting('screensaver_wallpaper_dim', value / 100)}
-                                            icon={<FaEye size={16} />}
-                                        />
-                                    </PanelSectionRow>
-
-                                    {provider !== 'bing_daily' && (
-                                        <PanelSectionRow>
-                                            <SliderField
-                                                label="Refresh Interval"
-                                                description={`${Math.round((settings.screensaver_wallpaper_interval ?? 300) / 60)} minutes`}
-                                                value={settings.screensaver_wallpaper_interval ?? 300}
-                                                min={60}
-                                                max={1800}
-                                                step={60}
-                                                onChange={(value) => updateSetting('screensaver_wallpaper_interval', value)}
-                                                icon={<FaClock size={16} />}
-                                            />
-                                        </PanelSectionRow>
-                                    )}
-                                </>
-                            )}
-
-                            {provider !== 'none' && (
-                                <PanelSectionRow>
-                                    <div style={{ fontSize: 11, padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <span style={{
-                                                display: 'inline-block',
-                                                width: 8,
-                                                height: 8,
-                                                borderRadius: '50%',
-                                                backgroundColor: wallpaperStatus.reachable === null ? '#888' : wallpaperStatus.reachable ? '#4caf50' : '#f44336',
-                                            }} />
-                                            <span style={{ color: wallpaperStatus.reachable === null ? '#888' : wallpaperStatus.reachable ? '#8f8' : '#f88' }}>
-                                                {wallpaperStatus.reachable === null
-                                                    ? 'Checking...'
-                                                    : wallpaperStatus.reachable
-                                                        ? 'Reachable'
-                                                        : wallpaperStatus.message || 'Unreachable'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </PanelSectionRow>
-                            )}
-
-                            <PanelSectionRow>
-                                <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>
-                                    {provider === 'local_folder'
-                                        ? <>Place images in <code>~/homebrew/plugins/AlarMe/wallpapers/</code></>
-                                        : provider !== 'none'
-                                            ? <>Downloads random beautiful photos each refresh cycle.</>
-                                            : <>Select a provider to show wallpapers behind the clock.</>}
-                                </div>
-                            </PanelSectionRow>
-                        </PanelSection>
-                    )}
 
                     {/* === OLED Protection === */}
                     <PanelSection title="OLED Protection">
@@ -1575,10 +1748,10 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.7.1');
+    const [version, setVersion] = useState('1.7.2');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.7.1')).catch(() => setVersion('1.7.1'));
+        getVersionCall().then(v => setVersion(v || '1.7.2')).catch(() => setVersion('1.7.2'));
     }, []);
 
     const handleReset = async () => {

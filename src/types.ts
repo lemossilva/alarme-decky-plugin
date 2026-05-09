@@ -212,6 +212,9 @@ export interface UserSettings {
     screensaver_wallpaper_blur?: WallpaperBlur;
     screensaver_wallpaper_dim?: number;
     screensaver_wallpaper_interval?: number;
+    screensaver_wallpaper_pool_size?: number;
+    screensaver_wallpaper_auto_rotate?: boolean;
+    screensaver_wallpaper_cache_updated_at?: string | null;
     screensaver_floating_drift_range?: number;
     // Pixel shift
     pixel_shift_enabled?: boolean;
@@ -353,7 +356,13 @@ export const ACCENT_COLORS: Record<AccentColorPreset, string> = {
     dim_orange: '#cc7733'
 };
 
-export type WallpaperProvider = 'none' | 'picsum' | 'bing_daily' | 'local_folder';
+export type WallpaperProvider =
+    | 'none'
+    | 'picsum'
+    | 'bing_daily'
+    | 'lorem_flickr'
+    | 'nasa_apod'
+    | 'local_folder';
 
 export type WallpaperFit = 'cover' | 'contain';
 
