@@ -33,9 +33,11 @@ function formatAlertStr(alert: OverlayAlert, use24h: boolean): string {
 interface AlertsListWidgetProps {
     fontSize: number;
     maxAlerts: number;
+    /** Default 300; use a CSS length for wide layouts (e.g. fullscreen spread). */
+    stackMaxWidth?: number | string;
 }
 
-export function AlertsListWidget({ fontSize, maxAlerts }: AlertsListWidgetProps) {
+export function AlertsListWidget({ fontSize, maxAlerts, stackMaxWidth = 300 }: AlertsListWidgetProps) {
     const { settings } = useSettings();
     const alerts = useOverlayData(settings);
     const visible = alerts.slice(0, maxAlerts);
@@ -43,7 +45,7 @@ export function AlertsListWidget({ fontSize, maxAlerts }: AlertsListWidgetProps)
     if (visible.length === 0) return null;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", maxWidth: 300 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", maxWidth: stackMaxWidth }}>
             {visible.map(alert => (
                 <div key={alert.id} style={{
                     display: "flex",

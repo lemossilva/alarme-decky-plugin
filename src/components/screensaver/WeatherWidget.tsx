@@ -11,6 +11,16 @@ import {
 } from "react-icons/fa";
 import { useSettings } from "../../hooks/useSettings";
 import { useWeather } from "../../hooks/useWeather";
+import { resolveScreensaverAccentColor } from "../../utils/screensaverAccent";
+
+function aqiColor(aqi: number): string {
+    if (aqi <= 50) return "#9dffb0";
+    if (aqi <= 100) return "#f0e68c";
+    if (aqi <= 150) return "#ffb87a";
+    if (aqi <= 200) return "#ff9a9a";
+    if (aqi <= 300) return "#d4b5ff";
+    return "#ff9ecf";
+}
 
 function wmoIconAndLabel(code: number | null, isDay: number | null): { label: string; icon: JSX.Element; size: number } {
     const day = isDay === 1;
@@ -85,11 +95,26 @@ export function WeatherWidget({ fontSize, show, layout }: WeatherWidgetProps) {
     const t = w.temperature != null ? Math.round(w.temperature) : "—";
     const u = `°${unit}`;
 
+    const aqiVal = w.aqiUs != null && Number.isFinite(w.aqiUs) ? Math.round(w.aqiUs) : null;
+
     if (layout === "compact") {
         return (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", fontSize }}>
                 <span style={{ display: "flex", opacity: 0.9 }}>{icon}</span>
                 <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{t}{u}</span>
+                {aqiVal != null ? (
+                    <span
+                        style={{
+                            fontFamily: "monospace",
+                            fontWeight: 600,
+                            fontSize: fontSize * 0.88,
+                            color: resolveScreensaverAccentColor(settings),
+                            opacity: 0.92,
+                        }}
+                    >
+                        · AQI {aqiVal}
+                    </span>
+                ) : null}
             </span>
         );
     }
@@ -127,6 +152,11 @@ export function WeatherWidget({ fontSize, show, layout }: WeatherWidgetProps) {
                     {subParts.join(" · ")}
                 </div>
             )}
+            {aqiVal != null ? (
+                <div style={{ fontSize: fontSize * 0.62, fontWeight: 600, color: aqiColor(aqiVal), lineHeight: 1.2 }}>
+                    AQI {aqiVal}
+                </div>
+            ) : null}
         </div>
     );
 }

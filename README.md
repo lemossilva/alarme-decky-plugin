@@ -79,13 +79,13 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, or stopwatch alongside Prevent Sleep
 - **Wallpaper backgrounds** - Lorem Picsum, Bing Daily, Lorem Flickr, NASA APOD, or a local folder; cache and personal images live under Decky’s runtime data (`DECKY_PLUGIN_RUNTIME_DIR`, typically under `~/homebrew/data/`); images prefetch before idle so the overlay rarely shows a loading state; automatic rotation walks the pool in a random order each cycle; Bing Daily and NASA APOD apply a slow image drift for OLED burn-in on static daily images; optional drift for local-folder wallpapers in settings
 - **4 clock styles** - Digital, Digital + Seconds, Large (blinking colon), Analog
-- **4 layout modes** - Compact (overlay bar), Large (centered card), Fullscreen, Floating (drifts to prevent burn-in)
+- **3 layout modes** - Compact (notification overlay bar; placement under Overlay → Position), Large (centered wide floating panel with dim backdrop), Fullscreen (same widgets, wide spacing, per-widget surfaces only—no extra dim panel)
 - **Full Black, Dim, or Wallpaper** - Choose between a fully opaque black screen, a configurable dim overlay, or live wallpapers
 - **OLED burn-in protection** - Pixel shift and floating drift options keep static elements moving
 - **Standalone mode** - Activate screensaver on a timer independent of alerts, for general OLED protection
 - **Idle timer** - Configurable delay before the screensaver activates after your last input
 - **Gamepad & touch dismiss** - Any button press or screen tap temporarily wakes the screen
-- **System stats & network info** - Optionally show CPU temp, RAM, Wi-Fi signal during screensaver
+- **System stats & network info** - Optionally show CPU temp, RAM, and network (Wi-Fi or wired link speed, IPv4/IPv6) during screensaver
 - **Weather** - Optional Open-Meteo forecast (no API key): large/fullscreen layouts show a weather card; compact overlay shows a short inline readout during the screensaver. City search with live suggestions, or an approximate IP-based location (tries ipapi.co, then geojs.io) when no city is saved
 - **7-day forecast widget** - Enable a weekly forecast grid showing day abbreviations, weather icons, high/low temperatures, and precipitation chance for each day
 - **Screensaver profiles** - Save your screensaver configuration to one of 3 profile slots; quickly switch between setups for bedtime, gaming, or minimal modes

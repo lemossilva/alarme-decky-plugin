@@ -194,6 +194,12 @@ export interface UserSettings {
     overlay_screensaver_show_clock?: boolean;
     overlay_screensaver_show_date?: boolean;
     overlay_screensaver_show_battery?: boolean;
+    screensaver_center_show_clock?: boolean;
+    screensaver_center_show_date?: boolean;
+    screensaver_center_show_battery?: boolean;
+    overlay_compact_screensaver_show_clock?: boolean;
+    overlay_compact_screensaver_show_date?: boolean;
+    overlay_compact_screensaver_show_battery?: boolean;
     // Screensaver 2.0 settings
     screensaver_standalone_enabled?: boolean;
     screensaver_standalone_idle_seconds?: number;
@@ -405,6 +411,19 @@ export interface SystemStats {
 export interface WifiInfo {
     ssid: string | null;
     signal: number | null;
+    connection_type?: "wifi" | "ethernet" | "none" | null;
+    link_speed_mbps?: number | null;
+    ipv4?: string | null;
+    ipv6?: string[];
+}
+
+/** UPower snapshot from backend (`get_battery_info`); aligns with Steam OS QAM when `ok`. */
+export interface BatteryInfo {
+    percent: number | null;
+    charging: boolean | null;
+    time_to_empty_sec: number | null;
+    time_to_full_sec: number | null;
+    ok: boolean;
 }
 
 export interface WallpaperAttribution {

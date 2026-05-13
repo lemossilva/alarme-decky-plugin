@@ -4,6 +4,21 @@ import { useSettings } from "../../hooks/useSettings";
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+/** Pixel height of `ScreensaverCalendarGrid` for a given month (weekday row + day cell rows). */
+export function screensaverCalendarGridContentHeightPx(
+    fontSize: number,
+    year: number,
+    monthZeroBased: number,
+): number {
+    const firstDay = new Date(year, monthZeroBased, 1).getDay();
+    const daysInMonth = new Date(year, monthZeroBased + 1, 0).getDate();
+    const dayRows = Math.ceil((firstDay + daysInMonth) / 7);
+    const weekdayRowH = fontSize * 0.8;
+    const cellH = fontSize * 1.1;
+    const gap = 1;
+    return weekdayRowH + gap + dayRows * cellH + Math.max(0, dayRows - 1) * gap;
+}
+
 interface DateWidgetProps {
     fontSize: number;
 }
@@ -13,7 +28,7 @@ function useDateHeadingParts(): { dateStr: string; visible: boolean } {
     const clock = useScreensaverClock();
 
     const visible =
-        (settings.overlay_screensaver_show_date ?? true) ||
+        (settings.screensaver_center_show_date ?? true) ||
         (settings.screensaver_show_day_of_week ?? true);
 
     const showDayOfWeek = settings.screensaver_show_day_of_week ?? true;

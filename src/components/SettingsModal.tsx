@@ -27,6 +27,7 @@ import { BinarySelector } from "./BinarySelector";
 import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
+import { OverlayPositionPreview } from "./OverlayPositionPreview";
 
 // Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
@@ -825,7 +826,7 @@ const ScreensaverSettingsPage = () => {
     ];
 
     const layoutOptions = [
-        { data: 'compact', label: 'Compact (Top-Left)' },
+        { data: 'compact', label: 'Compact (Overlay bar)' },
         { data: 'large', label: 'Large (Centered)' },
         { data: 'fullscreen', label: 'Fullscreen' },
     ];
@@ -874,6 +875,7 @@ const ScreensaverSettingsPage = () => {
 
     const provider = settings.screensaver_wallpaper_provider || 'none';
     const rawLayoutMode = (settings.overlay_screensaver_layout as unknown as string | undefined) || 'compact';
+    const layoutIsCompact = rawLayoutMode === 'compact';
     const poolSz = clampWallpaperPoolSize(settings.screensaver_wallpaper_pool_size);
     const autoRotateWallpaper = settings.screensaver_wallpaper_auto_rotate ?? true;
     const cacheUpdatedLabel = (() => {
@@ -952,6 +954,22 @@ const ScreensaverSettingsPage = () => {
 
     return (
         <ScrollableContent>
+            {/* Invisible focusable anchor for scroll-to-top */}
+            <PanelSection>
+                <PanelSectionRow>
+                    <Focusable
+                        onActivate={() => { }}
+                        style={{
+                            height: 1,
+                            opacity: 0,
+                            outline: 'none'
+                        }}
+                    >
+                        <span></span>
+                    </Focusable>
+                </PanelSectionRow>
+            </PanelSection>
+
             {/* === Profiles === */}
             <PanelSection title="Profiles">
                 <PanelSectionRow>
@@ -1404,16 +1422,19 @@ const ScreensaverSettingsPage = () => {
                         </PanelSectionRow>
                         <PanelSectionRow>
                             <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
-                                {(settings.overlay_screensaver_layout || 'compact') === 'compact' && 'Compact keeps a minimal top-left overlay with existing behavior.'}
-                                {(settings.overlay_screensaver_layout || 'compact') === 'large' && 'Large keeps the clock/date centered in a stable card with grouped widgets beneath it. With OLED burn-in protection on, this layout also drifts.'}
-                                {(settings.overlay_screensaver_layout || 'compact') === 'fullscreen' && 'Fullscreen uses centered content without a card and gives grouped widgets more horizontal room. With OLED burn-in protection on, content drifts too.'}
+                                {(settings.overlay_screensaver_layout || 'compact') === 'compact' &&
+                                    'Compact uses a minimal notification-style overlay bar (default placement is the upper corner; adjust under Overlay → Position).'}
+                                {(settings.overlay_screensaver_layout || 'compact') === 'large' &&
+                                    'Large (Centered) keeps the clock and widgets in one wide floating panel with a dim backdrop. With OLED burn-in protection on, the panel drifts.'}
+                                {(settings.overlay_screensaver_layout || 'compact') === 'fullscreen' &&
+                                    'Fullscreen spreads the same widgets with extra space; only each widget’s light surface is shown (no dim panel behind the stack). With OLED burn-in protection on, the layout drifts.'}
                             </div>
                         </PanelSectionRow>
 
                         <PanelSectionRow>
                             <SliderField
-                                label="Clock Size"
-                                description={`${settings.screensaver_clock_size ?? 20}px`}
+                                label="Screensaver base size"
+                                description={`${settings.screensaver_clock_size ?? 20}px — scales clock and all screensaver widgets; size adjusts automatically with display resolution.`}
                                 value={settings.screensaver_clock_size ?? 20}
                                 min={24}
                                 max={96}
@@ -1487,7 +1508,9 @@ const ScreensaverSettingsPage = () => {
                     <PanelSection title="Widgets">
                         <PanelSectionRow>
                             <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>
-                                Widgets shown on the screensaver (Large/Fullscreen/Floating layouts only).
+                                {layoutIsCompact
+                                    ? 'Compact uses the notification overlay bar (placement: Overlay → Position). Large (Centered) and Fullscreen use the centered screensaver; Fullscreen uses a wide spread without a dim panel behind the widgets.'
+                                    : 'Centered screensaver widgets below. Compact bar toggles are hidden while this layout is active.'}
                             </div>
                         </PanelSectionRow>
 
@@ -1501,28 +1524,67 @@ const ScreensaverSettingsPage = () => {
                             />
                         </PanelSectionRow>
 
-                        {(settings.overlay_during_screensaver ?? true) && (
+                        {(settings.overlay_during_screensaver ?? true) && layoutIsCompact && (
                             <>
+                                <PanelSectionRow>
+                                    <div style={{ fontSize: 11, color: '#888', padding: '2px 0 6px 0' }}>
+                                        Second line on the game overlay during compact screensaver (Steam UI or in-game).
+                                    </div>
+                                </PanelSectionRow>
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaClock size={16} />}
-                                        label="Show Clock Widget"
-                                        checked={settings.overlay_screensaver_show_clock ?? true}
-                                        onChange={(value) => updateSetting('overlay_screensaver_show_clock', value)}
+                                        label="Show clock on compact bar"
+                                        checked={settings.overlay_compact_screensaver_show_clock ?? true}
+                                        onChange={(value) => updateSetting('overlay_compact_screensaver_show_clock', value)}
                                     />
                                 </PanelSectionRow>
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaCalendarAlt size={16} />}
-                                        label="Show Date Widget"
-                                        checked={settings.overlay_screensaver_show_date ?? true}
-                                        onChange={(value) => updateSetting('overlay_screensaver_show_date', value)}
+                                        label="Show date on compact bar"
+                                        checked={settings.overlay_compact_screensaver_show_date ?? true}
+                                        onChange={(value) => updateSetting('overlay_compact_screensaver_show_date', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaBatteryFull size={16} />}
+                                        label="Show battery on compact bar"
+                                        checked={settings.overlay_compact_screensaver_show_battery ?? true}
+                                        onChange={(value) => updateSetting('overlay_compact_screensaver_show_battery', value)}
+                                    />
+                                </PanelSectionRow>
+                            </>
+                        )}
+
+                        {(settings.overlay_during_screensaver ?? true) && !layoutIsCompact && (
+                            <>
+                                <PanelSectionRow>
+                                    <div style={{ fontSize: 11, color: '#888', padding: '2px 0 6px 0' }}>
+                                        Centered screensaver panel (clock, date, battery, and cards below).
+                                    </div>
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaClock size={16} />}
+                                        label="Show clock"
+                                        checked={settings.screensaver_center_show_clock ?? true}
+                                        onChange={(value) => updateSetting('screensaver_center_show_clock', value)}
                                     />
                                 </PanelSectionRow>
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaCalendarAlt size={16} />}
-                                        label="Show Day of Week"
+                                        label="Show date line"
+                                        checked={settings.screensaver_center_show_date ?? true}
+                                        onChange={(value) => updateSetting('screensaver_center_show_date', value)}
+                                    />
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCalendarAlt size={16} />}
+                                        label="Show day of week"
                                         checked={settings.screensaver_show_day_of_week ?? true}
                                         onChange={(value) => updateSetting('screensaver_show_day_of_week', value)}
                                     />
@@ -1530,7 +1592,7 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaCalendarAlt size={16} />}
-                                        label="Show Year"
+                                        label="Show year"
                                         checked={settings.screensaver_show_year ?? false}
                                         onChange={(value) => updateSetting('screensaver_show_year', value)}
                                     />
@@ -1538,8 +1600,8 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaCalendarAlt size={16} />}
-                                        label="Show Calendar Grid"
-                                        description="Mini monthly calendar (large/fullscreen layouts)"
+                                        label="Show calendar grid"
+                                        description="Mini monthly calendar"
                                         checked={settings.screensaver_show_calendar_grid ?? false}
                                         onChange={(value) => updateSetting('screensaver_show_calendar_grid', value)}
                                     />
@@ -1547,18 +1609,18 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaBatteryFull size={16} />}
-                                        label="Show Battery Widget"
-                                        checked={settings.overlay_screensaver_show_battery ?? true}
-                                        onChange={(value) => updateSetting('overlay_screensaver_show_battery', value)}
+                                        label="Show battery widget"
+                                        checked={settings.screensaver_center_show_battery ?? true}
+                                        onChange={(value) => updateSetting('screensaver_center_show_battery', value)}
                                     />
                                 </PanelSectionRow>
-                                {settings.overlay_screensaver_show_battery && (
+                                {(settings.screensaver_center_show_battery ?? true) && (
                                     <>
                                         <PanelSectionRow>
                                             <div style={{ paddingLeft: '40px' }}>
                                                 <ToggleField
                                                     icon={<FaBatteryFull size={16} />}
-                                                    label="Show Battery Bar"
+                                                    label="Show battery bar"
                                                     checked={settings.screensaver_battery_show_bar ?? false}
                                                     onChange={(value) => updateSetting('screensaver_battery_show_bar', value)}
                                                 />
@@ -1567,7 +1629,7 @@ const ScreensaverSettingsPage = () => {
                                         <PanelSectionRow>
                                             <div style={{ paddingLeft: '40px' }}>
                                                 <SliderField
-                                                    label="Low Battery Threshold"
+                                                    label="Low battery threshold"
                                                     description={`${settings.screensaver_battery_low_threshold ?? 20}%`}
                                                     value={settings.screensaver_battery_low_threshold ?? 20}
                                                     min={5}
@@ -1583,8 +1645,8 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaBell size={16} />}
-                                        label="Show Alerts List"
-                                        description="Active alerts as cards (large/fullscreen)"
+                                        label="Show alerts list"
+                                        description="Active alerts as cards"
                                         checked={settings.screensaver_show_alerts_list ?? true}
                                         onChange={(value) => updateSetting('screensaver_show_alerts_list', value)}
                                     />
@@ -1592,7 +1654,7 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaDesktop size={16} />}
-                                        label="Show System Stats"
+                                        label="Show system stats"
                                         description="CPU temp, RAM usage, fan speed"
                                         checked={settings.screensaver_show_system_stats ?? false}
                                         onChange={(value) => updateSetting('screensaver_show_system_stats', value)}
@@ -1601,8 +1663,8 @@ const ScreensaverSettingsPage = () => {
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaDesktop size={16} />}
-                                        label="Show Network Info"
-                                        description="Wi-Fi SSID and signal strength"
+                                        label="Show network info"
+                                        description="Wi-Fi or wired: link speed and addresses"
                                         checked={settings.screensaver_show_network_info ?? false}
                                         onChange={(value) => updateSetting('screensaver_show_network_info', value)}
                                     />
@@ -1634,7 +1696,7 @@ const ScreensaverSettingsPage = () => {
                             <ToggleField
                                 icon={<FaCloud size={16} />}
                                 label="Show weather on screensaver"
-                                description="Large and fullscreen layouts show a weather card; compact overlay shows a short inline readout when the screensaver is active."
+                                description="Large (Centered) and Fullscreen show a weather card in the screensaver; compact overlay shows a short inline readout when the screensaver is active."
                                 checked={settings.screensaver_show_weather ?? false}
                                 onChange={(value) => updateSetting('screensaver_show_weather', value)}
                             />
@@ -1684,16 +1746,18 @@ const ScreensaverSettingsPage = () => {
                                 icon={<FaClock size={16} />}
                             />
                         </PanelSectionRow>
+                        {!layoutIsCompact && (
                         <PanelSectionRow>
                             <ToggleField
                                 icon={<FaCalendarAlt size={16} />}
                                 label="Show 7-day forecast"
-                                description="Display weekly forecast widget (large/fullscreen layouts)"
+                                description="Weekly forecast widget next to the calendar"
                                 checked={settings.screensaver_show_forecast ?? false}
                                 onChange={(value) => updateSetting('screensaver_show_forecast', value)}
                             />
                         </PanelSectionRow>
-                        {settings.screensaver_show_forecast && (
+                        )}
+                        {settings.screensaver_show_forecast && !layoutIsCompact && (
                             <PanelSectionRow>
                                 <div style={{ paddingLeft: '40px' }}>
                                     <ToggleField
@@ -1919,10 +1983,17 @@ const OverlaySettingsPage = () => {
                 <>
                     <PanelSection title="Position">
                         <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#9a9a9a', lineHeight: 1.5, padding: '2px 0 6px 0' }}>
+                                The compact overlay stack is positioned with <strong>X</strong> and <strong>Y</strong> (pixels from the display origin; 1280×800 reference).
+                                The same offsets move the full stack: upcoming alerts and, when the screensaver runs in <strong>Compact</strong> layout,
+                                the optional second line (clock, date, weather, battery) from the Screensaver tab.
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
                             <ToggleField
                                 icon={<FaCog />}
                                 label="Custom Position"
-                                description="Fine-tune the overlay position with X/Y offsets"
+                                description="Set pixel offsets from the display origin (1280×800 reference). Turn off to reset to the default corner."
                                 checked={isCustomPosition}
                                 onChange={(value) => updateSetting('overlay_position', value ? 'custom' : 'default')}
                             />
@@ -1930,49 +2001,8 @@ const OverlaySettingsPage = () => {
 
                         {isCustomPosition && (
                             <>
-                                {/* Position Preview - shows overlay position on a mini screen mockup */}
                                 <PanelSectionRow>
-                                    <div style={{
-                                        position: 'relative',
-                                        width: '100%',
-                                        height: 100,
-                                        backgroundColor: '#1a1a2e',
-                                        borderRadius: 8,
-                                        overflow: 'hidden',
-                                        border: '1px solid #333'
-                                    }}>
-                                        {/* Mini overlay preview positioned proportionally */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            left: `${Math.min(Math.max((settings.overlay_custom_x ?? 12) / 12.8, 0), 85)}%`,
-                                            top: `${Math.min(Math.max((settings.overlay_custom_y ?? 12) / 8, 0), 75)}%`,
-                                            backgroundColor: '#00000088',
-                                            padding: '3px 6px',
-                                            borderRadius: 4,
-                                            fontSize: 9,
-                                            color: '#8b8b8b',
-                                            whiteSpace: 'nowrap',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                            border: '1px dashed #4488aa'
-                                        }}>
-                                            <FaStopwatch size={8} />
-                                            <span>5:00</span>
-                                            <span style={{ opacity: 0.4 }}>•</span>
-                                            <FaBell size={8} />
-                                            <span>8:30</span>
-                                        </div>
-                                        <div style={{
-                                            position: 'absolute',
-                                            bottom: 4,
-                                            right: 8,
-                                            fontSize: 8,
-                                            color: '#555'
-                                        }}>
-                                            X: {settings.overlay_custom_x ?? 12}px, Y: {settings.overlay_custom_y ?? 12}px
-                                        </div>
-                                    </div>
+                                    <OverlayPositionPreview settings={settings} />
                                 </PanelSectionRow>
 
                                 <PanelSectionRow>

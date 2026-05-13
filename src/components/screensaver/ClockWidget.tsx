@@ -66,9 +66,14 @@ function DigitalLargeClock({ size }: { size: number }) {
 
 function AnalogClock({ size }: { size: number }) {
     const clock = useScreensaverClock();
-    const r = size / 2;
+    const scale = 4.35;
+    const S = size * scale;
+    const r = S / 2;
     const cx = r;
     const cy = r;
+    const tr = r * 0.84;
+    const chord30 = 2 * tr * Math.sin((15 * Math.PI) / 180);
+    const numFsBase = Math.max(11, Math.min(S * 0.11, chord30 * 0.42));
 
     const hourDeg = (clock.hours % 12) * 30 + clock.minutes * 0.5;
     const minDeg = clock.minutes * 6 + clock.seconds * 0.1;
@@ -78,9 +83,9 @@ function AnalogClock({ size }: { size: number }) {
     const minRad = (minDeg - 90) * (Math.PI / 180);
     const secRad = (secDeg - 90) * (Math.PI / 180);
 
-    const hourLen = r * 0.45;
-    const minLen = r * 0.7;
-    const secLen = r * 0.8;
+    const hourLen = r * 0.42;
+    const minLen = r * 0.66;
+    const secLen = r * 0.76;
 
     const hx = cx + hourLen * Math.cos(hourRad);
     const hy = cy + hourLen * Math.sin(hourRad);
@@ -89,31 +94,80 @@ function AnalogClock({ size }: { size: number }) {
     const sx = cx + secLen * Math.cos(secRad);
     const sy = cy + secLen * Math.sin(secRad);
 
-    const ticks: JSX.Element[] = [];
+    const subticks: JSX.Element[] = [];
+    for (let h = 0; h < 12; h++) {
+        const angleStart = -90 + h * 30;
+        for (let j = 1; j <= 4; j++) {
+            const deg = angleStart + j * 6;
+            const rad = (deg * Math.PI) / 180;
+            const inner = r * 0.92;
+            const outer = r * 0.965;
+            subticks.push(
+                <line
+                    key={`st-${h}-${j}`}
+                    x1={cx + inner * Math.cos(rad)}
+                    y1={cy + inner * Math.sin(rad)}
+                    x2={cx + outer * Math.cos(rad)}
+                    y2={cy + outer * Math.sin(rad)}
+                    stroke="currentColor"
+                    strokeWidth={1}
+                    opacity={0.16}
+                    strokeLinecap="round"
+                />
+            );
+        }
+    }
+
+    const hourTicks: JSX.Element[] = [];
     for (let i = 0; i < 12; i++) {
         const deg = i * 30 - 90;
         const rad = deg * (Math.PI / 180);
-        const isHour = i % 3 === 0;
-        const inner = r * (isHour ? 0.78 : 0.85);
-        const outer = r * 0.92;
-        ticks.push(
+        const inner = r * 0.87;
+        const outer = r * 0.93;
+        hourTicks.push(
             <line
-                key={i}
+                key={`ht-${i}`}
                 x1={cx + inner * Math.cos(rad)}
                 y1={cy + inner * Math.sin(rad)}
                 x2={cx + outer * Math.cos(rad)}
                 y2={cy + outer * Math.sin(rad)}
                 stroke="currentColor"
-                strokeWidth={isHour ? 2 : 1}
-                opacity={0.5}
+                strokeWidth={1}
+                opacity={0.22}
                 strokeLinecap="round"
             />
         );
     }
 
+    const numerals: JSX.Element[] = [];
+    for (let h = 1; h <= 12; h++) {
+        const deg = -90 + h * 30;
+        const rad = (deg * Math.PI) / 180;
+        const x = cx + tr * Math.cos(rad);
+        const y = cy + tr * Math.sin(rad);
+        const numFs = h >= 10 ? numFsBase * 0.82 : numFsBase;
+        numerals.push(
+            <text
+                key={h}
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="currentColor"
+                fontSize={numFs}
+                fontWeight={600}
+                opacity={0.72}
+            >
+                {h}
+            </text>
+        );
+    }
+
     return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: "block" }}>
-            {ticks}
+        <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`} style={{ display: "block" }}>
+            {subticks}
+            {hourTicks}
+            {numerals}
             <circle cx={cx} cy={cy} r={r * 0.04} fill="currentColor" opacity={0.6} />
             <line x1={cx} y1={cy} x2={hx} y2={hy} stroke="currentColor" strokeWidth={3} strokeLinecap="round" opacity={0.9} />
             <line x1={cx} y1={cy} x2={mx} y2={my} stroke="currentColor" strokeWidth={2} strokeLinecap="round" opacity={0.7} />

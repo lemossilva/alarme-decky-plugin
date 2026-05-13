@@ -10,6 +10,9 @@ export interface ForecastDay {
     low: number | null;
     code: number | null;
     precip_chance: number | null;
+    precip_sum_mm: number | null;
+    wind_speed_max_kmh: number | null;
+    uv_index_max: number | null;
 }
 
 export interface WeatherData {
@@ -20,6 +23,7 @@ export interface WeatherData {
     isDay: number | null;
     tempMax: number | null;
     tempMin: number | null;
+    aqiUs: number | null;
     forecast: ForecastDay[];
     fetchedAt: string | null;
     error: string | null;
@@ -40,6 +44,9 @@ function parseForecast(rawForecast: unknown): ForecastDay[] {
         low: readNum(day.low),
         code: readNum(day.code) as number | null,
         precip_chance: readNum(day.precip_chance) as number | null,
+        precip_sum_mm: readNum(day.precip_sum_mm),
+        wind_speed_max_kmh: readNum(day.wind_speed_max_kmh),
+        uv_index_max: readNum(day.uv_index_max),
     }));
 }
 
@@ -60,6 +67,7 @@ function parseResponse(raw: Record<string, unknown>): Omit<WeatherData, "loading
         isDay: readNum(raw.is_day) as number | null,
         tempMax: readNum(raw.temp_max),
         tempMin: readNum(raw.temp_min),
+        aqiUs: readNum(raw.aqi_us) as number | null,
         forecast: parseForecast(raw.forecast),
         fetchedAt: typeof raw.fetched_at === "string" ? raw.fetched_at : null,
         error: err,
@@ -79,6 +87,7 @@ export function useWeather(show: boolean) {
         isDay: null,
         tempMax: null,
         tempMin: null,
+        aqiUs: null,
         forecast: [],
         fetchedAt: null,
         error: null,
@@ -125,6 +134,7 @@ export function useWeather(show: boolean) {
                 isDay: null,
                 tempMax: null,
                 tempMin: null,
+                aqiUs: null,
                 forecast: [],
                 fetchedAt: null,
                 error: null,

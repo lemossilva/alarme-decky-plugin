@@ -32,6 +32,11 @@ def _http_get_bytes(url: str, timeout: int = 20) -> bytes:
         return resp.read()
 
 
+def _http_get_json(url: str, timeout: int = 15) -> dict:
+    raw = _http_get_bytes(url, timeout=timeout)
+    return json.loads(raw.decode("utf-8"))
+
+
 # Initialize settings
 settingsDir = os.environ["DECKY_PLUGIN_SETTINGS_DIR"]
 runtimeDir = os.environ["DECKY_PLUGIN_RUNTIME_DIR"]
@@ -126,8 +131,10 @@ SCREENSAVER_PROFILE_KEYS = [
     "screensaver_wallpaper_auto_rotate", "screensaver_wallpaper_shift_local",
     "screensaver_wallpaper_show_attribution", "screensaver_nasa_api_key",
     "screensaver_floating_drift_range",
-    "overlay_screensaver_layout", "overlay_screensaver_show_clock",
-    "overlay_screensaver_show_date", "overlay_screensaver_show_battery",
+    "overlay_screensaver_layout",
+    "screensaver_center_show_clock", "screensaver_center_show_date", "screensaver_center_show_battery",
+    "overlay_compact_screensaver_show_clock", "overlay_compact_screensaver_show_date",
+    "overlay_compact_screensaver_show_battery",
     "overlay_during_screensaver", "pomodoro_screensaver_mode",
     "pixel_shift_enabled", "pixel_shift_range", "pixel_shift_interval_seconds",
 ]
@@ -204,6 +211,12 @@ DEFAULT_SETTINGS = {
     "overlay_screensaver_show_clock": True,
     "overlay_screensaver_show_date": True,
     "overlay_screensaver_show_battery": True,
+    "screensaver_center_show_clock": True,
+    "screensaver_center_show_date": True,
+    "screensaver_center_show_battery": True,
+    "overlay_compact_screensaver_show_clock": True,
+    "overlay_compact_screensaver_show_date": True,
+    "overlay_compact_screensaver_show_battery": True,
     # Screensaver 2.0 settings
     "screensaver_standalone_enabled": False,
     "screensaver_standalone_idle_seconds": 60,
@@ -256,6 +269,120 @@ DEFAULT_PRESETS = [
     {"id": "preset-30", "seconds": 1800, "label": "30 minutes", "subtle_mode": False, "auto_suspend": False},
     {"id": "preset-60", "seconds": 3600, "label": "1 hour", "subtle_mode": False, "auto_suspend": False},
 ]
+
+
+def _get_battery_info_sync() -> dict:
+    """Read battery snapshot from UPower (same stack Steam OS QAM uses)."""
+    import re
+    import subprocess
+
+    empty: dict = {
+        "percent": None,
+        "charging": None,
+        "time_to_empty_sec": None,
+        "time_to_full_sec": None,
+        "ok": False,
+    }
+
+    def duration_to_seconds(val: str) -> int | None:
+        t = val.replace(",", ".").strip().lower()
+        if not t or t in ("unknown", "(unknown)"):
+            return None
+        m = re.fullmatch(r"([\d.]+)\s*seconds?", t)
+        if m:
+            sec = float(m.group(1))
+            if sec <= 5:
+                return None
+            return int(round(sec))
+        m = re.fullmatch(r"([\d.]+)\s*minutes?", t)
+        if m:
+            return int(round(float(m.group(1)) * 60))
+        m = re.fullmatch(r"([\d.]+)\s*hours?", t)
+        if m:
+            return int(round(float(m.group(1)) * 3600))
+        m = re.match(r"([\d.]+)\s*hours?\s+([\d.]+)\s*minutes?", t)
+        if m:
+            return int(round(float(m.group(1)) * 3600 + float(m.group(2)) * 60))
+        return None
+
+    env = {**os.environ, "LANG": "C", "LC_ALL": "C", "LC_MESSAGES": "C"}
+    try:
+        proc = subprocess.run(
+            ["upower", "-e"],
+            capture_output=True,
+            text=True,
+            timeout=4,
+            env=env,
+        )
+        if proc.returncode != 0 or not (proc.stdout or "").strip():
+            return empty
+        device: str | None = None
+        for raw in proc.stdout.splitlines():
+            line = raw.strip()
+            if "battery" in line.lower():
+                device = line
+                break
+        if not device:
+            return empty
+        proc = subprocess.run(
+            ["upower", "-i", device],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env=env,
+        )
+        if proc.returncode != 0 or not (proc.stdout or "").strip():
+            return empty
+        kv: dict[str, str] = {}
+        for raw in proc.stdout.splitlines():
+            if ":" not in raw:
+                continue
+            k, v = raw.split(":", 1)
+            kv[k.strip().lower()] = v.strip()
+        pct: int | None = None
+        if "percentage" in kv:
+            pm = re.search(r"(\d+)", kv["percentage"])
+            if pm:
+                pct = max(0, min(100, int(pm.group(1))))
+        state_raw = (kv.get("state") or "").lower()
+        charging: bool | None = None
+        if state_raw in ("charging", "pending-charge"):
+            charging = True
+        elif state_raw in ("discharging",):
+            charging = False
+        elif state_raw in ("fully-charged", "full", "not charging"):
+            charging = False
+            if pct is None:
+                pct = 100
+        tte = duration_to_seconds(kv.get("time to empty", ""))
+        ttf = duration_to_seconds(kv.get("time to full", ""))
+        if charging is True:
+            tte = None
+        elif charging is False and state_raw in ("fully-charged", "full"):
+            ttf = None
+            tte = None
+        elif charging is False:
+            ttf = None
+        ok = bool(
+            device
+            and (
+                pct is not None
+                or charging is not None
+                or tte is not None
+                or ttf is not None
+                or bool(state_raw)
+            )
+        )
+        return {
+            "percent": pct,
+            "charging": charging,
+            "time_to_empty_sec": tte,
+            "time_to_full_sec": ttf,
+            "ok": ok,
+        }
+    except Exception as e:
+        decky.logger.debug(f"AlarMe: get_battery_info upower: {e}")
+        return empty
 
 
 class Plugin:
@@ -1316,48 +1443,180 @@ class Plugin:
         }
 
     async def get_wifi_info(self) -> dict:
-        """Get current Wi-Fi SSID and signal strength.
-
-        Signal strength is converted from dBm to a 0-100 percentage:
-        -30 dBm or better = 100%, -90 dBm or worse = 0%.
-        """
+        """Active default-route interface: Wi-Fi SSID/signal or wired; link speed; IPv4/IPv6."""
         import subprocess
+        import json as json_lib
 
         def dbm_to_quality(dbm: int) -> int:
-            """Convert dBm signal strength to a 0-100 quality percentage."""
             if dbm >= -30:
                 return 100
             if dbm <= -90:
                 return 0
             return int((dbm + 90) / 60 * 100)
 
-        result = {"ssid": None, "signal": None}
+        result: dict = {
+            "ssid": None,
+            "signal": None,
+            "connection_type": "none",
+            "link_speed_mbps": None,
+            "ipv4": None,
+            "ipv6": [],
+        }
 
-        try:
-            proc = subprocess.run(["iw", "dev", "wlan0", "link"], capture_output=True, text=True, timeout=3)
-            if proc.returncode == 0:
-                for line in proc.stdout.split("\n"):
-                    line = line.strip()
+        def default_route_dev() -> str | None:
+            try:
+                proc = subprocess.run(
+                    ["ip", "-j", "route", "show", "default"],
+                    capture_output=True,
+                    text=True,
+                    timeout=4,
+                )
+                if proc.returncode != 0 or not (proc.stdout or "").strip():
+                    return None
+                routes = json_lib.loads(proc.stdout)
+                if not isinstance(routes, list):
+                    return None
+                for r in routes:
+                    if not isinstance(r, dict):
+                        continue
+                    d = r.get("dev")
+                    if isinstance(d, str) and d and not d.startswith("lo"):
+                        return d
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: ip default route: {e}")
+            return None
+
+        def ethtool_speed(dev: str) -> int | None:
+            try:
+                proc = subprocess.run(
+                    ["ethtool", dev],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if proc.returncode != 0:
+                    return None
+                for line in proc.stdout.splitlines():
+                    s = line.strip()
+                    if s.startswith("Speed:"):
+                        val = s.split(":", 1)[1].strip()
+                        if not val or "Unknown" in val:
+                            return None
+                        if val.endswith("Mb/s"):
+                            return int(float(val.replace("Mb/s", "").strip()))
+                        if val.endswith("Gb/s"):
+                            return int(float(val.replace("Gb/s", "").strip()) * 1000)
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: ethtool {dev}: {e}")
+            return None
+
+        def iw_tx_bitrate_mbps(dev: str) -> int | None:
+            import re as _re
+
+            try:
+                proc = subprocess.run(
+                    ["iw", "dev", dev, "link"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if proc.returncode != 0 or not (proc.stdout or "").strip():
+                    return None
+                for raw in proc.stdout.splitlines():
+                    line = raw.strip()
+                    low = line.lower()
+                    if "bitrate" not in low:
+                        continue
+                    m = _re.search(r"([\d.]+)\s*gbit", low, flags=_re.I)
+                    if m:
+                        return int(float(m.group(1)) * 1000)
+                    m = _re.search(r"([\d.]+)\s*mbit", low, flags=_re.I)
+                    if m:
+                        return int(round(float(m.group(1))))
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: iw bitrate {dev}: {e}")
+            return None
+
+        def collect_addrs(dev: str) -> None:
+            try:
+                proc = subprocess.run(
+                    ["ip", "-j", "addr", "show", "dev", dev],
+                    capture_output=True,
+                    text=True,
+                    timeout=4,
+                )
+                if proc.returncode != 0 or not (proc.stdout or "").strip():
+                    return
+                arr = json_lib.loads(proc.stdout)
+                if not isinstance(arr, list) or not arr:
+                    return
+                entry = arr[0]
+                v6: list[str] = []
+                v4 = None
+                for ai in entry.get("addr_info") or []:
+                    if not isinstance(ai, dict):
+                        continue
+                    fam = ai.get("family")
+                    loc = ai.get("local")
+                    if not isinstance(loc, str):
+                        continue
+                    scope = str(ai.get("scope") or "")
+                    if fam == "inet" and scope == "global":
+                        if v4 is None:
+                            v4 = loc
+                    elif fam == "inet6" and scope == "global":
+                        if not loc.startswith("fe80:") and loc != "::1":
+                            v6.append(loc)
+                result["ipv4"] = v4
+                result["ipv6"] = v6[:4]
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: ip addr {dev}: {e}")
+
+        def parse_iw_link(dev: str) -> bool:
+            try:
+                proc = subprocess.run(
+                    ["iw", "dev", dev, "link"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if proc.returncode != 0:
+                    return False
+                ok = False
+                for raw in proc.stdout.split("\n"):
+                    line = raw.strip()
                     if line.startswith("SSID:"):
-                        result["ssid"] = line.split(":", 1)[1].strip()
+                        ss = line.split(":", 1)[1].strip()
+                        if ss:
+                            result["ssid"] = ss
+                            ok = True
                     elif line.startswith("signal:"):
                         signal_str = line.split(":", 1)[1].strip().split()[0]
                         dbm = int(signal_str)
                         result["signal"] = dbm_to_quality(dbm)
-                if result["ssid"] or result["signal"] is not None:
-                    return result
-        except Exception:
-            pass
+                        ok = True
+                return ok
+            except Exception:
+                return False
 
-        try:
-            proc = subprocess.run(["iwconfig", "wlan0"], capture_output=True, text=True, timeout=3)
-            if proc.returncode == 0:
-                for line in proc.stdout.split("\n"):
-                    line = line.strip()
+        def parse_iwconfig(dev: str) -> bool:
+            try:
+                proc = subprocess.run(
+                    ["iwconfig", dev],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if proc.returncode != 0:
+                    return False
+                ok = False
+                for raw in proc.stdout.split("\n"):
+                    line = raw.strip()
                     if "ESSID:" in line:
                         ssid = line.split("ESSID:")[1].strip().strip('"')
-                        if ssid != "off/any":
+                        if ssid and ssid != "off/any":
                             result["ssid"] = ssid
+                            ok = True
                     if "Signal level=" in line:
                         part = line.split("Signal level=")[1].split()[0]
                         if "/" in part:
@@ -1366,10 +1625,41 @@ class Plugin:
                         else:
                             dbm = int(part)
                             result["signal"] = dbm_to_quality(dbm)
-        except Exception:
-            pass
+                        ok = True
+                return ok
+            except Exception:
+                return False
+
+        dev = default_route_dev()
+        if not dev:
+            for fallback in ("wlan0", "wlp1s0", "wlp2s0"):
+                if parse_iw_link(fallback):
+                    dev = fallback
+                    break
+
+        if not dev:
+            return result
+
+        if dev.startswith(("wlan", "wlp", "wifi", "wl")):
+            result["connection_type"] = "wifi"
+            if not parse_iw_link(dev):
+                parse_iwconfig(dev)
+        else:
+            result["connection_type"] = "ethernet"
+
+        sp = ethtool_speed(dev)
+        if sp is None and result["connection_type"] == "wifi":
+            sp = iw_tx_bitrate_mbps(dev)
+        if sp is not None:
+            result["link_speed_mbps"] = sp
+
+        collect_addrs(dev)
 
         return result
+
+    async def get_battery_info(self) -> dict:
+        """Battery % and time-to-empty / time-to-full via UPower (QAM-aligned)."""
+        return await asyncio.to_thread(_get_battery_info_sync)
 
     async def list_local_wallpapers(self) -> list:
         """List available files in the local wallpapers folder."""
@@ -3432,6 +3722,7 @@ class Plugin:
             "is_day": None,
             "temp_max": None,
             "temp_min": None,
+            "aqi_us": None,
             "forecast": [],
             "fetched_at": None,
             "error": None,
@@ -3492,7 +3783,11 @@ class Plugin:
                 "latitude": la,
                 "longitude": lo,
                 "current_weather": "true",
-                "daily": "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max",
+                "daily": (
+                    "temperature_2m_max,temperature_2m_min,weathercode,"
+                    "precipitation_probability_max,precipitation_sum,"
+                    "wind_speed_10m_max,uv_index_max"
+                ),
                 "timezone": "auto",
                 "forecast_days": 7,
                 "temperature_unit": temp_q,
@@ -3501,9 +3796,7 @@ class Plugin:
         url = f"https://api.open-meteo.com/v1/forecast?{q}"
 
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
-            with urllib.request.urlopen(req, timeout=15, context=_NO_VERIFY_SSL) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+            data = await asyncio.to_thread(_http_get_json, url)
         except Exception as e:
             decky.logger.error(f"AlarMe: Open-Meteo forecast failed: {e}")
             out = dict(empty)
@@ -3511,12 +3804,34 @@ class Plugin:
             out["error"] = str(e)
             return out
 
+        aqi_us = None
+        try:
+            aq_q = urllib.parse.urlencode(
+                {
+                    "latitude": la,
+                    "longitude": lo,
+                    "current": "us_aqi",
+                    "timezone": "auto",
+                }
+            )
+            aq_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?{aq_q}"
+            aq = await asyncio.to_thread(_http_get_json, aq_url)
+            cur_aq = aq.get("current") or {}
+            aq_raw = cur_aq.get("us_aqi")
+            if aq_raw is not None:
+                aqi_us = int(float(aq_raw))
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: Open-Meteo air quality skipped: {e}")
+
         cur = data.get("current_weather") or {}
         daily = data.get("daily") or {}
         tmax_list = daily.get("temperature_2m_max") or []
         tmin_list = daily.get("temperature_2m_min") or []
         wc_list = daily.get("weathercode") or []
         precip_list = daily.get("precipitation_probability_max") or []
+        precip_sum_list = daily.get("precipitation_sum") or []
+        wind_max_list = daily.get("wind_speed_10m_max") or []
+        uv_max_list = daily.get("uv_index_max") or []
         date_list = daily.get("time") or []
 
         try:
@@ -3562,6 +3877,30 @@ class Plugin:
                 day_data["precip_chance"] = int(precip_list[i]) if i < len(precip_list) and precip_list[i] is not None else None
             except (TypeError, ValueError):
                 day_data["precip_chance"] = None
+            try:
+                day_data["precip_sum_mm"] = (
+                    float(precip_sum_list[i])
+                    if i < len(precip_sum_list) and precip_sum_list[i] is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                day_data["precip_sum_mm"] = None
+            try:
+                day_data["wind_speed_max_kmh"] = (
+                    float(wind_max_list[i])
+                    if i < len(wind_max_list) and wind_max_list[i] is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                day_data["wind_speed_max_kmh"] = None
+            try:
+                day_data["uv_index_max"] = (
+                    float(uv_max_list[i])
+                    if i < len(uv_max_list) and uv_max_list[i] is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                day_data["uv_index_max"] = None
             forecast.append(day_data)
 
         fetched_iso = datetime.now().isoformat(timespec="seconds")
@@ -3573,6 +3912,7 @@ class Plugin:
             "is_day": is_day,
             "temp_max": tmax,
             "temp_min": tmin,
+            "aqi_us": aqi_us,
             "forecast": forecast,
             "fetched_at": fetched_iso,
             "error": None,
@@ -3910,6 +4250,20 @@ class Plugin:
         # Remove legacy floating layout mode in favor of large + pixel shift drift.
         if merged.get("overlay_screensaver_layout") == "floating":
             merged["overlay_screensaver_layout"] = "large"
+
+        if isinstance(saved, dict):
+            _ss_migrate = (
+                ("screensaver_center_show_clock", "overlay_screensaver_show_clock"),
+                ("screensaver_center_show_date", "overlay_screensaver_show_date"),
+                ("screensaver_center_show_battery", "overlay_screensaver_show_battery"),
+                ("overlay_compact_screensaver_show_clock", "overlay_screensaver_show_clock"),
+                ("overlay_compact_screensaver_show_date", "overlay_screensaver_show_date"),
+                ("overlay_compact_screensaver_show_battery", "overlay_screensaver_show_battery"),
+            )
+            for nk, ok in _ss_migrate:
+                if nk not in saved:
+                    v = merged.get(ok)
+                    merged[nk] = v if isinstance(v, bool) else bool(v) if v is not None else True
 
         valid_wallpaper_providers = frozenset(
             {"none", "picsum", "bing_daily", "lorem_flickr", "nasa_apod", "local_folder"}

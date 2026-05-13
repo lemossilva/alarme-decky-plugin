@@ -42,6 +42,12 @@ const DEFAULT_SETTINGS: UserSettings = {
     overlay_screensaver_show_clock: true,
     overlay_screensaver_show_date: true,
     overlay_screensaver_show_battery: true,
+    screensaver_center_show_clock: true,
+    screensaver_center_show_date: true,
+    screensaver_center_show_battery: true,
+    overlay_compact_screensaver_show_clock: true,
+    overlay_compact_screensaver_show_date: true,
+    overlay_compact_screensaver_show_battery: true,
     // Screensaver 2.0 settings
     screensaver_standalone_enabled: false,
     screensaver_standalone_idle_seconds: 60,

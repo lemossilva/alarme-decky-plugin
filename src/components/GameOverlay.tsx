@@ -10,6 +10,7 @@ import { usePixelShift } from "../hooks/usePixelShift";
 import { Z_INDEX } from "../utils/zIndex";
 import type { OverlayAlert } from "../types";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
+import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, JSX.Element> = {
@@ -20,7 +21,7 @@ const CATEGORY_ICONS: Record<string, JSX.Element> = {
     stopwatch: <FaStopwatch />
 };
 
-// Default position style (top-left corner)
+// Default position style (upper corner; customizable under Overlay → Position)
 const DEFAULT_POSITION_STYLE: React.CSSProperties = {
     top: 12,
     left: 12,
@@ -162,7 +163,7 @@ export const GameOverlay = () => {
     usePixelShift(overlayActive, gameOverlayRef);
     const [batteryPct, setBatteryPct] = useState<number | null>(null);
 
-    const showBattery = settings.overlay_screensaver_show_battery ?? true;
+    const showBattery = settings.overlay_compact_screensaver_show_battery ?? true;
     const batteryActive = screensaverVisible && showBattery;
 
     useEffect(() => {
@@ -201,27 +202,37 @@ export const GameOverlay = () => {
         return null;
     }
 
+    const rawLayout = (settings.overlay_screensaver_layout as unknown as string | undefined) || "compact";
+    const layoutMode = rawLayout === "floating" ? "large" : rawLayout;
+    const compactScreensaverBypass =
+        screensaverVisible && layoutMode === "compact";
+
     // Hide GameOverlay during non-compact screensaver — ScreensaverContent handles all rendering
-    if (screensaverVisible && (settings.overlay_screensaver_layout || "compact") !== "compact") {
+    if (screensaverVisible && layoutMode !== "compact") {
         return null;
     }
 
-    const displayMode = settings.overlay_display_mode || 'both';
-    if (displayMode === 'gaming_only' && !isGameRunning) {
-        return null;
-    }
-    if (displayMode === 'steam_only' && isGameRunning) {
-        return null;
+    const displayMode = settings.overlay_display_mode || "both";
+    if (!compactScreensaverBypass) {
+        if (displayMode === "gaming_only" && !isGameRunning) {
+            return null;
+        }
+        if (displayMode === "steam_only" && isGameRunning) {
+            return null;
+        }
     }
 
     const overlayDuring = settings.overlay_during_screensaver ?? true;
-    const showClock = settings.overlay_screensaver_show_clock ?? true;
-    const showDate = settings.overlay_screensaver_show_date ?? true;
+    const showClock = settings.overlay_compact_screensaver_show_clock ?? true;
+    const showDate = settings.overlay_compact_screensaver_show_date ?? true;
     const showWeatherHud = screensaverVisible && (settings.screensaver_show_weather ?? false);
     const showExtra = screensaverVisible && (showWeatherHud || showClock || showDate || showBattery || batteryPct !== null);
     const now = new Date();
 
     const baseOpacity = settings.overlay_opacity ?? 0.85;
+    const overlayTextColor = compactScreensaverBypass
+        ? resolveScreensaverAccentColor(settings)
+        : "#8b8b8b";
 
     return (
         <div
@@ -232,7 +243,7 @@ export const GameOverlay = () => {
             zIndex: overlayDuring ? Z_INDEX.GAME_OVERLAY_ABOVE_SCREENSAVER : Z_INDEX.GAME_OVERLAY_BASE,
             pointerEvents: 'none',
             opacity: `calc(${baseOpacity} * var(--alarme-shift-opacity, 1))`,
-            color: '#8b8b8b',
+            color: overlayTextColor,
             fontFamily: 'system-ui, -apple-system, sans-serif',
             userSelect: 'none',
             display: 'flex',
@@ -281,7 +292,7 @@ export const GameOverlay = () => {
                     <div style={{ 
                         width: 1, 
                         height: (settings.overlay_text_size ?? 11) + 2, 
-                        backgroundColor: '#8b8b8b', 
+                        backgroundColor: compactScreensaverBypass ? "currentColor" : "#8b8b8b", 
                         opacity: 0.3 
                     }} />
                 )}
@@ -320,7 +331,7 @@ export const GameOverlay = () => {
                     gap: 10,
                     fontSize: settings.overlay_text_size ?? 11,
                     fontWeight: 600,
-                    opacity: 0.85
+                    opacity: compactScreensaverBypass ? 1 : 0.85
                 }}>
                     {showWeatherHud && (
                         <WeatherWidget

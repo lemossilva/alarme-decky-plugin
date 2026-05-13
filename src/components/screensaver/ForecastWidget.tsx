@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
     FaSun,
     FaCloud,
@@ -8,8 +9,11 @@ import {
     FaBolt,
     FaCloudShowersHeavy,
     FaTint,
+    FaWind,
 } from "react-icons/fa";
 import { useSettings } from "../../hooks/useSettings";
+import { useScreensaverClock } from "../../hooks/useScreensaverClock";
+import { screensaverCalendarGridContentHeightPx } from "./DateWidget";
 import { useWeather, ForecastDay } from "../../hooks/useWeather";
 
 const DAY_ABBREV = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -39,17 +43,32 @@ function wmoIcon(code: number | null, size: number): JSX.Element {
     return <FaBolt size={size} />;
 }
 
+function formatPrecipSum(mm: number | null): string | null {
+    if (mm == null || !Number.isFinite(mm) || mm < 0.05) return null;
+    if (mm < 1) return `${(Math.round(mm * 10) / 10).toFixed(1)} mm`;
+    return `${Math.round(mm)} mm`;
+}
+
+function formatWind(kmh: number | null, useMph: boolean): string | null {
+    if (kmh == null || !Number.isFinite(kmh) || kmh < 0.5) return null;
+    if (useMph) return `${Math.round(kmh * 0.621371)} mph`;
+    return `${Math.round(kmh)} km/h`;
+}
+
+function formatUv(uv: number | null): string | null {
+    if (uv == null || !Number.isFinite(uv) || uv < 1) return null;
+    if (uv >= 10) return `UV ${Math.round(uv)}`;
+    return `UV ${(Math.round(uv * 10) / 10).toFixed(1)}`;
+}
+
 interface ForecastWidgetProps {
     fontSize: number;
     show: boolean;
 }
 
-/**
- * 7-day forecast widget. Total content height is sized to match the calendar
- * grid in DateWidget (heading line + ~6 rows of `fontSize * 1.1`).
- */
 export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
     const { settings } = useSettings();
+    const clock = useScreensaverClock();
     const w = useWeather(show);
 
     if (!show) return null;
@@ -68,120 +87,201 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
     }
 
     const showPrecip = settings.screensaver_forecast_show_precip ?? true;
+    const unitF = settings.screensaver_weather_unit === "F";
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
 
-    const hasPrecipData =
-        showPrecip && w.forecast.some((d: ForecastDay) => d.precip_chance != null && d.precip_chance > 0);
-
-    // Visual rhythm tuned to feel like the calendar grid (DateWidget):
-    // - column width slightly wider than a single calendar day to fit "24°/18°"
-    // - explicit vertical gap between text rows so digits never collide.
-    const colWidth = fontSize * 2.0;
+    const colWidth = Math.max(56, Math.round(fontSize * 2.55));
+    const colGap = Math.max(4, Math.min(10, Math.round(fontSize * 0.16)));
     const labelFs = Math.max(9, fontSize * 0.55);
     const tempFs = Math.max(10, fontSize * 0.65);
     const precipFs = Math.max(9, fontSize * 0.5);
+    const extrasFs = Math.max(8, fontSize * 0.42);
     const iconSize = Math.max(14, fontSize * 0.95);
-    const rowGap = Math.max(4, fontSize * 0.25);
+
+    const rowLabel = Math.ceil(labelFs * 1.32);
+    const rowIcon = Math.ceil(iconSize + 6);
+    const rowHigh = Math.ceil(tempFs * 1.32);
+    const rowLow = Math.ceil(tempFs * 0.85 * 1.32);
+    const rowChance = Math.ceil(Math.max(17, precipFs * 1.58));
+    const rowSum = Math.ceil(Math.max(15, extrasFs * 1.52));
+    const rowWind = Math.ceil(Math.max(16, extrasFs * 1.58));
+    const rowUv = Math.ceil(Math.max(15, extrasFs * 1.48));
+
+    const gridTemplateRows = [
+        `${rowLabel}px`,
+        `${rowIcon}px`,
+        `${rowHigh}px`,
+        `${rowLow}px`,
+        ...(showPrecip ? [`${rowChance}px`, `${rowSum}px`] : []),
+        `${rowWind}px`,
+        `${rowUv}px`,
+    ].join(" ");
+
+    const slot: CSSProperties = {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "100%",
+        minWidth: 0,
+        lineHeight: 1,
+        boxSizing: "border-box",
+    };
+
+    const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month);
 
     return (
         <div
             style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(7, ${colWidth}px)`,
-                columnGap: 2,
-                rowGap,
-                textAlign: "center",
-                alignItems: "stretch",
+                minHeight: gridMinH,
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
             }}
         >
-            {w.forecast.slice(0, 7).map((day: ForecastDay, i: number) => {
-                const isToday = day.date === todayStr;
-                const dateObj = day.date ? new Date(day.date + "T12:00:00") : null;
-                const dayAbbrev = dateObj ? DAY_ABBREV[dateObj.getDay()] : "—";
-                const high = day.high != null ? Math.round(day.high) : null;
-                const low = day.low != null ? Math.round(day.low) : null;
-                const precip = day.precip_chance;
-                const wet = precip != null && precip > 0;
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: `repeat(7, ${colWidth}px)`,
+                    gridTemplateRows,
+                    columnGap: colGap,
+                    textAlign: "center",
+                    alignItems: "stretch",
+                }}
+            >
+                {w.forecast.slice(0, 7).map((day: ForecastDay, i: number) => {
+                    const isToday = day.date === todayStr;
+                    const dateObj = day.date ? new Date(day.date + "T12:00:00") : null;
+                    const dayAbbrev = dateObj ? DAY_ABBREV[dateObj.getDay()] : "—";
+                    const high = day.high != null ? Math.round(day.high) : null;
+                    const low = day.low != null ? Math.round(day.low) : null;
+                    const precip = day.precip_chance;
+                    const wet = precip != null && precip > 0;
+                    const sumLine = formatPrecipSum(day.precip_sum_mm);
+                    const windLine = formatWind(day.wind_speed_max_kmh, unitF);
+                    const uvLine = formatUv(day.uv_index_max);
 
-                return (
-                    <div
-                        key={i}
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "flex-start",
-                            gap: rowGap,
-                            padding: `${rowGap}px 2px`,
-                            backgroundColor: isToday ? "rgba(255,255,255,0.12)" : "transparent",
-                            borderRadius: 6,
-                            lineHeight: 1,
-                        }}
-                    >
+                    const rowTrackCount = 4 + (showPrecip ? 2 : 0) + 2;
+                    const colStyle: CSSProperties = {
+                        display: "grid",
+                        gridColumn: i + 1,
+                        gridRow: `1 / ${rowTrackCount + 1}`,
+                        gridTemplateRows,
+                        height: "100%",
+                        boxSizing: "border-box",
+                        padding: `${Math.max(2, fontSize * 0.1)}px 1px`,
+                        backgroundColor: isToday ? "rgba(255,255,255,0.12)" : "transparent",
+                        borderRadius: 6,
+                        minWidth: 0,
+                    };
+
+                    const cells: JSX.Element[] = [
                         <div
+                            key="d"
                             style={{
+                                ...slot,
                                 fontSize: labelFs,
                                 fontWeight: isToday ? 700 : 500,
                                 opacity: isToday ? 1 : 0.75,
-                                lineHeight: 1,
                             }}
                         >
                             {dayAbbrev}
-                        </div>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                height: iconSize + 4,
-                                opacity: 0.9,
-                            }}
-                        >
+                        </div>,
+                        <div key="ic" style={{ ...slot, opacity: 0.9 }}>
                             {wmoIcon(day.code, iconSize)}
-                        </div>
+                        </div>,
                         <div
+                            key="hi"
                             style={{
+                                ...slot,
                                 fontSize: tempFs,
                                 fontWeight: 700,
-                                lineHeight: 1,
                                 fontVariantNumeric: "tabular-nums",
                                 opacity: 0.95,
                             }}
                         >
                             {high != null ? `${high}°` : "—"}
-                        </div>
+                        </div>,
                         <div
+                            key="lo"
                             style={{
+                                ...slot,
                                 fontSize: tempFs * 0.85,
-                                lineHeight: 1,
                                 fontVariantNumeric: "tabular-nums",
                                 opacity: 0.6,
                             }}
                         >
                             {low != null ? `${low}°` : "—"}
-                        </div>
-                        {hasPrecipData && (
+                        </div>,
+                    ];
+
+                    if (showPrecip) {
+                        cells.push(
                             <div
+                                key="pc"
                                 style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 2,
+                                    ...slot,
+                                    gap: 3,
                                     fontSize: precipFs,
-                                    lineHeight: 1,
                                     fontVariantNumeric: "tabular-nums",
-                                    opacity: wet ? 0.85 : 0.3,
+                                    opacity: wet ? 0.88 : 0.32,
                                     color: precip != null && precip >= 50 ? "#6ba3d6" : undefined,
                                 }}
                             >
-                                <FaTint size={precipFs * 0.85} style={{ opacity: 0.75 }} />
-                                <span>{wet ? `${precip}%` : "—"}</span>
+                                <FaTint size={Math.round(precipFs * 0.88)} style={{ opacity: 0.75, flexShrink: 0 }} />
+                                <span>{wet && precip != null ? `${Math.round(precip)}%` : "—"}</span>
+                            </div>,
+                            <div
+                                key="ps"
+                                style={{
+                                    ...slot,
+                                    fontSize: extrasFs,
+                                    fontVariantNumeric: "tabular-nums",
+                                    opacity: sumLine ? 0.74 : 0.32,
+                                }}
+                            >
+                                {sumLine ?? "—"}
                             </div>
-                        )}
-                    </div>
-                );
-            })}
+                        );
+                    }
+
+                    cells.push(
+                        <div
+                            key="wn"
+                            style={{
+                                ...slot,
+                                gap: 3,
+                                fontSize: extrasFs,
+                                fontVariantNumeric: "tabular-nums",
+                                opacity: windLine ? 0.7 : 0.32,
+                            }}
+                        >
+                            <FaWind size={Math.round(extrasFs * 0.92)} style={{ opacity: 0.75, flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {windLine ?? "—"}
+                            </span>
+                        </div>,
+                        <div
+                            key="uv"
+                            style={{
+                                ...slot,
+                                fontSize: extrasFs,
+                                opacity: uvLine ? 0.8 : 0.32,
+                                color: uvLine ? "#f0c674" : undefined,
+                            }}
+                        >
+                            {uvLine ?? "—"}
+                        </div>
+                    );
+
+                    return (
+                        <div key={i} style={colStyle}>
+                            {cells}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
