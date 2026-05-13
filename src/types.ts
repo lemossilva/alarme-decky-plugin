@@ -207,6 +207,17 @@ export interface UserSettings {
     screensaver_show_alerts_list?: boolean;
     screensaver_show_system_stats?: boolean;
     screensaver_show_network_info?: boolean;
+    screensaver_show_weather?: boolean;
+    screensaver_weather_lat?: number | null;
+    screensaver_weather_lon?: number | null;
+    screensaver_weather_city_name?: string | null;
+    screensaver_weather_unit?: "C" | "F";
+    screensaver_weather_show_highlow?: boolean;
+    screensaver_weather_show_condition?: boolean;
+    screensaver_weather_refresh_minutes?: number;
+    screensaver_weather_location_source?: 'manual' | 'ip' | null;
+    screensaver_nasa_api_key?: string;
+    screensaver_wallpaper_show_attribution?: boolean;
     screensaver_wallpaper_provider?: WallpaperProvider;
     screensaver_wallpaper_fit?: WallpaperFit;
     screensaver_wallpaper_blur?: WallpaperBlur;
@@ -215,6 +226,7 @@ export interface UserSettings {
     screensaver_wallpaper_pool_size?: number;
     screensaver_wallpaper_auto_rotate?: boolean;
     screensaver_wallpaper_cache_updated_at?: string | null;
+    screensaver_wallpaper_shift_local?: boolean;
     screensaver_floating_drift_range?: number;
     // Pixel shift
     pixel_shift_enabled?: boolean;
@@ -303,7 +315,7 @@ export interface SnoozeEvent {
 // Overlay types
 export type OverlayPosition = 'default' | 'custom';
 
-export type OverlayDisplayMode = 'always' | 'gaming_only';
+export type OverlayDisplayMode = 'both' | 'steam_only' | 'gaming_only' | 'always';
 
 export type OverlayCategory = 'timer' | 'alarm' | 'pomodoro' | 'reminder' | 'stopwatch';
 
@@ -391,7 +403,23 @@ export interface WifiInfo {
     signal: number | null;
 }
 
+export interface WallpaperAttribution {
+    title: string | null;
+    credit: string | null;
+}
+
 export interface WallpaperState {
     url: string | null;
     provider: WallpaperProvider;
+    attribution: WallpaperAttribution | null;
+}
+
+export interface WeatherGeocodeResult {
+    name: string;
+    admin1: string;
+    country: string;
+    country_code: string;
+    latitude: number;
+    longitude: number;
+    display_name: string;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSettings } from "../../hooks/useSettings";
 import { useWallpaper } from "../../hooks/useWallpaper";
+import { useWallpaperShift } from "../../hooks/useWallpaperShift";
 
 const BLUR_VALUES: Record<string, string> = {
     none: "0px",
@@ -8,18 +9,12 @@ const BLUR_VALUES: Record<string, string> = {
     heavy: "10px"
 };
 
-const PROVIDER_LABELS: Record<string, string> = {
-    picsum: "Lorem Picsum",
-    bing_daily: "Bing Daily",
-    lorem_flickr: "Lorem Flickr",
-    nasa_apod: "NASA Astronomy Picture",
-    local_folder: "Local Folder",
-    none: "None",
-};
-
 const TRANSITION_MS = 1900;
 
 const ACCENT_CANDIDATES = [
+    "#141414",
+    "#2a2a2a",
+    "#4a4a4a",
     "#8b8b8b",
     "#e0e0e0",
     "#e6a817",
@@ -86,6 +81,15 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
     const blur = settings.screensaver_wallpaper_blur || "none";
     const dim = settings.screensaver_wallpaper_dim ?? 0.4;
     const provider = settings.screensaver_wallpaper_provider || "none";
+    const shiftLocal = settings.screensaver_wallpaper_shift_local ?? false;
+    const pixelShiftOn = settings.pixel_shift_enabled ?? true;
+    const showAttribution = settings.screensaver_wallpaper_show_attribution ?? true;
+    const { displayImgRef, incomingImgRef, shiftActive } = useWallpaperShift(
+        show,
+        provider,
+        shiftLocal,
+        pixelShiftOn,
+    );
 
     const [displaySrc, setDisplaySrc] = useState<string | null>(null);
     const [incomingSrc, setIncomingSrc] = useState<string | null>(null);
@@ -223,25 +227,16 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
 
     if (!show) return null;
 
-    const providerLabel = PROVIDER_LABELS[provider] || provider;
+    const attributionText = (() => {
+        const a = wallpaper.attribution;
+        if (!a) return null;
+        const parts = [a.title, a.credit].filter((s): s is string => !!s && s.trim().length > 0);
+        return parts.length > 0 ? parts.join(" · ") : null;
+    })();
+
     const src = displaySrc || wallpaper.url;
 
     if (!src) {
-        let statusText: string;
-        let statusColor = "#666";
-        if (wallpaper.loading) {
-            statusText = `Loading wallpaper from ${providerLabel}...`;
-        } else if (wallpaper.error) {
-            const errMsg = wallpaper.status?.errorMessage;
-            statusText = errMsg
-                ? `${providerLabel}: ${errMsg}`
-                : `Failed to load wallpaper from ${providerLabel}`;
-            statusColor = "#a55";
-        } else {
-            statusText = "No wallpaper available";
-            statusColor = "#555";
-        }
-
         return (
             <div style={{
                 position: "absolute",
@@ -250,26 +245,14 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
                 width: "100%",
                 height: "100%",
                 backgroundColor: "#000",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-            }}>
-                <div style={{
-                    color: statusColor,
-                    fontSize: 14,
-                    fontFamily: "system-ui, sans-serif",
-                    textAlign: "center",
-                    padding: 20,
-                }}>
-                    {statusText}
-                </div>
-            </div>
+            }} />
         );
     }
 
     return (
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
             <img
+                ref={displayImgRef}
                 src={src}
                 style={{
                     position: "absolute",
@@ -280,10 +263,13 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
                     objectFit: fit,
                     filter: `blur(${BLUR_VALUES[blur] || "0px"})`,
                     opacity: 1,
+                    transformOrigin: "center center",
+                    willChange: shiftActive ? "transform" : undefined,
                 }}
             />
             {incomingSrc && incomingSrc !== src && (
                 <img
+                    ref={incomingImgRef}
                     src={incomingSrc}
                     style={{
                         position: "absolute",
@@ -295,9 +281,33 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
                         filter: `blur(${BLUR_VALUES[blur] || "0px"})`,
                         opacity: incomingOpacity,
                         transition: `opacity ${TRANSITION_MS}ms ease-in-out`,
-                        willChange: "opacity",
+                        transformOrigin: "center center",
+                        willChange: shiftActive ? "opacity, transform" : "opacity",
                     }}
                 />
+            )}
+            {showAttribution && attributionText && (
+                <div style={{
+                    position: "absolute",
+                    bottom: 12,
+                    left: 16,
+                    maxWidth: "min(52vw, 420px)",
+                    fontSize: 10,
+                    fontFamily: "system-ui, sans-serif",
+                    color: "rgba(255,255,255,0.55)",
+                    letterSpacing: 0.4,
+                    userSelect: "none",
+                    pointerEvents: "none",
+                    lineHeight: 1.35,
+                    textAlign: "left",
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    transform: "translate(var(--alarme-shift-x, 0px), var(--alarme-shift-y, 0px))",
+                    opacity: "var(--alarme-shift-opacity, 1)",
+                }}>
+                    {attributionText}
+                </div>
             )}
             <div style={{
                 position: "absolute",

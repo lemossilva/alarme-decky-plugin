@@ -8,11 +8,13 @@ import {
 import { toaster } from "@decky/api";
 import { FaPlay, FaPause, FaFlag, FaUndo, FaCopy } from "react-icons/fa";
 import { useStopwatch } from "../hooks/useStopwatch";
+import { useSettings } from "../hooks/useSettings";
 import { formatStopwatch, formatLapSplit } from "../utils/time";
 import type { StopwatchLap } from "../types";
 import { useEffect, useRef, useState } from "react";
 
 export function StopwatchPanel() {
+    const { settings } = useSettings();
     const {
         status,
         elapsed,
@@ -256,7 +258,7 @@ export function StopwatchPanel() {
                         <ToggleField
                             icon={<span style={{ fontSize: 14 }}>🖥️</span>}
                             label="Screensaver"
-                            description="Show screensaver while preventing sleep"
+                            description={`Currently set to ${(settings.screensaver_mode || 'off') === 'off' ? 'Off' : settings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : settings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
                             checked={screensaverMode !== 'off'}
                             onChange={(val) => setPreventSleep(true, val ? 'black' : 'off')}
                         />

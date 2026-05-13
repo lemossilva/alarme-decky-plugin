@@ -187,7 +187,7 @@ const TimerItem = ({ timer, onCancel, onPause, onResume, onSaveAsPreset, showSav
                     {timer.prevent_sleep && <span style={{ color: '#e69900' }}>🛡️ Prev. Sleep</span>}
                     {timer.auto_suspend && <span>💤 Auto-Suspend</span>}
                     {timer.subtle_mode && !timer.auto_suspend && <span>📵 Subtle</span>}
-                    {timer.screensaver_mode && timer.screensaver_mode !== 'off' && <span style={{ color: '#8888aa' }}>🌙 {timer.screensaver_mode.charAt(0).toUpperCase() + timer.screensaver_mode.slice(1)}</span>}
+                    {timer.screensaver_mode && timer.screensaver_mode !== 'off' && <span style={{ color: '#8888aa' }}>🌙 Screensaver</span>}
                 </div>
             )}
         </div>
@@ -557,7 +557,7 @@ export function TimerPanel() {
                         <ToggleField
                             icon={<span style={{ fontSize: 14 }}>🖥️</span>}
                             label="Screensaver"
-                            description="Show screensaver while preventing sleep"
+                            description={`Currently set to ${(settings.screensaver_mode || 'off') === 'off' ? 'Off' : settings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : settings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
                             checked={timerScreensaver}
                             onChange={setTimerScreensaver}
                         />

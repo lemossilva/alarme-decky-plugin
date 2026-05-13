@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash, FaBatteryFull } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
@@ -7,7 +7,9 @@ import { useScreensaver } from "../hooks/useScreensaver";
 import { useMissedAlerts } from "../hooks/useMissedAlerts";
 import { formatDuration, formatTime } from "../utils/time";
 import { usePixelShift } from "../hooks/usePixelShift";
+import { Z_INDEX } from "../utils/zIndex";
 import type { OverlayAlert } from "../types";
+import { WeatherWidget } from "./screensaver/WeatherWidget";
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, JSX.Element> = {
@@ -156,7 +158,8 @@ export const GameOverlay = () => {
     const { hasNewMissedAlerts } = useMissedAlerts();
     const hasContent = alerts.length > 0 || inhibitorActive || hasNewMissedAlerts || screensaverVisible;
     const overlayActive = settings.overlay_enabled && hasContent;
-    const { x: pxX, y: pxY } = usePixelShift(overlayActive);
+    const gameOverlayRef = useRef<HTMLDivElement>(null);
+    usePixelShift(overlayActive, gameOverlayRef);
     const [batteryPct, setBatteryPct] = useState<number | null>(null);
 
     const showBattery = settings.overlay_screensaver_show_battery ?? true;
@@ -203,24 +206,32 @@ export const GameOverlay = () => {
         return null;
     }
 
-    const displayMode = settings.overlay_display_mode || 'always';
+    const displayMode = settings.overlay_display_mode || 'both';
     if (displayMode === 'gaming_only' && !isGameRunning) {
+        return null;
+    }
+    if (displayMode === 'steam_only' && isGameRunning) {
         return null;
     }
 
     const overlayDuring = settings.overlay_during_screensaver ?? true;
     const showClock = settings.overlay_screensaver_show_clock ?? true;
     const showDate = settings.overlay_screensaver_show_date ?? true;
-    const showExtra = screensaverVisible && (showClock || showDate || showBattery || batteryPct !== null);
+    const showWeatherHud = screensaverVisible && (settings.screensaver_show_weather ?? false);
+    const showExtra = screensaverVisible && (showWeatherHud || showClock || showDate || showBattery || batteryPct !== null);
     const now = new Date();
 
+    const baseOpacity = settings.overlay_opacity ?? 0.85;
+
     return (
-        <div style={{
+        <div
+            ref={gameOverlayRef}
+            style={{
             position: 'fixed',
             ...positionStyle,
-            zIndex: overlayDuring ? 2147483647 : 2147483645,
+            zIndex: overlayDuring ? Z_INDEX.GAME_OVERLAY_ABOVE_SCREENSAVER : Z_INDEX.GAME_OVERLAY_BASE,
             pointerEvents: 'none',
-            opacity: settings.overlay_opacity ?? 0.85,
+            opacity: `calc(${baseOpacity} * var(--alarme-shift-opacity, 1))`,
             color: '#8b8b8b',
             fontFamily: 'system-ui, -apple-system, sans-serif',
             userSelect: 'none',
@@ -228,9 +239,9 @@ export const GameOverlay = () => {
             flexDirection: showExtra ? 'column' : 'row',
             alignItems: showExtra ? 'flex-start' : 'center',
             gap: showExtra ? 2 : 12,
-            transform: `translate(${pxX}px, ${pxY}px)`,
-            transition: 'transform 2s ease'
-        }}>
+            transform: 'translate(var(--alarme-shift-x, 0px), var(--alarme-shift-y, 0px))',
+        }}
+        >
             {/* Main line */}
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {/* Badges Container */}
@@ -311,6 +322,16 @@ export const GameOverlay = () => {
                     fontWeight: 600,
                     opacity: 0.85
                 }}>
+                    {showWeatherHud && (
+                        <WeatherWidget
+                            fontSize={settings.overlay_text_size ?? 11}
+                            layout="compact"
+                            show={showWeatherHud}
+                        />
+                    )}
+                    {showWeatherHud && (showClock || showDate || (showBattery && batteryPct !== null)) && (
+                        <span style={{ opacity: 0.3 }}>·</span>
+                    )}
                     {showClock && (
                         <span style={{
                             fontFamily: 'monospace',

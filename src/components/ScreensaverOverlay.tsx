@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import { useUIComposition, UIComposition } from "../utils/uiComposition";
+import { Navigation } from "@decky/ui";
 import { useScreensaver } from "../hooks/useScreensaver";
 import { useCatchAllGamepad } from "../hooks/useCatchAllGamepad";
 import { ScreensaverContent } from "./ScreensaverContent";
 import { WallpaperLayer } from "./screensaver/WallpaperLayer";
 import { useSettings } from "../hooks/useSettings";
 import { usePixelShift } from "../hooks/usePixelShift";
+import { Z_INDEX } from "../utils/zIndex";
 import { FaBell, FaMoon, FaDesktop } from "react-icons/fa";
 
 export const ScreensaverOverlay = () => {
@@ -25,9 +26,6 @@ export const ScreensaverOverlay = () => {
     wakeUpRef.current = wakeUp;
 
     const overlayRef = useRef<HTMLDivElement>(null);
-
-    const level = overlayVisible ? UIComposition.Overlay : UIComposition.Notification;
-    useUIComposition(level);
 
     // Gamepad capture for both timer-based and standalone screensavers.
     // After a Steam Deck reboot the SteamUI NavigationManager can initialize
@@ -53,6 +51,16 @@ export const ScreensaverOverlay = () => {
             release();
         };
     }, [shouldListen, subscribe, release]);
+
+    // Close side menus (QAM, main menu) when screensaver activates so they
+    // don't sit on top of the overlay.
+    const prevVisibleRef = useRef(false);
+    useEffect(() => {
+        if (overlayVisible && !prevVisibleRef.current) {
+            Navigation.CloseSideMenus?.();
+        }
+        prevVisibleRef.current = overlayVisible;
+    }, [overlayVisible]);
 
     // Native touch/pointer listeners on the overlay div.
     // React's synthetic events don't fire in Decky's CEF overlay mode,
@@ -84,7 +92,7 @@ export const ScreensaverOverlay = () => {
     const layout = rawLayout === "floating" ? "large" : rawLayout;
     const isNonCompact = layout !== "compact";
     const shiftVisible = overlayVisible && isNonCompact;
-    const { x: shiftX, y: shiftY } = usePixelShift(shiftVisible);
+    usePixelShift(shiftVisible, overlayRef);
 
     return (
         <div
@@ -95,7 +103,7 @@ export const ScreensaverOverlay = () => {
                 left: 0,
                 width: "100vw",
                 height: "100vh",
-                zIndex: 2147483646,
+                zIndex: Z_INDEX.SCREENSAVER_OVERLAY,
                 background: "#000",
                 opacity: overlayVisible
                     ? (isBlack ? 1 : (isWallpaper ? 1 : dimOpacity))
@@ -124,8 +132,8 @@ export const ScreensaverOverlay = () => {
                     backgroundColor: "rgba(0,0,0,0.35)",
                     padding: "4px 8px",
                     borderRadius: 999,
-                    transform: `translate(${shiftX}px, ${shiftY}px)`,
-                    transition: "transform 2s linear",
+                    transform: "translate(var(--alarme-shift-x, 0px), var(--alarme-shift-y, 0px))",
+                    opacity: "var(--alarme-shift-opacity, 1)",
                 }}>
                     {isPreview ? (
                         <>

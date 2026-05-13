@@ -5,6 +5,7 @@ import { playAlarmSound, stopSound } from "../utils/sounds";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { useSettings } from "../hooks/useSettings";
 import { formatTime } from "../utils/time";
+import { useUIComposition, UIComposition } from "../utils/uiComposition";
 import type { Reminder } from "../types";
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export const ReminderNotification = ({ reminder, closeModal, onDisable, sound, volume, use24h = true }: Props) => {
+    useUIComposition(UIComposition.Opaque);
+
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [canInteract, setCanInteract] = useState(false);
     const isGameRunning = useGameStatus();

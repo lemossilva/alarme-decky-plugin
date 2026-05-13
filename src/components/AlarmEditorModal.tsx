@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Alarm, RecurringType, SoundFile } from "../types";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
+import { useSettings } from "../hooks/useSettings";
 
 // Days of the week - 0=Monday per backend convention
 const DAYS_OF_WEEK = [
@@ -114,6 +115,7 @@ const DayToggle = ({ day, selected, onToggle }: DayToggleProps) => {
 };
 
 function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModal, use24h = true, returnFocusId }: AlarmEditorModalProps) {
+    const { settings: globalSettings } = useSettings();
     const isEditing = !!alarm;
 
     // Form state
@@ -831,6 +833,9 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                         }} />
                                     </div>
                                 </Focusable>
+                                <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                                    {`Currently set to ${(globalSettings.screensaver_mode || 'off') === 'off' ? 'Off' : globalSettings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : globalSettings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
+                                </div>
                             </div>
                         )}
 

@@ -7,6 +7,7 @@ import { useGameStatus } from "../hooks/useGameStatus";
 import { formatDuration } from "../utils/time";
 import { playAlarmSound, stopSound, base64ToObjectURL } from "../utils/sounds";
 import { useEffect, useRef, useState } from "react";
+import { useUIComposition, UIComposition } from "../utils/uiComposition";
 
 // Backend callable for base64 sound data
 const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
@@ -52,6 +53,8 @@ const PomodoroButton = ({ label, onClick, isPrimary, icon }: PomodoroButtonProps
 };
 
 export const PomodoroNotification = ({ closeModal, sound, volume }: { closeModal?: () => void, sound?: string, volume?: number }) => {
+    useUIComposition(UIComposition.Opaque);
+
     const {
         isActive,
         isBreak,

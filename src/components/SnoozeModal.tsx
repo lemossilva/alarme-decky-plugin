@@ -6,6 +6,7 @@ import { SteamUtils } from "../utils/steam";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { useEffect, useRef, useState } from "react";
 import { formatTime } from "../utils/time";
+import { useUIComposition, UIComposition } from "../utils/uiComposition";
 
 // Backend callable for base64 sound data
 const getSoundDataCall = callable<[filename: string], { success: boolean; data: string | null; mime_type: string | null; error?: string }>('get_sound_data');
@@ -64,6 +65,9 @@ const SnoozeButton = ({ label, onClick, isDefault }: SnoozeButtonProps) => {
 };
 
 function SnoozeModalContent({ id: _id, label, type, sound, volume, defaultSnoozeDuration, use24h = true, snoozeActivationDelay = 2.0, onSnooze, onDismiss, closeModal }: SnoozeModalProps) {
+    // Force Steam UI on top of any running game so the alarm dialog is visible.
+    useUIComposition(UIComposition.Opaque);
+
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
     const [snoozeMinutes, setSnoozeMinutes] = useState(defaultSnoozeDuration ?? 5);

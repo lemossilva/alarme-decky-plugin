@@ -1,13 +1,14 @@
 import { useSettings } from "../hooks/useSettings";
 import { useScreensaver } from "../hooks/useScreensaver";
-import { usePixelShift } from "../hooks/usePixelShift";
 import { ClockWidget } from "./screensaver/ClockWidget";
 import { DateWidget } from "./screensaver/DateWidget";
 import { BatteryWidget } from "./screensaver/BatteryWidget";
 import { AlertsListWidget } from "./screensaver/AlertsListWidget";
 import { SystemStatsWidget } from "./screensaver/SystemStatsWidget";
 import { NetworkWidget } from "./screensaver/NetworkWidget";
+import { WeatherWidget } from "./screensaver/WeatherWidget";
 import { ACCENT_COLORS } from "../types";
+import { Z_INDEX } from "../utils/zIndex";
 import type { ScreensaverLayout, AccentColorPreset } from "../types";
 
 export function ScreensaverContent() {
@@ -22,15 +23,10 @@ export function ScreensaverContent() {
         : ACCENT_COLORS[accent];
     const isCompact = layout === "compact";
 
-    const shiftVisible = overlayVisible && !isCompact;
-    const { x: pxX, y: pxY } = usePixelShift(shiftVisible);
-    const driftRange = settings.screensaver_floating_drift_range || 40;
-    const driftX = shiftVisible ? (pxX / 10) * driftRange : 0;
-    const driftY = shiftVisible ? (pxY / 10) * driftRange : 0;
-
     const showAlertsList = settings.screensaver_show_alerts_list ?? true;
     const showSystemStats = settings.screensaver_show_system_stats ?? false;
     const showNetwork = settings.screensaver_show_network_info ?? false;
+    const showWeather = settings.screensaver_show_weather ?? false;
     const maxAlerts = settings.overlay_max_alerts || 2;
 
     if (!overlayVisible || isCompact) return null;
@@ -83,6 +79,11 @@ export function ScreensaverContent() {
                     <SystemStatsWidget fontSize={widgetFontSize} show={showSystemStats} />
                 </div>
             )}
+            {showWeather && (
+                <div style={{ ...infoCardStyle, minWidth: 140 }}>
+                    <WeatherWidget fontSize={widgetFontSize} layout="card" show={showWeather} />
+                </div>
+            )}
         </div>
     );
 
@@ -105,9 +106,10 @@ export function ScreensaverContent() {
                 position: "fixed",
                 top: "50%",
                 left: "50%",
-                transform: `translate(calc(-50% + ${driftX}px), calc(-50% + ${driftY}px))`,
-                transition: "transform 2s linear",
-                zIndex: 1,
+                transform:
+                    "translate(calc(-50% + var(--alarme-drift-x, 0px)), calc(-50% + var(--alarme-drift-y, 0px)))",
+                opacity: "var(--alarme-shift-opacity, 1)",
+                zIndex: Z_INDEX.SCREENSAVER_CONTENT,
                 color,
                 display: "flex",
                 flexDirection: "column",
@@ -133,7 +135,7 @@ export function ScreensaverContent() {
                 left: 0,
                 width: "100%",
                 height: "100%",
-                zIndex: 1,
+                zIndex: Z_INDEX.SCREENSAVER_CONTENT,
                 color,
                 display: "flex",
                 flexDirection: "column",
@@ -142,8 +144,8 @@ export function ScreensaverContent() {
                 gap: clockSize * 0.2,
                 userSelect: "none",
                 padding: clockSize * 0.5,
-                transform: `translate(${driftX}px, ${driftY}px)`,
-                transition: "transform 2s linear",
+                transform: "translate(var(--alarme-drift-x, 0px), var(--alarme-drift-y, 0px))",
+                opacity: "var(--alarme-shift-opacity, 1)",
             }}>
                 {sharedContent}
             </div>

@@ -47,6 +47,51 @@ def _wallpaper_cache_dir() -> str:
     return d
 
 
+def _weather_cache_path() -> str:
+    return os.path.join(_wallpaper_cache_dir(), "weather_cache.json")
+
+
+def _wallpaper_meta_sidecar_path(image_path: str) -> str:
+    base, _ext = os.path.splitext(image_path)
+    return base + ".json"
+
+
+def _wallpaper_write_meta(image_path: str, title: str | None, credit: str | None) -> None:
+    t = (title or "").strip()
+    c = (credit or "").strip()
+    if not t and not c:
+        return
+    try:
+        p = _wallpaper_meta_sidecar_path(image_path)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"title": t, "credit": c}, f, indent=0)
+    except OSError as e:
+        decky.logger.debug(f"AlarMe: wallpaper meta write failed: {e}")
+
+
+def _wallpaper_read_meta(image_path: str) -> dict | None:
+    p = _wallpaper_meta_sidecar_path(image_path)
+    if not os.path.isfile(p):
+        return None
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _merge_wallpaper_attribution_into_result(result: dict, image_path: str | None) -> None:
+    if not image_path:
+        return
+    m = _wallpaper_read_meta(image_path)
+    if not m:
+        return
+    t = (m.get("title") or "").strip()
+    c = (m.get("credit") or "").strip()
+    if t or c:
+        result["attribution"] = {"title": t or None, "credit": c or None}
+
+
 def _local_wallpapers_dir() -> str:
     d = os.path.join(runtimeDir, "wallpapers")
     os.makedirs(d, exist_ok=True)
@@ -103,7 +148,7 @@ DEFAULT_SETTINGS = {
     "snooze_activation_delay": 2.0,
     # Overlay settings
     "overlay_enabled": False,
-    "overlay_display_mode": "always",
+    "overlay_display_mode": "both",
     "overlay_position": "default",
     "overlay_custom_x": 10,
     "overlay_custom_y": 12,
@@ -159,6 +204,18 @@ DEFAULT_SETTINGS = {
     "screensaver_wallpaper_pool_size": 5,
     "screensaver_wallpaper_auto_rotate": True,
     "screensaver_wallpaper_cache_updated_at": None,
+    "screensaver_wallpaper_shift_local": False,
+    "screensaver_show_weather": False,
+    "screensaver_weather_lat": None,
+    "screensaver_weather_lon": None,
+    "screensaver_weather_city_name": None,
+    "screensaver_weather_unit": "C",
+    "screensaver_weather_show_highlow": True,
+    "screensaver_weather_show_condition": True,
+    "screensaver_weather_refresh_minutes": 30,
+    "screensaver_weather_location_source": None,
+    "screensaver_nasa_api_key": "",
+    "screensaver_wallpaper_show_attribution": True,
     "screensaver_floating_drift_range": 40,
     # Pixel shift for OLED burn-in prevention
     "pixel_shift_enabled": True,
@@ -759,13 +816,50 @@ class Plugin:
         await self.settings_commit()
         await decky.emit("alarme_settings_updated", user_settings)
 
+    def _nasa_apod_fetch_meta_sync(self, user_settings: dict) -> dict | None:
+        import urllib.parse
+        import urllib.request
+
+        keys_ordered: list[str] = []
+        uk = (user_settings.get("screensaver_nasa_api_key") or "").strip()
+        if uk:
+            keys_ordered.append(uk)
+        if "DEMO_KEY" not in keys_ordered:
+            keys_ordered.append("DEMO_KEY")
+        for k in keys_ordered:
+            try:
+                q = urllib.parse.urlencode({"api_key": k})
+                url = f"https://api.nasa.gov/planetary/apod?{q}"
+                req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+                with urllib.request.urlopen(req, timeout=18, context=_NO_VERIFY_SSL) as resp:
+                    meta = json.loads(resp.read().decode("utf-8"))
+                if not isinstance(meta, dict):
+                    continue
+                if meta.get("error") or meta.get("msg"):
+                    decky.logger.debug(f"AlarMe: NASA APOD error payload: {meta}")
+                    continue
+                if meta.get("media_type") and str(meta.get("media_type")).lower() != "image":
+                    return meta
+                if meta.get("url") or meta.get("hdurl"):
+                    return meta
+            except Exception as e:
+                decky.logger.debug(f"AlarMe: NASA APOD request failed: {e}")
+        return None
+
     async def fetch_wallpaper(self, provider: str, slot: int = 0) -> dict:
         """Fetch a wallpaper as base64 data for CEF rendering."""
         import urllib.request
         import base64
         import json as json_mod
 
-        result = {"success": False, "url": None, "is_base64": False, "provider_status": None, "last_fetch": None}
+        result: dict = {
+            "success": False,
+            "url": None,
+            "is_base64": False,
+            "provider_status": None,
+            "last_fetch": None,
+            "attribution": None,
+        }
         legacy_wallpapers_dir = _legacy_settings_wallpapers_dir()
         os.makedirs(legacy_wallpapers_dir, exist_ok=True)
         cache_dir = _wallpaper_cache_dir()
@@ -838,6 +932,7 @@ class Plugin:
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = today
+                        _merge_wallpaper_attribution_into_result(result, chosen_cache)
 
                 if not result["success"]:
                     req = urllib.request.Request(
@@ -873,6 +968,13 @@ class Plugin:
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = today
+                        img0 = data["images"][0]
+                        _wallpaper_write_meta(
+                            path,
+                            img0.get("title"),
+                            img0.get("copyright"),
+                        )
+                        _merge_wallpaper_attribution_into_result(result, path)
 
             elif provider == "lorem_flickr":
                 path = os.path.join(cache_dir, f"loremflickr_slot_{slot_idx}.jpg")
@@ -893,8 +995,10 @@ class Plugin:
                     result["last_fetch"] = datetime.now().isoformat()
 
             elif provider == "nasa_apod":
+                user_settings = await self._get_user_settings()
                 today_key = datetime.now().strftime("%Y-%m-%d")
                 path_guess = os.path.join(cache_dir, f"nasa_apod_{today_key}.jpg")
+                image_path_for_meta: str | None = None
                 if os.path.exists(path_guess):
                     data_url = _read_as_data_url(path_guess)
                     if data_url:
@@ -902,14 +1006,16 @@ class Plugin:
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = today_key
+                        image_path_for_meta = path_guess
                 if not result["success"]:
-                    req = urllib.request.Request(
-                        "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY",
-                        headers={"User-Agent": _BROWSER_UA},
-                    )
-                    with urllib.request.urlopen(req, timeout=15, context=_NO_VERIFY_SSL) as resp:
-                        meta = json_mod.loads(resp.read().decode("utf-8"))
-                    if meta.get("media_type") != "image":
+                    meta = self._nasa_apod_fetch_meta_sync(user_settings)
+                    if not meta:
+                        result["provider_status"] = (
+                            "NASA APOD unavailable (network or rate limit). "
+                            "Add a free API key from api.nasa.gov in Wallpaper settings."
+                        )
+                        return result
+                    if str(meta.get("media_type", "image")).lower() != "image":
                         result["provider_status"] = "Today's APOD is not a still image"
                         return result
                     apod_date = meta.get("date") or today_key
@@ -921,18 +1027,23 @@ class Plugin:
                             result["is_base64"] = True
                             result["success"] = True
                             result["last_fetch"] = apod_date
+                            image_path_for_meta = path
                     else:
-                        img_link = meta.get("hdurl") or meta.get("url")
+                        img_link = meta.get("url") or meta.get("hdurl")
                         if not img_link:
                             result["provider_status"] = "APOD response missing image URL"
                             return result
                         img_data = _http_get_bytes(img_link)
                         with open(path, "wb") as f:
                             f.write(img_data)
+                        _wallpaper_write_meta(path, meta.get("title"), meta.get("copyright"))
                         result["url"] = _img_to_data_url(img_data, path)
                         result["is_base64"] = True
                         result["success"] = True
                         result["last_fetch"] = apod_date
+                        image_path_for_meta = path
+                if image_path_for_meta:
+                    _merge_wallpaper_attribution_into_result(result, image_path_for_meta)
 
             elif provider == "local_folder":
                 local_dir = _local_wallpapers_dir()
@@ -1048,6 +1159,8 @@ class Plugin:
                                 img_data = img_resp.read()
                         with open(path, "wb") as f:
                             f.write(img_data)
+                        img0 = data["images"][0]
+                        _wallpaper_write_meta(path, img0.get("title"), img0.get("copyright"))
                         user_settings = await self._get_user_settings()
                         user_settings["_bing_date"] = today
                         await self.settings_setSetting(SETTINGS_KEY_SETTINGS, user_settings)
@@ -1065,13 +1178,13 @@ class Plugin:
 
             elif provider == "nasa_apod":
                 await emit_progress(1, 1)
-                req = urllib.request.Request(
-                    "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY",
-                    headers={"User-Agent": _BROWSER_UA},
-                )
-                with urllib.request.urlopen(req, timeout=15, context=_NO_VERIFY_SSL) as resp:
-                    meta = json_mod.loads(resp.read().decode("utf-8"))
-                if meta.get("media_type") != "image":
+                user_settings = await self._get_user_settings()
+                meta = self._nasa_apod_fetch_meta_sync(user_settings)
+                if not meta:
+                    result["provider_status"] = "NASA APOD prefetch failed (network or API key)"
+                    result["success"] = False
+                    return result
+                if str(meta.get("media_type", "image")).lower() != "image":
                     result["provider_status"] = "Today's APOD is not a still image"
                     result["success"] = True
                     await self._wallpaper_mark_cache_refreshed()
@@ -1079,11 +1192,12 @@ class Plugin:
                 apod_date = meta.get("date") or datetime.now().strftime("%Y-%m-%d")
                 path = os.path.join(cache_dir, f"nasa_apod_{apod_date}.jpg")
                 if not (os.path.exists(path) and os.path.getsize(path) > 512):
-                    img_link = meta.get("hdurl") or meta.get("url")
+                    img_link = meta.get("url") or meta.get("hdurl")
                     if img_link:
                         img_data = _http_get_bytes(img_link)
                         with open(path, "wb") as f:
                             f.write(img_data)
+                        _wallpaper_write_meta(path, meta.get("title"), meta.get("copyright"))
             else:
                 result["provider_status"] = f"Unknown provider: {provider}"
                 return result
@@ -1715,6 +1829,7 @@ class Plugin:
                 "minutes": minutes
             })
             await self._emit_all_alarms()
+            await self._update_sleep_inhibitor()
             return True
         decky.logger.warning(f"AlarMe: Snooze failed - alarm {alarm_id} not found")
         return False
@@ -2201,6 +2316,7 @@ class Plugin:
                                 
                                 await self._save_alarms(alarms)
                                 await self._emit_all_alarms()
+                                await self._update_sleep_inhibitor()
                                 await decky.emit("alarme_alarm_triggered", {
                                     "id": alarm_id,
                                     "label": alarm.get("label", "Alarm"),
@@ -3021,6 +3137,318 @@ class Plugin:
         await decky.emit("alarme_settings_updated", current)
         return current
 
+    def _weather_ip_resolve_sync(self) -> tuple[float, float, str] | None:
+        import urllib.request
+
+        def _parse_lat_lon(data: dict) -> tuple[float, float] | None:
+            lat = data.get("latitude")
+            lon = data.get("longitude")
+            if lat is None or lon is None:
+                return None
+            try:
+                return (float(lat), float(lon))
+            except (TypeError, ValueError):
+                return None
+
+        def _label_ipapi(d: dict) -> str:
+            parts = [
+                p
+                for p in (
+                    (d.get("city") or "").strip(),
+                    (d.get("region") or "").strip(),
+                    (d.get("country_name") or d.get("country_code") or "").strip(),
+                )
+                if p
+            ]
+            return ", ".join(parts) if parts else "Unknown"
+
+        def _label_geojs(d: dict) -> str:
+            parts = [
+                p
+                for p in (
+                    (d.get("city") or "").strip(),
+                    (d.get("region") or "").strip(),
+                    (d.get("country") or "").strip(),
+                )
+                if p
+            ]
+            return ", ".join(parts) if parts else "Unknown"
+
+        try:
+            req = urllib.request.Request(
+                "https://ipapi.co/json/",
+                headers={"User-Agent": _BROWSER_UA},
+            )
+            with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if data.get("error"):
+                decky.logger.debug(f"AlarMe: ipapi.co error payload: {data.get('reason', data)}")
+            else:
+                ll = _parse_lat_lon(data)
+                if ll:
+                    return (ll[0], ll[1], f"{_label_ipapi(data)} · IP")
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: ipapi.co lookup failed: {e}")
+
+        try:
+            req = urllib.request.Request(
+                "https://get.geojs.io/v1/ip/geo.json",
+                headers={"User-Agent": _BROWSER_UA},
+            )
+            with urllib.request.urlopen(req, timeout=10, context=_NO_VERIFY_SSL) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            ll = _parse_lat_lon(data)
+            if ll:
+                return (ll[0], ll[1], f"{_label_geojs(data)} · IP")
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: geojs IP lookup failed: {e}")
+
+        decky.logger.error("AlarMe: IP geolocation failed (ipapi.co and geojs)")
+        return None
+
+    async def search_weather_locations(self, query: str, limit: int = 8) -> dict:
+        import urllib.parse
+        import urllib.request
+
+        q = (query or "").strip()
+        if len(q) < 2:
+            return {"success": False, "results": [], "error": "query_too_short"}
+
+        try:
+            n = int(limit)
+        except (TypeError, ValueError):
+            n = 8
+        n = max(1, min(n, 10))
+
+        enc = urllib.parse.quote(q)
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={enc}&count={n}&language=en"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+            with urllib.request.urlopen(req, timeout=12, context=_NO_VERIFY_SSL) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Open-Meteo geocoding failed: {e}")
+            return {"success": False, "results": [], "error": str(e)}
+
+        raw = data.get("results") or []
+        results = []
+        for r in raw:
+            name = r.get("name") or ""
+            admin1 = r.get("admin1") or ""
+            cc = r.get("country_code") or ""
+            country = r.get("country") or ""
+            lat = r.get("latitude")
+            lon = r.get("longitude")
+            if lat is None or lon is None:
+                continue
+            sub_parts = [p for p in (admin1, country or cc) if p]
+            subtitle = ", ".join(sub_parts) if sub_parts else (cc or "")
+            display_name = f"{name}, {subtitle}" if subtitle else name
+            results.append(
+                {
+                    "name": name,
+                    "admin1": admin1,
+                    "country": country,
+                    "country_code": cc,
+                    "latitude": float(lat),
+                    "longitude": float(lon),
+                    "display_name": display_name,
+                }
+            )
+
+        return {"success": True, "results": results, "error": None}
+
+    async def set_weather_location(
+        self, lat: float, lon: float, display_name: str
+    ) -> dict:
+        try:
+            la = float(lat)
+            lo = float(lon)
+        except (TypeError, ValueError):
+            return {"success": False, "error": "invalid_coordinates"}
+        if not (-90 <= la <= 90 and -180 <= lo <= 180):
+            return {"success": False, "error": "coordinates_out_of_range"}
+        label = (display_name or "").strip()
+        if not label:
+            label = f"{la:.2f}, {lo:.2f}"
+        try:
+            wp = _weather_cache_path()
+            if os.path.isfile(wp):
+                os.remove(wp)
+        except OSError as e:
+            decky.logger.debug(f"AlarMe: weather cache remove: {e}")
+
+        merged = await self.update_settings(
+            {
+                "screensaver_weather_lat": la,
+                "screensaver_weather_lon": lo,
+                "screensaver_weather_city_name": label,
+                "screensaver_weather_location_source": "manual",
+            }
+        )
+        return {"success": True, "error": None, "settings": merged}
+
+    async def set_weather_location_from_ip(self) -> dict:
+        ip_ll = self._weather_ip_resolve_sync()
+        if not ip_ll:
+            return {"success": False, "error": "ip_geo_failed"}
+        la, lo, label = ip_ll
+        try:
+            wp = _weather_cache_path()
+            if os.path.isfile(wp):
+                os.remove(wp)
+        except OSError as e:
+            decky.logger.debug(f"AlarMe: weather cache remove: {e}")
+
+        merged = await self.update_settings(
+            {
+                "screensaver_weather_lat": la,
+                "screensaver_weather_lon": lo,
+                "screensaver_weather_city_name": label,
+                "screensaver_weather_location_source": "ip",
+            }
+        )
+        return {"success": True, "error": None, "settings": merged}
+
+    async def fetch_weather(self) -> dict:
+        import urllib.parse
+        import urllib.request
+
+        empty = {
+            "success": False,
+            "temperature": None,
+            "temperature_unit": "C",
+            "weathercode": None,
+            "is_day": None,
+            "temp_max": None,
+            "temp_min": None,
+            "fetched_at": None,
+            "error": None,
+        }
+
+        user = await self._get_user_settings()
+        unit = user.get("screensaver_weather_unit") or "C"
+        if unit not in ("C", "F"):
+            unit = "C"
+        try:
+            refresh_min = int(user.get("screensaver_weather_refresh_minutes") or 30)
+        except (TypeError, ValueError):
+            refresh_min = 30
+        refresh_min = max(5, min(refresh_min, 180))
+
+        cache_path = _weather_cache_path()
+        now_ts = time.time()
+        try:
+            if os.path.isfile(cache_path):
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cached = json.load(f)
+                ts = cached.get("fetched_at_ts")
+                payload = cached.get("payload")
+                if (
+                    isinstance(ts, (int, float))
+                    and isinstance(payload, dict)
+                    and (now_ts - ts) < refresh_min * 60
+                ):
+                    out = dict(empty)
+                    out.update(payload)
+                    out["success"] = True
+                    out["from_cache"] = True
+                    return out
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: weather cache read skipped: {e}")
+
+        lat = user.get("screensaver_weather_lat")
+        lon = user.get("screensaver_weather_lon")
+        if lat is None or lon is None:
+            ip_ll = self._weather_ip_resolve_sync()
+            if not ip_ll:
+                out = dict(empty)
+                out["error"] = "no_location"
+                return out
+            lat, lon, _ip_label = ip_ll
+
+        try:
+            la = float(lat)
+            lo = float(lon)
+        except (TypeError, ValueError):
+            out = dict(empty)
+            out["error"] = "invalid_stored_coordinates"
+            return out
+
+        temp_q = "celsius" if unit == "C" else "fahrenheit"
+        q = urllib.parse.urlencode(
+            {
+                "latitude": la,
+                "longitude": lo,
+                "current_weather": "true",
+                "daily": "temperature_2m_max,temperature_2m_min",
+                "timezone": "auto",
+                "forecast_days": 1,
+                "temperature_unit": temp_q,
+            }
+        )
+        url = f"https://api.open-meteo.com/v1/forecast?{q}"
+
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+            with urllib.request.urlopen(req, timeout=15, context=_NO_VERIFY_SSL) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Open-Meteo forecast failed: {e}")
+            out = dict(empty)
+            out["temperature_unit"] = unit
+            out["error"] = str(e)
+            return out
+
+        cur = data.get("current_weather") or {}
+        daily = data.get("daily") or {}
+        tmax_list = daily.get("temperature_2m_max") or []
+        tmin_list = daily.get("temperature_2m_min") or []
+
+        try:
+            temp = float(cur["temperature"]) if cur.get("temperature") is not None else None
+        except (TypeError, ValueError, KeyError):
+            temp = None
+        try:
+            tmax = float(tmax_list[0]) if tmax_list else None
+        except (TypeError, ValueError, IndexError):
+            tmax = None
+        try:
+            tmin = float(tmin_list[0]) if tmin_list else None
+        except (TypeError, ValueError, IndexError):
+            tmin = None
+
+        wc = cur.get("weathercode")
+        try:
+            wc_int = int(wc) if wc is not None else None
+        except (TypeError, ValueError):
+            wc_int = None
+        try:
+            is_day = int(cur["is_day"]) if cur.get("is_day") is not None else None
+        except (TypeError, ValueError):
+            is_day = None
+
+        fetched_iso = datetime.now().isoformat(timespec="seconds")
+        payload = {
+            "success": True,
+            "temperature": temp,
+            "temperature_unit": unit,
+            "weathercode": wc_int,
+            "is_day": is_day,
+            "temp_max": tmax,
+            "temp_min": tmin,
+            "fetched_at": fetched_iso,
+            "error": None,
+        }
+
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump({"fetched_at_ts": now_ts, "payload": payload}, f, indent=0)
+        except Exception as e:
+            decky.logger.error(f"AlarMe: weather cache write failed: {e}")
+
+        return dict(payload)
+
     async def get_overlay_data(self) -> dict:
         """Get aggregated data for the in-game overlay.
         
@@ -3032,8 +3460,10 @@ class Plugin:
         if not user_settings.get("overlay_enabled", False):
             return {"alerts": [], "settings": {}}
 
-        display_mode = user_settings.get("overlay_display_mode", "menu_only")
-        if display_mode == "gaming_and_menu" and not await self._is_game_running():
+        display_mode = user_settings.get("overlay_display_mode", "both")
+        if display_mode == "gaming_only" and not await self._is_game_running():
+            return {"alerts": [], "settings": {}}
+        if display_mode == "steam_only" and await self._is_game_running():
             return {"alerts": [], "settings": {}}
         
         max_alerts = user_settings.get("overlay_max_alerts", 3)
@@ -3196,7 +3626,7 @@ class Plugin:
         # Return overlay-relevant settings alongside alerts
         overlay_settings = {
             "enabled": user_settings.get("overlay_enabled", False),
-            "display_mode": user_settings.get("overlay_display_mode", "menu_only"),
+            "display_mode": user_settings.get("overlay_display_mode", "both"),
             "position": user_settings.get("overlay_position", "top"),
             "position_x": user_settings.get("overlay_custom_x", 24),
             "position_y": user_settings.get("overlay_custom_y", 0),
@@ -3306,19 +3736,20 @@ class Plugin:
         saved = await self.settings_getSetting(SETTINGS_KEY_SETTINGS, {})
         merged = {**DEFAULT_SETTINGS, **saved}
 
-        # Migrate old display mode values to new schema (only 'always' and 'gaming_only' are valid)
+        # Migrate old display mode values to new schema
         display_mode_map = {
-            "menu_only": "always",
-            "gaming_and_menu": "always",
+            "menu_only": "steam_only",
+            "gaming_and_menu": "both",
             "games_only": "gaming_only",
-            "steamui_only": "always",
-            "steam_menu_only": "always"
+            "steamui_only": "steam_only",
+            "steam_menu_only": "steam_only",
+            "always": "both",
         }
         current_mode = merged.get("overlay_display_mode")
         if current_mode in display_mode_map:
             merged["overlay_display_mode"] = display_mode_map[current_mode]
-        elif current_mode not in {"always", "gaming_only"}:
-            merged["overlay_display_mode"] = "always"
+        elif current_mode not in {"both", "steam_only", "gaming_only"}:
+            merged["overlay_display_mode"] = "both"
 
         # Migrate old position values to new schema
         position_map = {
@@ -3361,13 +3792,14 @@ class Plugin:
         updated = dict(saved)
         changed = False
 
-        # Migrate old display mode values to new schema (only 'always' and 'gaming_only' are valid)
+        # Migrate old display mode values to new schema
         display_mode_map = {
-            "menu_only": "always",
-            "gaming_and_menu": "always",
+            "menu_only": "steam_only",
+            "gaming_and_menu": "both",
             "games_only": "gaming_only",
-            "steamui_only": "always",
-            "steam_menu_only": "always"
+            "steamui_only": "steam_only",
+            "steam_menu_only": "steam_only",
+            "always": "both",
         }
         current_display_mode = updated.get("overlay_display_mode")
         if current_display_mode in display_mode_map:

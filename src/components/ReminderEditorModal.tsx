@@ -13,6 +13,7 @@ import { useRef, useEffect, useState } from "react";
 
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
+import { useSettings } from "../hooks/useSettings";
 
 import type { Reminder, SoundFile } from "../types";
 
@@ -87,6 +88,7 @@ function ReminderEditorModalContent({
     use24h = true,
     returnFocusId
 }: ReminderEditorModalProps) {
+    const { settings: globalSettings } = useSettings();
     const isEditing = !!reminder;
 
     // State for form fields
@@ -692,7 +694,7 @@ function ReminderEditorModalContent({
                     <div style={{ paddingLeft: '60px' }}>
                         <ToggleField
                             label="Screensaver"
-                            description="Show screensaver while preventing sleep"
+                            description={`Currently set to ${(globalSettings.screensaver_mode || 'off') === 'off' ? 'Off' : globalSettings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : globalSettings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
                             checked={screensaverMode !== 'off'}
                             onChange={(val) => setScreensaverMode(val ? 'black' : 'off')}
                         />

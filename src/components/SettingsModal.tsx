@@ -10,19 +10,22 @@ import {
     showModal,
     SidebarNavigation,
     SliderField,
+    TextField,
     ToggleField
 } from "@decky/ui";
 import { addEventListener, callable, removeEventListener } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { triggerScreensaverPreviewAfterClosingMenus } from "../hooks/useScreensaver";
+import { useUIComposition, UIComposition } from "../utils/uiComposition";
 import { useAlarms } from "../hooks/useAlarms";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
 import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
+import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
 
 // Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
@@ -833,8 +836,32 @@ const ScreensaverSettingsPage = () => {
                             {(provider === 'bing_daily' || provider === 'nasa_apod') && (
                                 <PanelSectionRow>
                                     <div style={{ fontSize: 11, color: '#888', padding: '4px 0' }}>
-                                        This provider exposes one image per day; rotation pool applies to other providers only.
+                                        This provider exposes one image per day; rotation pool applies to other providers only. A slow image drift runs automatically on OLED-prone static images.
                                     </div>
+                                </PanelSectionRow>
+                            )}
+                            {provider === 'nasa_apod' && (
+                                <PanelSectionRow>
+                                    <TextField
+                                        label="NASA api.nasa.gov API key (optional)"
+                                        value={settings.screensaver_nasa_api_key ?? ''}
+                                        onChange={(e) => updateSetting('screensaver_nasa_api_key', e.target.value)}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#666', marginTop: 6, lineHeight: 1.45 }}>
+                                        Without a key the public DEMO_KEY is used (strict rate limits). A free key from{' '}
+                                        <span style={{ wordBreak: 'break-all' }}>https://api.nasa.gov/</span> avoids most failures.
+                                    </div>
+                                </PanelSectionRow>
+                            )}
+                            {provider === 'local_folder' && (
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaDesktop size={16} />}
+                                        label="Slow wallpaper drift (OLED)"
+                                        description="Pans a static local image slightly over time to reduce burn-in on OLED panels. Uses extra GPU work while the screensaver is visible."
+                                        checked={settings.screensaver_wallpaper_shift_local ?? false}
+                                        onChange={(value) => updateSetting('screensaver_wallpaper_shift_local', value)}
+                                    />
                                 </PanelSectionRow>
                             )}
                             <PanelSectionRow>
@@ -902,6 +929,15 @@ const ScreensaverSettingsPage = () => {
                                     step={5}
                                     onChange={(value) => updateSetting('screensaver_wallpaper_dim', value / 100)}
                                     icon={<FaEye size={16} />}
+                                />
+                            </PanelSectionRow>
+                            <PanelSectionRow>
+                                <ToggleField
+                                    icon={<FaPhotoVideo size={16} />}
+                                    label="Show image title and credit"
+                                    description="Bottom-left on the wallpaper when the provider supplies metadata (e.g. Bing, NASA)."
+                                    checked={settings.screensaver_wallpaper_show_attribution ?? true}
+                                    onChange={(value) => updateSetting('screensaver_wallpaper_show_attribution', value)}
                                 />
                             </PanelSectionRow>
 
@@ -1307,6 +1343,84 @@ const ScreensaverSettingsPage = () => {
                         )}
                     </PanelSection>
 
+                    <PanelSection title="Weather">
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                                Forecasts powered by Open-Meteo. Free, no account required.
+                            </div>
+                        </PanelSectionRow>
+                        {(settings.screensaver_weather_lat != null &&
+                            settings.screensaver_weather_lon != null &&
+                            (settings.screensaver_weather_city_name || '').trim().length > 0) && (
+                            <PanelSectionRow>
+                                <div style={{ fontSize: 12, color: '#888', lineHeight: 1.45 }}>
+                                    Saved forecast location:{' '}
+                                    <span style={{ color: '#ccc' }}>{settings.screensaver_weather_city_name}</span>
+                                    {settings.screensaver_weather_location_source === 'ip' ? (
+                                        <span style={{ color: '#777' }}> (IP geolocation)</span>
+                                    ) : null}
+                                </div>
+                            </PanelSectionRow>
+                        )}
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaCloud size={16} />}
+                                label="Show weather on screensaver"
+                                description="Large and fullscreen layouts show a weather card; compact overlay shows a short inline readout when the screensaver is active."
+                                checked={settings.screensaver_show_weather ?? false}
+                                onChange={(value) => updateSetting('screensaver_show_weather', value)}
+                            />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                <FaCloud style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Temperature unit</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <Dropdown
+                                        rgOptions={[
+                                            { data: 'C' as const, label: 'Celsius' },
+                                            { data: 'F' as const, label: 'Fahrenheit' },
+                                        ]}
+                                        selectedOption={settings.screensaver_weather_unit || 'C'}
+                                        onChange={(option) => updateSetting('screensaver_weather_unit', option.data)}
+                                        strDefaultLabel="Unit"
+                                    />
+                                </div>
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaCloud size={16} />}
+                                label="Show daily high / low"
+                                checked={settings.screensaver_weather_show_highlow ?? true}
+                                onChange={(value) => updateSetting('screensaver_weather_show_highlow', value)}
+                            />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaCloud size={16} />}
+                                label="Show condition label"
+                                checked={settings.screensaver_weather_show_condition ?? true}
+                                onChange={(value) => updateSetting('screensaver_weather_show_condition', value)}
+                            />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <SliderField
+                                label="Forecast refresh interval"
+                                description={`Cached up to ${settings.screensaver_weather_refresh_minutes ?? 30} minutes between fetches`}
+                                value={settings.screensaver_weather_refresh_minutes ?? 30}
+                                min={5}
+                                max={120}
+                                step={5}
+                                onChange={(value) => updateSetting('screensaver_weather_refresh_minutes', value)}
+                                icon={<FaClock size={16} />}
+                            />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <WeatherLocationPicker />
+                        </PanelSectionRow>
+                    </PanelSection>
+
                     {/* === OLED Protection === */}
                     <PanelSection title="OLED Protection">
                         <PanelSectionRow>
@@ -1434,8 +1548,9 @@ const OverlaySettingsPage = () => {
     ];
 
     const displayModeOptions = [
-        { data: 'always', label: 'Always' },
-        { data: 'gaming_only', label: 'Only While Gaming' }
+        { data: 'both', label: 'Steam UI + Inside Games' },
+        { data: 'steam_only', label: 'Only in Steam UI' },
+        { data: 'gaming_only', label: 'Only Inside Games / Apps' },
     ];
 
     return (
@@ -1459,9 +1574,9 @@ const OverlaySettingsPage = () => {
             <PanelSection title="About Overlay">
                 <PanelSectionRow>
                     <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
-                        The overlay displays upcoming timers, alarms, and reminders in a compact bar.
-                        It appears in <strong>SteamOS windows</strong> (Steam Menu, QAM, Library, etc.) but <strong>not inside games</strong>.
-                        Use it to quickly check your next alerts without opening the plugin.
+                        A compact bar with upcoming timers, alarms, and reminders.
+                        It can render on top of the Steam UI <strong>and</strong> on top of running games or apps,
+                        so you can keep an eye on your next alerts without leaving what you are doing.
                     </div>
                 </PanelSectionRow>
             </PanelSection>
@@ -1471,7 +1586,7 @@ const OverlaySettingsPage = () => {
                     <ToggleField
                         icon={<FaEye />}
                         label="Enable Overlay"
-                        description="Show upcoming alerts in SteamOS windows"
+                        description="Show the alerts bar"
                         checked={settings.overlay_enabled ?? false}
                         onChange={(value) => updateSetting('overlay_enabled', value)}
                     />
@@ -1481,12 +1596,12 @@ const OverlaySettingsPage = () => {
                     <>
                         <PanelSectionRow>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                                <FaCog style={{ color: '#888', flexShrink: 0 }} />
-                                <span style={{ flexShrink: 0 }}>Show When</span>
+                                <FaEye style={{ color: '#888', flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0 }}>Show On</span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <Dropdown
                                         rgOptions={displayModeOptions}
-                                        selectedOption={settings.overlay_display_mode || 'always'}
+                                        selectedOption={settings.overlay_display_mode || 'both'}
                                         onChange={(option) => updateSetting('overlay_display_mode', option.data as any)}
                                         strDefaultLabel="Select Mode"
                                     />
@@ -1494,11 +1609,15 @@ const OverlaySettingsPage = () => {
                             </div>
                         </PanelSectionRow>
                         <PanelSectionRow>
-                            <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0', lineHeight: 1.4 }}>
-                                {settings.overlay_display_mode === 'gaming_only' ? (
-                                    <span><strong>Only While Gaming:</strong> Overlay only appears when a game or app is running. Useful if you only want to track time during gaming sessions.</span>
-                                ) : (
-                                    <span><strong>Always:</strong> Overlay is always visible in SteamOS windows, whether or not a game is running.</span>
+                            <div style={{ fontSize: 11, color: '#888', padding: '0 0 4px 0', lineHeight: 1.5 }}>
+                                {settings.overlay_display_mode === 'gaming_only' && (
+                                    <span><strong>Only Inside Games / Apps:</strong> The bar appears on top of running games and apps. Hidden in the Steam Library, Quick Access Menu, and other Steam UI screens.</span>
+                                )}
+                                {settings.overlay_display_mode === 'steam_only' && (
+                                    <span><strong>Only in Steam UI:</strong> The bar appears in Steam Library, Quick Access Menu, and other Steam screens. Hidden while a game or app is in foreground.</span>
+                                )}
+                                {(settings.overlay_display_mode === 'both' || !settings.overlay_display_mode || settings.overlay_display_mode === 'always') && (
+                                    <span><strong>Steam UI + Inside Games:</strong> The bar is always visible — both on top of Steam UI screens and on top of running games and apps.</span>
                                 )}
                             </div>
                         </PanelSectionRow>
@@ -1766,10 +1885,12 @@ const showFactoryResetConfirm = (onConfirm: () => void) => {
 const FactoryResetPage = () => {
     const [resetting, setResetting] = useState(false);
     const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('1.7.3');
+    const [version, setVersion] = useState('');
 
     useEffect(() => {
-        getVersionCall().then(v => setVersion(v || '1.7.3')).catch(() => setVersion('1.7.3'));
+        getVersionCall()
+            .then((v) => setVersion((v || '').trim()))
+            .catch(() => setVersion(''));
     }, []);
 
     const handleReset = async () => {
@@ -1825,7 +1946,7 @@ const FactoryResetPage = () => {
                     <Focusable style={{ width: '100%' }}>
                         <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
                             <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> v{version}
+                                <strong>AlarMe</strong> {version ? `v${version}` : '…'}
                             </p>
                             <p>
                                 By Guilherme Lemos
@@ -1843,6 +1964,12 @@ export const SETTINGS_ROUTE = '/alarme/settings';
 
 // Settings Page Component - exported for route registration
 export const SettingsPage = () => {
+    // Force the Steam UI surface to render fully on top of any running game.
+    // Without this the routed page can open behind the active gamescope window
+    // because Steam's default composition state stays at Hidden when a game
+    // is in foreground and only the QAM is opened.
+    useUIComposition(UIComposition.Opaque);
+
     const pages = [
         {
             title: "General",

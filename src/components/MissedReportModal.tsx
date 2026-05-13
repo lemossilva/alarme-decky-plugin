@@ -3,6 +3,7 @@ import { callable } from "@decky/api";
 import { FaBell, FaStopwatch, FaRedo, FaBrain } from "react-icons/fa";
 import { MissedItem } from "../types";
 import { formatTime } from "../utils/time";
+import { useUIComposition, UIComposition } from "../utils/uiComposition";
 
 const clearMissedItems = callable<[], boolean>('clear_missed_items');
 
@@ -17,6 +18,8 @@ export function showMissedReportModal(items: MissedItem[], use24h: boolean) {
 }
 
 function MissedReportModalContent({ items, use24h, closeModal }: MissedReportModalProps) {
+    useUIComposition(UIComposition.Opaque);
+
     const handleDismiss = async () => {
         await clearMissedItems();
         closeModal?.();

@@ -30,6 +30,7 @@ import { GameOverlay } from "./components/GameOverlay";
 import showMissedReportModal from "./components/MissedReportModal";
 import { showSleepInhibitorModal } from "./components/SleepInhibitorModal";
 import { ScreensaverOverlay } from "./components/ScreensaverOverlay";
+import { AlarMeUIComposition } from "./components/AlarMeUIComposition";
 import { playAlarmSound } from "./utils/sounds";
 import { SteamUtils } from "./utils/steam";
 import { formatTime } from "./utils/time";
@@ -42,6 +43,7 @@ import { useReminders } from "./hooks/useReminders";
 import { useGameStatus } from "./hooks/useGameStatus";
 import { useMissedAlerts } from "./hooks/useMissedAlerts";
 import { triggerScreensaverPreviewAfterClosingMenus } from "./hooks/useScreensaver";
+import { MODAL_ZINDEX_CSS } from "./utils/zIndex";
 
 // Types
 import type {
@@ -614,6 +616,15 @@ export default definePlugin(() => {
         console.error("AlarMe: Failed to register game listeners", e);
     }
 
+    // Inject CSS so modal portals always render above the screensaver overlay.
+    const modalStyleId = 'alarme-modal-zindex-fix';
+    if (!document.getElementById(modalStyleId)) {
+        const style = document.createElement('style');
+        style.id = modalStyleId;
+        style.textContent = MODAL_ZINDEX_CSS;
+        document.head.appendChild(style);
+    }
+
     // Register settings route
     routerHook.addRoute(SETTINGS_ROUTE, () => <SettingsPage />);
 
@@ -625,6 +636,9 @@ export default definePlugin(() => {
     // Register screensaver overlay
     const SCREENSAVER_COMPONENT_NAME = 'AlarMeScreensaverOverlay';
     routerHook.addGlobalComponent(SCREENSAVER_COMPONENT_NAME, () => <ScreensaverOverlay />);
+
+    const COMPOSITION_COMPONENT_NAME = 'AlarMeUIComposition';
+    routerHook.addGlobalComponent(COMPOSITION_COMPONENT_NAME, AlarMeUIComposition);
 
     return {
         name: "AlarMe",
@@ -648,6 +662,7 @@ export default definePlugin(() => {
             routerHook.removeRoute(SETTINGS_ROUTE);
             routerHook.removeGlobalComponent(OVERLAY_COMPONENT_NAME);
             routerHook.removeGlobalComponent(SCREENSAVER_COMPONENT_NAME);
+            routerHook.removeGlobalComponent(COMPOSITION_COMPONENT_NAME);
             if (unregisterGameListener) {
                 if (typeof unregisterGameListener === 'function') {
                     unregisterGameListener();
@@ -655,6 +670,9 @@ export default definePlugin(() => {
                     unregisterGameListener.unregister();
                 }
             }
+            // Clean up injected modal style
+            const modalStyle = document.getElementById(modalStyleId);
+            if (modalStyle) modalStyle.remove();
         }
     };
 });

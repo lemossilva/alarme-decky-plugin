@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { callable } from "@decky/api";
 import { useSettings } from "./useSettings";
-import type { WallpaperProvider, WallpaperState } from "../types";
+import type { WallpaperProvider, WallpaperState, WallpaperAttribution } from "../types";
 
 /** Must match main.py _WALLPAPER_POOL_MAX */
 export const WALLPAPER_POOL_MAX = 20;
@@ -31,7 +31,13 @@ export function clampWallpaperPoolSize(raw: number | undefined): number {
 
 const fetchWallpaperCall = callable<
     [provider: string, slot?: number],
-    { success: boolean; url: string | null; provider_status?: string; last_fetch?: string }
+    {
+        success: boolean;
+        url: string | null;
+        provider_status?: string;
+        last_fetch?: string;
+        attribution?: WallpaperAttribution | null;
+    }
 >("fetch_wallpaper");
 const checkProviderCall = callable<[provider: string], { reachable: boolean; message?: string }>("check_wallpaper_provider");
 const prefetchWallpapersCall = callable<[provider: string, count?: number], { success: boolean; provider_status?: string }>(
@@ -59,7 +65,7 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
         return () => window.clearTimeout(id);
     }, [poolSize]);
 
-    const [state, setState] = useState<WallpaperState>({ url: null, provider: "none" });
+    const [state, setState] = useState<WallpaperState>({ url: null, provider: "none", attribution: null });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
     const [status, setStatus] = useState<WallpaperStatus>({ reachable: null, checking: false, lastFetch: null, errorMessage: null });
@@ -105,7 +111,7 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
         async (slot: number) => {
             if (provider === "none") {
                 if (!mountedRef.current) return;
-                setState({ url: null, provider: "none" });
+                setState({ url: null, provider: "none", attribution: null });
                 return;
             }
             if (!mountedRef.current) return;
@@ -115,7 +121,12 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
                 const result = await fetchWallpaperCall(provider, slot);
                 if (!mountedRef.current) return;
                 if (result.success && result.url) {
-                    setState({ url: result.url, provider });
+                    const attr = result.attribution;
+                    const attribution =
+                        attr && (attr.title || attr.credit)
+                            ? { title: attr.title ?? null, credit: attr.credit ?? null }
+                            : null;
+                    setState({ url: result.url, provider, attribution });
                     setError(false);
                     const now = new Date().toLocaleString();
                     setStatus(prev => ({ ...prev, lastFetch: now, errorMessage: null }));
@@ -139,14 +150,16 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
         if (screensaverMode !== "wallpaper" || provider === "none") return;
 
         let cancelled = false;
+        const isDailySingle = provider === "bing_daily" || provider === "nasa_apod";
         const shouldRefreshDaily = (() => {
+            if (isDailySingle) return true;
             const updated = settings.screensaver_wallpaper_cache_updated_at;
             if (!updated) return true;
             const ts = Date.parse(updated);
             if (!Number.isFinite(ts)) return true;
             return (Date.now() - ts) >= DAILY_REFRESH_MS;
         })();
-        const dailyKey = `${provider}:${debouncedPoolSize}:${settings.screensaver_wallpaper_cache_updated_at ?? "none"}`;
+        const dailyKey = `${provider}:${debouncedPoolSize}:${settings.screensaver_wallpaper_cache_updated_at ?? "none"}:${(settings.screensaver_nasa_api_key || "").trim()}`;
         if (dailyRefreshAttemptedRef.current === dailyKey) return;
 
         const run = async () => {
@@ -168,24 +181,49 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
         return () => {
             cancelled = true;
         };
-    }, [screensaverMode, provider, debouncedPoolSize, settings.screensaver_wallpaper_cache_updated_at]);
+    }, [screensaverMode, provider, debouncedPoolSize, settings.screensaver_wallpaper_cache_updated_at, settings.screensaver_nasa_api_key]);
+
+    // Eagerly fetch the first wallpaper when screensaver is set to wallpaper mode
+    // but the screensaver is not yet visible. This guarantees the image is in state
+    // before the overlay fades in, eliminating the "Loading wallpaper…" flash.
+    const eagerFetchedRef = useRef(false);
+    useEffect(() => {
+        if (show || provider === "none" || screensaverMode !== "wallpaper") {
+            eagerFetchedRef.current = false;
+            return;
+        }
+        if (eagerFetchedRef.current) return;
+        eagerFetchedRef.current = true;
+        const firstSlot = 0;
+        slotRef.current = firstSlot;
+        fetchWallpaperAtSlot(firstSlot);
+    }, [show, provider, screensaverMode, fetchWallpaperAtSlot]);
 
     useEffect(() => {
         if (!show || provider === "none") {
             if (intervalRef.current) clearInterval(intervalRef.current);
             intervalRef.current = null;
-            setState({ url: null, provider: "none" });
+            // Keep the cached image so there is no flash when the screensaver fades in.
+            // Only clear when the provider itself is none.
+            if (provider === "none") {
+                setState({ url: null, provider: "none", attribution: null });
+            }
             setLoading(false);
             setError(false);
             return;
         }
+
+        // If an eager fetch already populated state, skip the initial fetch.
+        const hasEagerImage = state.url != null && state.provider === provider;
 
         const order = shuffledSlotIndices(debouncedPoolSize);
         rotationOrderRef.current = order;
         rotationPosRef.current = 0;
         const firstSlot = order[0] ?? 0;
         slotRef.current = firstSlot;
-        fetchWallpaperAtSlot(firstSlot);
+        if (!hasEagerImage) {
+            fetchWallpaperAtSlot(firstSlot);
+        }
         checkProvider();
 
         const advanceRotation = () => {

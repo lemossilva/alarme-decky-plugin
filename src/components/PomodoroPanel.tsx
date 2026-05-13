@@ -180,7 +180,7 @@ export function PomodoroPanel() {
                         <ToggleField
                             icon={<span style={{ fontSize: 14 }}>🖥️</span>}
                             label="Screensaver"
-                            description="Show screensaver while preventing sleep"
+                            description={`Currently set to ${(settings.screensaver_mode || 'off') === 'off' ? 'Off' : settings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : settings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
                             checked={(settings.pomodoro_screensaver_mode ?? 'off') !== 'off'}
                             onChange={(val) => updateSetting('pomodoro_screensaver_mode', val ? 'black' : 'off')}
                         />

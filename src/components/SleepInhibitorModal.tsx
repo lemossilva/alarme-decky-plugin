@@ -1,6 +1,7 @@
 import { ConfirmModal, showModal, Focusable } from "@decky/ui";
 import { callable } from "@decky/api";
 import { FaBell, FaStopwatch, FaRedo, FaBrain, FaShieldAlt } from "react-icons/fa";
+import { useUIComposition, UIComposition } from "../utils/uiComposition";
 
 const disableAllSleepInhibitors = callable<[], boolean>('disable_all_sleep_inhibitors');
 
@@ -33,6 +34,8 @@ function showDisableAllConfirmModal(onConfirm: () => void) {
 }
 
 function SleepInhibitorModalContent({ items, closeModal }: SleepInhibitorModalProps) {
+    useUIComposition(UIComposition.Opaque);
+
     const handleClose = () => {
         closeModal?.();
     };

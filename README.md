@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.7.3-green)
+![Version](https://img.shields.io/badge/release-v1.7.5-green)
 ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://plugins.deckbrew.xyz/plugins?query=AlarMe&query=$[:1].downloads&suffix=%20downloads&label=Decky%20Store&color=blue)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
@@ -70,13 +70,13 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 
 ### 🎮 In-Game Overlay
 - **Easy check** - Quickly see your alarms and timers
-- **Native Integration** - Fits seamlessly into SteamOS UI and renders above game content
+- **Native Integration** - Fits seamlessly into SteamOS UI and renders above game content only when the HUD or active screensaver needs it, so QAM and plugin pages stay interactive while a game runs
 - **Non-Intrusive** - Horizontal micro-alerts that won't block game UI
 - **Pixel shift** - OLED burn-in protection that slowly orbits the overlay position
 
 ### 🌙 Screensaver Mode
 - **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, or stopwatch alongside Prevent Sleep
-- **Wallpaper backgrounds** - Lorem Picsum, Bing Daily, Lorem Flickr, NASA APOD, or a local folder; cache and personal images live under Decky’s runtime data (`DECKY_PLUGIN_RUNTIME_DIR`, typically under `~/homebrew/data/`); images prefetch before idle so the overlay rarely shows a loading state; automatic rotation walks the pool in a random order each cycle
+- **Wallpaper backgrounds** - Lorem Picsum, Bing Daily, Lorem Flickr, NASA APOD, or a local folder; cache and personal images live under Decky’s runtime data (`DECKY_PLUGIN_RUNTIME_DIR`, typically under `~/homebrew/data/`); images prefetch before idle so the overlay rarely shows a loading state; automatic rotation walks the pool in a random order each cycle; Bing Daily and NASA APOD apply a slow image drift for OLED burn-in on static daily images; optional drift for local-folder wallpapers in settings
 - **4 clock styles** - Digital, Digital + Seconds, Large (blinking colon), Analog
 - **4 layout modes** - Compact (overlay bar), Large (centered card), Fullscreen, Floating (drifts to prevent burn-in)
 - **Full Black, Dim, or Wallpaper** - Choose between a fully opaque black screen, a configurable dim overlay, or live wallpapers
@@ -85,6 +85,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Idle timer** - Configurable delay before the screensaver activates after your last input
 - **Gamepad & touch dismiss** - Any button press or screen tap temporarily wakes the screen
 - **System stats & network info** - Optionally show CPU temp, RAM, Wi-Fi signal during screensaver
+- **Weather** - Optional Open-Meteo forecast (no API key): large/fullscreen layouts show a weather card; compact overlay shows a short inline readout during the screensaver. City search with live suggestions, or an approximate IP-based location (tries ipapi.co, then geojs.io) when no city is saved
 - **Quick preview** - **Screen** in the header closes the QAM and runs the screensaver immediately for a clean test
 - **Badge indicators** - 🌙 badge shows which items have screensaver enabled
 
@@ -199,10 +200,9 @@ pnpm run watch
 
 ## Privacy
 
-This plugin is **completely offline** and collects no data:
-- All settings stored locally on your device
-- No network requests or analytics
-- No user tracking or telemetry
+- All settings, alarms, timers, and related data stay on your device.
+- There is no analytics, telemetry, or user tracking.
+- Optional **screensaver weather** (off by default) uses HTTPS to Open-Meteo and, when configured, geocoding search; if no city is set it may call public IP-lookup endpoints to approximate coordinates. Wallpaper modes that load remote images only request those image sources.
 
 
 ## License
