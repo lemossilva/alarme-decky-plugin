@@ -97,7 +97,7 @@ export function WeatherWidget({ fontSize, show, layout }: WeatherWidgetProps) {
     const subParts: string[] = [];
     if (showCond && label) subParts.push(label);
     if (showHiLo && w.tempMin != null && w.tempMax != null) {
-        subParts.push(`${Math.round(w.tempMin)}° / ${Math.round(w.tempMax)}°`);
+        subParts.push(`${Math.round(w.tempMax)}° / ${Math.round(w.tempMin)}°`);
     }
 
     return (

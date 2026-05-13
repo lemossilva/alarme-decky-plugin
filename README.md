@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.7.5-green)
+![Version](https://img.shields.io/badge/release-v1.7.6-green)
 ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://plugins.deckbrew.xyz/plugins?query=AlarMe&query=$[:1].downloads&suffix=%20downloads&label=Decky%20Store&color=blue)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
@@ -16,6 +16,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Lap support** - Record and copy up to 100 laps per session
 - **In-game overlay** - View your running stopwatch directly in the Steam performance overlay
 - **Background execution** - Stopwatch continues running even if the plugin is closed
+- **Auto-reset after reboot** - Optionally clear a running stopwatch after a full device restart, matching the Stop button (enabled by default). Wake from sleep does not reset the stopwatch.
 
 ### ⏳ Timers
 - **Multiple concurrent timers** - Run several timers at once
@@ -86,6 +87,8 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Gamepad & touch dismiss** - Any button press or screen tap temporarily wakes the screen
 - **System stats & network info** - Optionally show CPU temp, RAM, Wi-Fi signal during screensaver
 - **Weather** - Optional Open-Meteo forecast (no API key): large/fullscreen layouts show a weather card; compact overlay shows a short inline readout during the screensaver. City search with live suggestions, or an approximate IP-based location (tries ipapi.co, then geojs.io) when no city is saved
+- **7-day forecast widget** - Enable a weekly forecast grid showing day abbreviations, weather icons, high/low temperatures, and precipitation chance for each day
+- **Screensaver profiles** - Save your screensaver configuration to one of 3 profile slots; quickly switch between setups for bedtime, gaming, or minimal modes
 - **Quick preview** - **Screen** in the header closes the QAM and runs the screensaver immediately for a clean test
 - **Badge indicators** - 🌙 badge shows which items have screensaver enabled
 

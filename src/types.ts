@@ -151,6 +151,8 @@ export interface UserSettings {
     // Suspend Behavior
     reminder_suspend_behavior?: 'continue' | 'pause';
     pomodoro_suspend_behavior?: 'continue' | 'pause';
+    // Stopwatch settings
+    stopwatch_reset_after_sleep?: boolean;
     // Display settings
     snooze_activation_delay: number;
     // Overlay settings
@@ -216,6 +218,8 @@ export interface UserSettings {
     screensaver_weather_show_condition?: boolean;
     screensaver_weather_refresh_minutes?: number;
     screensaver_weather_location_source?: 'manual' | 'ip' | null;
+    screensaver_show_forecast?: boolean;
+    screensaver_forecast_show_precip?: boolean;
     screensaver_nasa_api_key?: string;
     screensaver_wallpaper_show_attribution?: boolean;
     screensaver_wallpaper_provider?: WallpaperProvider;
@@ -422,4 +426,16 @@ export interface WeatherGeocodeResult {
     latitude: number;
     longitude: number;
     display_name: string;
+}
+
+export interface ScreensaverProfile {
+    name: string;
+    settings: Partial<UserSettings>;
+    saved_at: number;
+}
+
+export interface ScreensaverProfiles {
+    slot_1: ScreensaverProfile | null;
+    slot_2: ScreensaverProfile | null;
+    slot_3: ScreensaverProfile | null;
 }

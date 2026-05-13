@@ -14,16 +14,17 @@ import {
     ToggleField
 } from "@decky/ui";
 import { addEventListener, callable, removeEventListener } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud, FaUpload } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { triggerScreensaverPreviewAfterClosingMenus } from "../hooks/useScreensaver";
 import { useUIComposition, UIComposition } from "../utils/uiComposition";
 import { useAlarms } from "../hooks/useAlarms";
+import { useScreensaverProfiles } from "../hooks/useScreensaverProfiles";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
-import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur } from "../types";
+import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
 
@@ -204,6 +205,18 @@ const TimerSettingsPage = () => {
                         </div>
                     </PanelSectionRow>
                 )}
+            </PanelSection>
+
+            <PanelSection title="Stopwatch">
+                <PanelSectionRow>
+                    <ToggleField
+                        icon={<FaStopwatch size={16} />}
+                        label="Reset after reboot"
+                        description="When enabled, a running stopwatch is cleared after a full restart (same as Stop). Does not reset when waking from sleep."
+                        checked={settings.stopwatch_reset_after_sleep ?? true}
+                        onChange={(value) => updateSetting('stopwatch_reset_after_sleep', value)}
+                    />
+                </PanelSectionRow>
             </PanelSection>
         </ScrollableContent>
     );
@@ -598,9 +611,132 @@ const GeneralSettingsPage = () => {
     );
 };
 
+// Screensaver profile slot — compact actions (Load / Save / Delete)
+const ProfileSlotCard = ({
+    slot,
+    profile,
+    onLoad,
+    onDelete,
+    onRequestSave,
+}: {
+    slot: "slot_1" | "slot_2" | "slot_3";
+    profile: ScreensaverProfile | null;
+    onLoad: (slot: "slot_1" | "slot_2" | "slot_3") => void;
+    onDelete: (slot: "slot_1" | "slot_2" | "slot_3") => void;
+    onRequestSave: (slot: "slot_1" | "slot_2" | "slot_3") => void;
+}) => {
+    const slotNum = slot === "slot_1" ? "1" : slot === "slot_2" ? "2" : "3";
+    const [loadF, setLoadF] = useState(false);
+    const [saveF, setSaveF] = useState(false);
+    const [delF, setDelF] = useState(false);
+
+    const iconBtn = (
+        focused: boolean,
+        tone: "accent" | "muted" | "danger",
+        disabled: boolean,
+    ): React.CSSProperties => ({
+        width: 28,
+        height: 28,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 6,
+        border: focused ? "2px solid #ffffff" : "2px solid transparent",
+        backgroundColor: disabled
+            ? "rgba(255,255,255,0.04)"
+            : tone === "accent"
+              ? focused
+                  ? "#5599bb"
+                  : "#4488aa88"
+              : tone === "danger"
+                ? focused
+                    ? "#cc5555"
+                    : "#aa444488"
+                : focused
+                  ? "#ffffff33"
+                  : "#ffffff18",
+        color: "#ffffff",
+        opacity: disabled ? 0.35 : 1,
+        cursor: disabled ? "default" : "pointer",
+        flexShrink: 0,
+    });
+
+    const savedShort =
+        profile?.saved_at != null
+            ? new Date(profile.saved_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+            : null;
+
+    return (
+        <div
+            style={{
+                flex: 1,
+                minWidth: 96,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                backgroundColor: "rgba(255,255,255,0.04)",
+                borderRadius: 8,
+                padding: "8px 8px",
+            }}
+        >
+            <div style={{ fontSize: 10, opacity: 0.45, textTransform: "uppercase", letterSpacing: 0.6 }}>Slot {slotNum}</div>
+            <div
+                style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.25,
+                    minHeight: 18,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                }}
+            >
+                {profile?.name ?? "—"}
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.45, minHeight: 14 }}>{savedShort ? `Saved ${savedShort}` : " "}</div>
+            <Focusable
+                flow-children="horizontal"
+                style={{ display: "flex", flexDirection: "row", gap: 6, marginTop: 4, justifyContent: "space-between" }}
+            >
+                <Focusable
+                    onActivate={profile ? () => onLoad(slot) : undefined}
+                    onClick={profile ? () => onLoad(slot) : undefined}
+                    onFocus={() => setLoadF(true)}
+                    onBlur={() => setLoadF(false)}
+                    style={iconBtn(loadF, "accent", !profile)}
+                    aria-label="Load profile"
+                >
+                    <FaUpload size={12} />
+                </Focusable>
+                <Focusable
+                    onActivate={() => onRequestSave(slot)}
+                    onClick={() => onRequestSave(slot)}
+                    onFocus={() => setSaveF(true)}
+                    onBlur={() => setSaveF(false)}
+                    style={iconBtn(saveF, "muted", false)}
+                    aria-label={profile ? "Overwrite profile" : "Save current settings"}
+                >
+                    <FaSave size={12} />
+                </Focusable>
+                <Focusable
+                    onActivate={profile ? () => onDelete(slot) : undefined}
+                    onClick={profile ? () => onDelete(slot) : undefined}
+                    onFocus={() => setDelF(true)}
+                    onBlur={() => setDelF(false)}
+                    style={iconBtn(delF, "danger", !profile)}
+                    aria-label="Delete profile"
+                >
+                    <FaTrash size={12} />
+                </Focusable>
+            </Focusable>
+        </div>
+    );
+};
+
 // Screensaver Settings Page
 const ScreensaverSettingsPage = () => {
     const { settings, updateSetting } = useSettings();
+    const { profiles, saveProfile, loadProfile, deleteProfile } = useScreensaverProfiles();
     const mode = settings.screensaver_mode ?? 'off';
 
     const [wallpaperStatus, setWallpaperStatus] = useState<{ reachable: boolean | null; message?: string }>({ reachable: null });
@@ -611,6 +747,8 @@ const ScreensaverSettingsPage = () => {
     } | null>(null);
     const [prefetchProgress, setPrefetchProgress] = useState<{ step: number; total: number } | null>(null);
     const [prefetchBusy, setPrefetchBusy] = useState(false);
+    const [profileDraftSlot, setProfileDraftSlot] = useState<"slot_1" | "slot_2" | "slot_3" | null>(null);
+    const [profileDraftName, setProfileDraftName] = useState("");
 
     useEffect(() => {
         let cancelled = false;
@@ -762,8 +900,138 @@ const ScreensaverSettingsPage = () => {
         }
     };
 
+    const handleSaveProfile = async (slot: string, name: string) => {
+        await saveProfile(slot, name);
+    };
+
+    const beginSaveProfile = (slot: "slot_1" | "slot_2" | "slot_3") => {
+        const p = profiles[slot];
+        setProfileDraftSlot(slot);
+        setProfileDraftName((p?.name ?? "").trim());
+    };
+
+    const commitProfileDraft = async () => {
+        if (!profileDraftSlot || !profileDraftName.trim()) return;
+        await handleSaveProfile(profileDraftSlot, profileDraftName.trim());
+        setProfileDraftSlot(null);
+        setProfileDraftName("");
+    };
+
+    const cancelProfileDraft = () => {
+        setProfileDraftSlot(null);
+        setProfileDraftName("");
+    };
+
+    const handleLoadProfile = async (slot: string) => {
+        showModal(
+            <ConfirmModal
+                strTitle="Load Profile"
+                strDescription={`Apply profile "${profiles[slot as keyof typeof profiles]?.name}"? This will change your screensaver settings.`}
+                strOKButtonText="Apply"
+                strCancelButtonText="Cancel"
+                onOK={async () => {
+                    await loadProfile(slot);
+                }}
+            />
+        );
+    };
+
+    const handleDeleteProfile = async (slot: string) => {
+        showModal(
+            <ConfirmModal
+                strTitle="Delete Profile"
+                strDescription={`Delete profile "${profiles[slot as keyof typeof profiles]?.name}"? This cannot be undone.`}
+                strOKButtonText="Delete"
+                strCancelButtonText="Cancel"
+                onOK={async () => {
+                    await deleteProfile(slot);
+                }}
+            />
+        );
+    };
+
     return (
         <ScrollableContent>
+            {/* === Profiles === */}
+            <PanelSection title="Profiles">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                        Save your current screensaver settings to a profile slot, then quickly switch between them.
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <Focusable
+                        flow-children="horizontal"
+                        style={{ display: "flex", flexDirection: "row", gap: 10, width: "100%", alignItems: "stretch" }}
+                    >
+                        <ProfileSlotCard
+                            slot="slot_1"
+                            profile={profiles.slot_1}
+                            onLoad={(s) => void handleLoadProfile(s)}
+                            onDelete={(s) => void handleDeleteProfile(s)}
+                            onRequestSave={beginSaveProfile}
+                        />
+                        <ProfileSlotCard
+                            slot="slot_2"
+                            profile={profiles.slot_2}
+                            onLoad={(s) => void handleLoadProfile(s)}
+                            onDelete={(s) => void handleDeleteProfile(s)}
+                            onRequestSave={beginSaveProfile}
+                        />
+                        <ProfileSlotCard
+                            slot="slot_3"
+                            profile={profiles.slot_3}
+                            onLoad={(s) => void handleLoadProfile(s)}
+                            onDelete={(s) => void handleDeleteProfile(s)}
+                            onRequestSave={beginSaveProfile}
+                        />
+                    </Focusable>
+                </PanelSectionRow>
+                {profileDraftSlot && (
+                    <PanelSectionRow>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+                            <div style={{ fontSize: 12, opacity: 0.75 }}>
+                                Save current screensaver settings to slot {profileDraftSlot === "slot_1" ? "1" : profileDraftSlot === "slot_2" ? "2" : "3"}
+                            </div>
+                            <TextField
+                                label="Profile name"
+                                value={profileDraftName}
+                                onChange={(e) => setProfileDraftName(e.target.value)}
+                            />
+                            <Focusable flow-children="horizontal" style={{ display: "flex", flexDirection: "row", gap: 8 }}>
+                                <Focusable
+                                    onActivate={() => void commitProfileDraft()}
+                                    onClick={() => void commitProfileDraft()}
+                                    style={{
+                                        padding: "8px 14px",
+                                        borderRadius: 6,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        backgroundColor: "#4488aa88",
+                                        border: "2px solid transparent",
+                                    }}
+                                >
+                                    Store
+                                </Focusable>
+                                <Focusable
+                                    onActivate={cancelProfileDraft}
+                                    onClick={cancelProfileDraft}
+                                    style={{
+                                        padding: "8px 14px",
+                                        borderRadius: 6,
+                                        fontSize: 13,
+                                        backgroundColor: "#ffffff18",
+                                        border: "2px solid transparent",
+                                    }}
+                                >
+                                    Cancel
+                                </Focusable>
+                            </Focusable>
+                        </div>
+                    </PanelSectionRow>
+                )}
+            </PanelSection>
+
             {/* === Mode === */}
             <PanelSection title="Screensaver Mode">
                 <PanelSectionRow>
@@ -1416,6 +1684,28 @@ const ScreensaverSettingsPage = () => {
                                 icon={<FaClock size={16} />}
                             />
                         </PanelSectionRow>
+                        <PanelSectionRow>
+                            <ToggleField
+                                icon={<FaCalendarAlt size={16} />}
+                                label="Show 7-day forecast"
+                                description="Display weekly forecast widget (large/fullscreen layouts)"
+                                checked={settings.screensaver_show_forecast ?? false}
+                                onChange={(value) => updateSetting('screensaver_show_forecast', value)}
+                            />
+                        </PanelSectionRow>
+                        {settings.screensaver_show_forecast && (
+                            <PanelSectionRow>
+                                <div style={{ paddingLeft: '40px' }}>
+                                    <ToggleField
+                                        icon={<FaCloud size={16} />}
+                                        label="Show precipitation chance"
+                                        description="Display rain/snow probability for each day"
+                                        checked={settings.screensaver_forecast_show_precip ?? true}
+                                        onChange={(value) => updateSetting('screensaver_forecast_show_precip', value)}
+                                    />
+                                </div>
+                            </PanelSectionRow>
+                        )}
                         <PanelSectionRow>
                             <WeatherLocationPicker />
                         </PanelSectionRow>

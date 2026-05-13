@@ -66,6 +66,8 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_weather_show_condition: true,
     screensaver_weather_refresh_minutes: 30,
     screensaver_weather_location_source: null,
+    screensaver_show_forecast: false,
+    screensaver_forecast_show_precip: true,
     screensaver_nasa_api_key: '',
     screensaver_wallpaper_show_attribution: true,
     screensaver_wallpaper_provider: 'picsum' as const,
@@ -85,6 +87,8 @@ const DEFAULT_SETTINGS: UserSettings = {
     // Suspend Behavior
     reminder_suspend_behavior: 'continue', // 'continue' = missed alerts, 'pause' = shift schedule
     pomodoro_suspend_behavior: 'continue', // 'continue' = missed session, 'pause' = shift session
+    // Stopwatch settings
+    stopwatch_reset_after_sleep: true,
     // Display settings
     snooze_activation_delay: 2.0,
     // Overlay settings

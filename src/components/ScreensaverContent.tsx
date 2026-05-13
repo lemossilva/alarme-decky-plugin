@@ -1,12 +1,13 @@
 import { useSettings } from "../hooks/useSettings";
 import { useScreensaver } from "../hooks/useScreensaver";
 import { ClockWidget } from "./screensaver/ClockWidget";
-import { DateWidget } from "./screensaver/DateWidget";
+import { DateWidget, ScreensaverDateHeading, ScreensaverCalendarGrid } from "./screensaver/DateWidget";
 import { BatteryWidget } from "./screensaver/BatteryWidget";
 import { AlertsListWidget } from "./screensaver/AlertsListWidget";
 import { SystemStatsWidget } from "./screensaver/SystemStatsWidget";
 import { NetworkWidget } from "./screensaver/NetworkWidget";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
+import { ForecastWidget } from "./screensaver/ForecastWidget";
 import { ACCENT_COLORS } from "../types";
 import { Z_INDEX } from "../utils/zIndex";
 import type { ScreensaverLayout, AccentColorPreset } from "../types";
@@ -27,11 +28,65 @@ export function ScreensaverContent() {
     const showSystemStats = settings.screensaver_show_system_stats ?? false;
     const showNetwork = settings.screensaver_show_network_info ?? false;
     const showWeather = settings.screensaver_show_weather ?? false;
+    const showForecast = (settings.screensaver_show_forecast ?? false) && showWeather;
     const maxAlerts = settings.overlay_max_alerts || 2;
+
+    const dateHeadingVisible =
+        (settings.overlay_screensaver_show_date ?? true) ||
+        (settings.screensaver_show_day_of_week ?? true);
+    const showLargeCalendar =
+        (settings.screensaver_show_calendar_grid ?? false) && dateHeadingVisible;
+    const showLargeWidgetsRow = showLargeCalendar || showForecast;
 
     if (!overlayVisible || isCompact) return null;
 
     const widgetFontSize = Math.max(10, clockSize * 0.45);
+
+    const largeCardStyle = {
+        display: "flex" as const,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderRadius: 8,
+        padding: "8px 10px",
+    };
+
+    const DateHeadingRow = () => (
+        <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100%",
+            textAlign: "center",
+        }}>
+            <ScreensaverDateHeading fontSize={widgetFontSize} />
+        </div>
+    );
+
+    const LargeWidgetsRow = () => (
+        <div style={{
+            display: "flex",
+            flexDirection: "row",
+            flexWrap: "wrap",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            gap: 10,
+            width: "100%",
+            maxWidth: layout === "fullscreen" ? 920 : 680,
+            marginTop: clockSize * 0.15,
+        }}>
+            {showLargeCalendar && (
+                <div style={largeCardStyle}>
+                    <ScreensaverCalendarGrid fontSize={widgetFontSize} />
+                </div>
+            )}
+            {showForecast && (
+                <div style={largeCardStyle}>
+                    <ForecastWidget fontSize={widgetFontSize} show={showForecast} />
+                </div>
+            )}
+        </div>
+    );
 
     const DateRow = () => (
         <div style={{
@@ -90,7 +145,14 @@ export function ScreensaverContent() {
     const sharedContent = (
         <>
             <ClockWidget clockSize={clockSize} />
-            <DateRow />
+            {showLargeWidgetsRow ? (
+                <>
+                    {dateHeadingVisible ? <DateHeadingRow /> : null}
+                    <LargeWidgetsRow />
+                </>
+            ) : (
+                <DateRow />
+            )}
             <InfoWidgets />
             {showAlertsList && (
                 <div style={{ marginTop: clockSize * 0.3 }}>

@@ -110,6 +110,27 @@ SETTINGS_KEY_POMODORO = "pomodoro_state"
 SETTINGS_KEY_RECENT_TIMERS = "recent_timers"
 SETTINGS_KEY_REMINDERS = "reminders"
 SETTINGS_KEY_STOPWATCH = "stopwatch_state"
+SETTINGS_KEY_PROFILES = "screensaver_profiles"
+
+SCREENSAVER_PROFILE_KEYS = [
+    "screensaver_mode", "screensaver_dim_opacity", "screensaver_idle_seconds",
+    "screensaver_standalone_enabled", "screensaver_standalone_idle_seconds",
+    "screensaver_clock_style", "screensaver_clock_size", "screensaver_accent_color",
+    "screensaver_show_day_of_week", "screensaver_show_year", "screensaver_show_calendar_grid",
+    "screensaver_battery_show_bar", "screensaver_battery_low_threshold",
+    "screensaver_show_alerts_list", "screensaver_show_system_stats", "screensaver_show_network_info",
+    "screensaver_show_weather", "screensaver_weather_show_highlow", "screensaver_weather_show_condition",
+    "screensaver_show_forecast", "screensaver_forecast_show_precip",
+    "screensaver_wallpaper_provider", "screensaver_wallpaper_fit", "screensaver_wallpaper_blur",
+    "screensaver_wallpaper_dim", "screensaver_wallpaper_interval", "screensaver_wallpaper_pool_size",
+    "screensaver_wallpaper_auto_rotate", "screensaver_wallpaper_shift_local",
+    "screensaver_wallpaper_show_attribution", "screensaver_nasa_api_key",
+    "screensaver_floating_drift_range",
+    "overlay_screensaver_layout", "overlay_screensaver_show_clock",
+    "overlay_screensaver_show_date", "overlay_screensaver_show_battery",
+    "overlay_during_screensaver", "pomodoro_screensaver_mode",
+    "pixel_shift_enabled", "pixel_shift_range", "pixel_shift_interval_seconds",
+]
 
 # Limits to prevent excessive data
 MAX_ACTIVE_TIMERS = 50
@@ -144,6 +165,8 @@ DEFAULT_SETTINGS = {
     "missed_alerts_window": 24,
     "reminder_suspend_behavior": "continue",
     "pomodoro_suspend_behavior": "continue",
+    # Stopwatch settings
+    "stopwatch_reset_after_sleep": True,
     # Display settings
     "snooze_activation_delay": 2.0,
     # Overlay settings
@@ -214,6 +237,8 @@ DEFAULT_SETTINGS = {
     "screensaver_weather_show_condition": True,
     "screensaver_weather_refresh_minutes": 30,
     "screensaver_weather_location_source": None,
+    "screensaver_show_forecast": False,
+    "screensaver_forecast_show_precip": True,
     "screensaver_nasa_api_key": "",
     "screensaver_wallpaper_show_attribution": True,
     "screensaver_floating_drift_range": 40,
@@ -2840,6 +2865,15 @@ class Plugin:
         
         return state
 
+    def _get_boot_id(self) -> str:
+        """Read the current boot ID from /proc/sys/kernel/random/boot_id."""
+        try:
+            with open("/proc/sys/kernel/random/boot_id", "r") as f:
+                return f.read().strip()
+        except Exception as e:
+            decky.logger.warning(f"AlarMe: Failed to read boot_id: {e}")
+            return ""
+
     async def stopwatch_start(self) -> dict:
         """Start or resume the stopwatch."""
         state = await self._get_stopwatch_state()
@@ -2849,6 +2883,7 @@ class Plugin:
         
         state["status"] = "running"
         state["start_time"] = time.time()
+        state["host_boot_id"] = self._get_boot_id()
         
         await self._save_stopwatch_state(state)
         await self._update_sleep_inhibitor()
@@ -3137,6 +3172,81 @@ class Plugin:
         await decky.emit("alarme_settings_updated", current)
         return current
 
+    # ==================== SCREENSAVER PROFILES ====================
+
+    async def get_screensaver_profiles(self) -> dict:
+        """Get all screensaver profile slots."""
+        profiles = await self.settings_getSetting(SETTINGS_KEY_PROFILES, {
+            "slot_1": None,
+            "slot_2": None,
+            "slot_3": None
+        })
+        return profiles
+
+    async def save_screensaver_profile(self, slot: str, name: str) -> bool:
+        """Save current screensaver settings to a profile slot."""
+        if slot not in ("slot_1", "slot_2", "slot_3"):
+            decky.logger.warning(f"AlarMe: Invalid profile slot: {slot}")
+            return False
+        
+        if not name or not name.strip():
+            decky.logger.warning("AlarMe: Profile name cannot be empty")
+            return False
+        
+        user_settings = await self._get_user_settings()
+        profile_settings = {k: user_settings.get(k) for k in SCREENSAVER_PROFILE_KEYS if k in user_settings}
+        
+        profile = {
+            "name": name.strip(),
+            "settings": profile_settings,
+            "saved_at": time.time()
+        }
+        
+        profiles = await self.get_screensaver_profiles()
+        profiles[slot] = profile
+        await self.settings_setSetting(SETTINGS_KEY_PROFILES, profiles)
+        await self.settings_commit()
+        
+        decky.logger.info(f"AlarMe: Saved screensaver profile '{name}' to {slot}")
+        await decky.emit("alarme_profiles_updated", profiles)
+        return True
+
+    async def load_screensaver_profile(self, slot: str) -> dict:
+        """Load a screensaver profile and apply its settings."""
+        if slot not in ("slot_1", "slot_2", "slot_3"):
+            decky.logger.warning(f"AlarMe: Invalid profile slot: {slot}")
+            return await self._get_user_settings()
+        
+        profiles = await self.get_screensaver_profiles()
+        profile = profiles.get(slot)
+        
+        if not profile or not profile.get("settings"):
+            decky.logger.warning(f"AlarMe: Profile {slot} is empty or invalid")
+            return await self._get_user_settings()
+        
+        updated = await self.update_settings(profile["settings"])
+        decky.logger.info(f"AlarMe: Loaded screensaver profile '{profile.get('name')}' from {slot}")
+        return updated
+
+    async def delete_screensaver_profile(self, slot: str) -> bool:
+        """Delete a screensaver profile from a slot."""
+        if slot not in ("slot_1", "slot_2", "slot_3"):
+            decky.logger.warning(f"AlarMe: Invalid profile slot: {slot}")
+            return False
+        
+        profiles = await self.get_screensaver_profiles()
+        if profiles.get(slot) is None:
+            decky.logger.info(f"AlarMe: Profile {slot} is already empty")
+            return True
+        
+        profiles[slot] = None
+        await self.settings_setSetting(SETTINGS_KEY_PROFILES, profiles)
+        await self.settings_commit()
+        
+        decky.logger.info(f"AlarMe: Deleted screensaver profile from {slot}")
+        await decky.emit("alarme_profiles_updated", profiles)
+        return True
+
     def _weather_ip_resolve_sync(self) -> tuple[float, float, str] | None:
         import urllib.request
 
@@ -3322,6 +3432,7 @@ class Plugin:
             "is_day": None,
             "temp_max": None,
             "temp_min": None,
+            "forecast": [],
             "fetched_at": None,
             "error": None,
         }
@@ -3381,9 +3492,9 @@ class Plugin:
                 "latitude": la,
                 "longitude": lo,
                 "current_weather": "true",
-                "daily": "temperature_2m_max,temperature_2m_min",
+                "daily": "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max",
                 "timezone": "auto",
-                "forecast_days": 1,
+                "forecast_days": 7,
                 "temperature_unit": temp_q,
             }
         )
@@ -3404,6 +3515,9 @@ class Plugin:
         daily = data.get("daily") or {}
         tmax_list = daily.get("temperature_2m_max") or []
         tmin_list = daily.get("temperature_2m_min") or []
+        wc_list = daily.get("weathercode") or []
+        precip_list = daily.get("precipitation_probability_max") or []
+        date_list = daily.get("time") or []
 
         try:
             temp = float(cur["temperature"]) if cur.get("temperature") is not None else None
@@ -3428,6 +3542,28 @@ class Plugin:
         except (TypeError, ValueError):
             is_day = None
 
+        # Build 7-day forecast array
+        forecast = []
+        for i in range(min(7, len(date_list))):
+            day_data = {"date": date_list[i] if i < len(date_list) else None}
+            try:
+                day_data["high"] = float(tmax_list[i]) if i < len(tmax_list) and tmax_list[i] is not None else None
+            except (TypeError, ValueError):
+                day_data["high"] = None
+            try:
+                day_data["low"] = float(tmin_list[i]) if i < len(tmin_list) and tmin_list[i] is not None else None
+            except (TypeError, ValueError):
+                day_data["low"] = None
+            try:
+                day_data["code"] = int(wc_list[i]) if i < len(wc_list) and wc_list[i] is not None else None
+            except (TypeError, ValueError):
+                day_data["code"] = None
+            try:
+                day_data["precip_chance"] = int(precip_list[i]) if i < len(precip_list) and precip_list[i] is not None else None
+            except (TypeError, ValueError):
+                day_data["precip_chance"] = None
+            forecast.append(day_data)
+
         fetched_iso = datetime.now().isoformat(timespec="seconds")
         payload = {
             "success": True,
@@ -3437,6 +3573,7 @@ class Plugin:
             "is_day": is_day,
             "temp_max": tmax,
             "temp_min": tmin,
+            "forecast": forecast,
             "fetched_at": fetched_iso,
             "error": None,
         }
@@ -4522,6 +4659,20 @@ class Plugin:
             if pomodoro["end_time"] > current_time:
                 decky.logger.info("AlarMe: Resuming Pomodoro session")
                 self.pomodoro_task = self.loop.create_task(self._pomodoro_handler())
+        
+        # Check if stopwatch should be reset after reboot
+        user_settings = await self._get_user_settings()
+        if user_settings.get("stopwatch_reset_after_sleep", True):
+            stopwatch = await self._get_stopwatch_state()
+            if stopwatch.get("status") == "running":
+                current_boot_id = self._get_boot_id()
+                saved_boot_id = stopwatch.get("host_boot_id", "")
+                if current_boot_id and saved_boot_id and current_boot_id != saved_boot_id:
+                    decky.logger.info("AlarMe: Stopwatch was running before reboot, resetting (boot_id mismatch)")
+                    await self.stopwatch_reset()
+                elif not saved_boot_id:
+                    decky.logger.info("AlarMe: Stopwatch was running with no boot_id stored, resetting")
+                    await self.stopwatch_reset()
         
         # Start alarm checker
         self.alarm_check_task = self.loop.create_task(self._alarm_checker())

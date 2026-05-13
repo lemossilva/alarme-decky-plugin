@@ -4,6 +4,14 @@ import { useSettings } from "./useSettings";
 
 const fetchWeatherCall = callable<[], Record<string, unknown>>("fetch_weather");
 
+export interface ForecastDay {
+    date: string | null;
+    high: number | null;
+    low: number | null;
+    code: number | null;
+    precip_chance: number | null;
+}
+
 export interface WeatherData {
     success: boolean;
     temperature: number | null;
@@ -12,6 +20,7 @@ export interface WeatherData {
     isDay: number | null;
     tempMax: number | null;
     tempMin: number | null;
+    forecast: ForecastDay[];
     fetchedAt: string | null;
     error: string | null;
     loading: boolean;
@@ -21,6 +30,17 @@ function readNum(v: unknown): number | null {
     if (v === null || v === undefined) return null;
     const n = typeof v === "number" ? v : Number(v);
     return Number.isFinite(n) ? n : null;
+}
+
+function parseForecast(rawForecast: unknown): ForecastDay[] {
+    if (!Array.isArray(rawForecast)) return [];
+    return rawForecast.map((day: Record<string, unknown>) => ({
+        date: typeof day.date === "string" ? day.date : null,
+        high: readNum(day.high),
+        low: readNum(day.low),
+        code: readNum(day.code) as number | null,
+        precip_chance: readNum(day.precip_chance) as number | null,
+    }));
 }
 
 function parseResponse(raw: Record<string, unknown>): Omit<WeatherData, "loading"> {
@@ -40,6 +60,7 @@ function parseResponse(raw: Record<string, unknown>): Omit<WeatherData, "loading
         isDay: readNum(raw.is_day) as number | null,
         tempMax: readNum(raw.temp_max),
         tempMin: readNum(raw.temp_min),
+        forecast: parseForecast(raw.forecast),
         fetchedAt: typeof raw.fetched_at === "string" ? raw.fetched_at : null,
         error: err,
     };
@@ -58,6 +79,7 @@ export function useWeather(show: boolean) {
         isDay: null,
         tempMax: null,
         tempMin: null,
+        forecast: [],
         fetchedAt: null,
         error: null,
         loading: false,
@@ -103,6 +125,7 @@ export function useWeather(show: boolean) {
                 isDay: null,
                 tempMax: null,
                 tempMin: null,
+                forecast: [],
                 fetchedAt: null,
                 error: null,
             }));
