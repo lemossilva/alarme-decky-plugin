@@ -86,7 +86,6 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
         return null;
     }
 
-    const showPrecip = settings.screensaver_forecast_show_precip ?? true;
     const unitF = settings.screensaver_weather_unit === "F";
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
@@ -110,12 +109,13 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
 
     const gridTemplateRows = [
         `${rowLabel}px`,
-        `${rowIcon}px`,
-        `${rowHigh}px`,
-        `${rowLow}px`,
-        ...(showPrecip ? [`${rowChance}px`, `${rowSum}px`] : []),
-        `${rowWind}px`,
-        `${rowUv}px`,
+        `minmax(${rowIcon}px, 1fr)`,
+        `minmax(${rowHigh}px, 1fr)`,
+        `minmax(${rowLow}px, 1fr)`,
+        `minmax(${rowChance}px, 1fr)`,
+        `minmax(${rowSum}px, 1fr)`,
+        `minmax(${rowWind}px, 1fr)`,
+        `minmax(${rowUv}px, 1fr)`,
     ].join(" ");
 
     const slot: CSSProperties = {
@@ -138,6 +138,7 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flex: "1 1 auto",
             }}
         >
             <div
@@ -162,7 +163,7 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
                     const windLine = formatWind(day.wind_speed_max_kmh, unitF);
                     const uvLine = formatUv(day.uv_index_max);
 
-                    const rowTrackCount = 4 + (showPrecip ? 2 : 0) + 2;
+                    const rowTrackCount = 8;
                     const colStyle: CSSProperties = {
                         display: "grid",
                         gridColumn: i + 1,
@@ -216,35 +217,33 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
                         </div>,
                     ];
 
-                    if (showPrecip) {
-                        cells.push(
-                            <div
-                                key="pc"
-                                style={{
-                                    ...slot,
-                                    gap: 3,
-                                    fontSize: precipFs,
-                                    fontVariantNumeric: "tabular-nums",
-                                    opacity: wet ? 0.88 : 0.32,
-                                    color: precip != null && precip >= 50 ? "#6ba3d6" : undefined,
-                                }}
-                            >
-                                <FaTint size={Math.round(precipFs * 0.88)} style={{ opacity: 0.75, flexShrink: 0 }} />
-                                <span>{wet && precip != null ? `${Math.round(precip)}%` : "—"}</span>
-                            </div>,
-                            <div
-                                key="ps"
-                                style={{
-                                    ...slot,
-                                    fontSize: extrasFs,
-                                    fontVariantNumeric: "tabular-nums",
-                                    opacity: sumLine ? 0.74 : 0.32,
-                                }}
-                            >
-                                {sumLine ?? "—"}
-                            </div>
-                        );
-                    }
+                    cells.push(
+                        <div
+                            key="pc"
+                            style={{
+                                ...slot,
+                                gap: 3,
+                                fontSize: precipFs,
+                                fontVariantNumeric: "tabular-nums",
+                                opacity: wet ? 0.88 : 0.32,
+                                color: precip != null && precip >= 50 ? "#6ba3d6" : undefined,
+                            }}
+                        >
+                            <FaTint size={Math.round(precipFs * 0.88)} style={{ opacity: 0.75, flexShrink: 0 }} />
+                            <span>{wet && precip != null ? `${Math.round(precip)}%` : "—"}</span>
+                        </div>,
+                        <div
+                            key="ps"
+                            style={{
+                                ...slot,
+                                fontSize: extrasFs,
+                                fontVariantNumeric: "tabular-nums",
+                                opacity: sumLine ? 0.74 : 0.32,
+                            }}
+                        >
+                            {sumLine ?? "—"}
+                        </div>,
+                    );
 
                     cells.push(
                         <div

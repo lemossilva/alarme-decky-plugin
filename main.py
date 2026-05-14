@@ -125,7 +125,7 @@ SCREENSAVER_PROFILE_KEYS = [
     "screensaver_battery_show_bar", "screensaver_battery_low_threshold",
     "screensaver_show_alerts_list", "screensaver_show_system_stats", "screensaver_show_network_info",
     "screensaver_show_weather", "screensaver_weather_show_highlow", "screensaver_weather_show_condition",
-    "screensaver_show_forecast", "screensaver_forecast_show_precip",
+    "screensaver_show_forecast",
     "screensaver_wallpaper_provider", "screensaver_wallpaper_fit", "screensaver_wallpaper_blur",
     "screensaver_wallpaper_dim", "screensaver_wallpaper_interval", "screensaver_wallpaper_pool_size",
     "screensaver_wallpaper_auto_rotate", "screensaver_wallpaper_shift_local",
@@ -137,6 +137,8 @@ SCREENSAVER_PROFILE_KEYS = [
     "overlay_compact_screensaver_show_battery",
     "overlay_during_screensaver", "pomodoro_screensaver_mode",
     "pixel_shift_enabled", "pixel_shift_range", "pixel_shift_interval_seconds",
+    "screensaver_big_widgets", "screensaver_small_widgets",
+    "screensaver_show_downloads",
     "screensaver_show_suggestme", "screensaver_suggestme_mode",
     "screensaver_suggestme_preset_slot", "screensaver_suggestme_pick_strategy",
 ]
@@ -253,7 +255,6 @@ DEFAULT_SETTINGS = {
     "screensaver_weather_refresh_minutes": 30,
     "screensaver_weather_location_source": None,
     "screensaver_show_forecast": False,
-    "screensaver_forecast_show_precip": True,
     "screensaver_nasa_api_key": "",
     "screensaver_wallpaper_show_attribution": True,
     "screensaver_floating_drift_range": 40,
@@ -261,6 +262,12 @@ DEFAULT_SETTINGS = {
     "pixel_shift_enabled": True,
     "pixel_shift_range": 3,          # max pixel displacement (1-10)
     "pixel_shift_interval_seconds": 60,  # seconds between shifts
+    # SuggestMe integration
+    # Widget orchestrator
+    "screensaver_big_widgets": [],
+    "screensaver_small_widgets": ["battery"],
+    # Steam Downloads widget
+    "screensaver_show_downloads": False,
     # SuggestMe integration
     "screensaver_show_suggestme": False,
     "screensaver_suggestme_mode": "intelligent",
@@ -540,7 +547,12 @@ class Plugin:
             sw_mode = stopwatch.get("screensaver_mode", "off")
             if sw_mode != "off":
                 reason_parts.append("Stopwatch")
-                inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": global_mode})
+            inhibiting_items.append({
+                "type": "stopwatch",
+                "id": "stopwatch",
+                "label": "Stopwatch",
+                "screensaver_mode": sw_mode if sw_mode != "off" else "off",
+            })
         
         # Build reason string
         if timer_count > 0:
@@ -714,13 +726,12 @@ class Plugin:
             self._sleep_inhibitor_active = False
 
     async def get_sleep_inhibitor_status(self) -> dict:
-        """Get current sleep inhibitor status. Only items with screensaver_mode != 'off' are included."""
+        """Current sleep inhibitor state and items that contribute to sleep prevention."""
         inhibiting_items = []
-        
+
         user_settings = await self._get_user_settings()
         global_mode = user_settings.get("screensaver_mode", "off")
-        
-        # Collect all items that are preventing sleep AND have screensaver enabled
+
         timers = await self._get_timers()
         for timer_id, timer in timers.items():
             if (not timer.get("paused", False) and 
@@ -755,10 +766,14 @@ class Plugin:
                 inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": global_mode})
         
         stopwatch = await self._get_stopwatch_state()
-        if (stopwatch.get("status") == "running" and 
-            stopwatch.get("prevent_sleep", False) and
-            stopwatch.get("screensaver_mode", "off") != "off"):
-            inhibiting_items.append({"type": "stopwatch", "id": "stopwatch", "label": "Stopwatch", "screensaver_mode": global_mode})
+        if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
+            sw_mode = stopwatch.get("screensaver_mode", "off")
+            inhibiting_items.append({
+                "type": "stopwatch",
+                "id": "stopwatch",
+                "label": "Stopwatch",
+                "screensaver_mode": sw_mode if sw_mode != "off" else "off",
+            })
         
         return {
             "active": self._sleep_inhibitor_active,
@@ -781,39 +796,53 @@ class Plugin:
         })
 
     async def disable_all_sleep_inhibitors(self) -> bool:
-        """Disable all mechanisms preventing sleep."""
+        """Disable mechanisms that are currently preventing sleep (same rules as the sleep-blocker list)."""
         decky.logger.info("AlarMe: Disabling all sleep inhibitors")
-        
-        # Cancel all timers with prevent_sleep
+        user_settings = await self._get_user_settings()
+
+        # Cancel running timers that use prevent_sleep (matches _update_sleep_inhibitor)
         timers = await self._get_timers()
         for timer_id, timer in list(timers.items()):
-            if timer.get("prevent_sleep", False):
+            if timer.get("prevent_sleep", False) and not timer.get("paused", False):
                 await self.cancel_timer(timer_id)
-        
-        # Stop pomodoro if active
+
+        # Pomodoro only contributes when pomodoro_prevent_sleep is enabled
         pomodoro = await self._get_pomodoro_state()
-        if pomodoro.get("active", False):
+        if pomodoro.get("active", False) and user_settings.get("pomodoro_prevent_sleep", False):
             await self.stop_pomodoro()
-        
-        # Turn off all alarms that are preventing sleep
+
+        # Only alarms inside the pre-alarm window (and with per-alarm screensaver on) actually inhibit
         alarms = await self._get_alarms()
+        now = time.time()
+        alarms_changed = False
         for alarm_id, alarm in alarms.items():
-            if alarm.get("prevent_sleep", False) and alarm.get("enabled", False):
+            if not alarm.get("enabled", False) or not alarm.get("prevent_sleep", False):
+                continue
+            if alarm.get("screensaver_mode", "off") == "off":
+                continue
+            window_minutes = alarm.get("prevent_sleep_window", 60)
+            window_seconds = window_minutes * 60
+            next_trigger = self._calculate_next_trigger(alarm)
+            if next_trigger and 0 < (next_trigger - now) <= window_seconds:
                 alarm["enabled"] = False
-        await self._save_alarms(alarms)
-        await decky.emit("alarme_alarms_updated", list(alarms.values()))
-        
-        # Turn off all reminders that are preventing sleep
+                alarms_changed = True
+        if alarms_changed:
+            await self._save_alarms(alarms)
+            await decky.emit("alarme_alarms_updated", list(alarms.values()))
+
+        # Reminders: enabled + prevent_sleep always contributes when those flags are set
         reminders = await self._get_reminders()
+        reminders_changed = False
         for reminder_id, reminder in reminders.items():
             if reminder.get("prevent_sleep", False) and reminder.get("enabled", False):
                 reminder["enabled"] = False
-        await self._save_reminders(reminders)
-        await decky.emit("alarme_reminders_updated", list(reminders.values()))
-        
-        # Reset stopwatch if running (regardless of prevent_sleep flag, since it's in the inhibitor list)
+                reminders_changed = True
+        if reminders_changed:
+            await self._save_reminders(reminders)
+            await decky.emit("alarme_reminders_updated", list(reminders.values()))
+
         stopwatch = await self._get_stopwatch_state()
-        if stopwatch.get("status") == "running":
+        if stopwatch.get("status") == "running" and stopwatch.get("prevent_sleep", False):
             await self.stopwatch_reset()
         
         # Update sleep inhibitor state
@@ -4258,20 +4287,6 @@ class Plugin:
         if merged.get("overlay_screensaver_layout") == "floating":
             merged["overlay_screensaver_layout"] = "large"
 
-        if isinstance(saved, dict):
-            _ss_migrate = (
-                ("screensaver_center_show_clock", "overlay_screensaver_show_clock"),
-                ("screensaver_center_show_date", "overlay_screensaver_show_date"),
-                ("screensaver_center_show_battery", "overlay_screensaver_show_battery"),
-                ("overlay_compact_screensaver_show_clock", "overlay_screensaver_show_clock"),
-                ("overlay_compact_screensaver_show_date", "overlay_screensaver_show_date"),
-                ("overlay_compact_screensaver_show_battery", "overlay_screensaver_show_battery"),
-            )
-            for nk, ok in _ss_migrate:
-                if nk not in saved:
-                    v = merged.get(ok)
-                    merged[nk] = v if isinstance(v, bool) else bool(v) if v is not None else True
-
         valid_wallpaper_providers = frozenset(
             {"none", "picsum", "bing_daily", "lorem_flickr", "nasa_apod", "local_folder"}
         )
@@ -4279,75 +4294,17 @@ class Plugin:
         if wp_provider not in valid_wallpaper_providers:
             merged["screensaver_wallpaper_provider"] = DEFAULT_SETTINGS["screensaver_wallpaper_provider"]
 
+        # Enforce orchestrator caps for the current layout.
+        _valid_big = frozenset({"calendar", "forecast", "suggestme"})
+        _valid_small = frozenset({"battery", "system_stats", "network", "weather", "downloads"})
+        _layout = merged.get("overlay_screensaver_layout", "compact")
+        _caps = {"large": (2, 4), "fullscreen": (3, 5)}.get(_layout, (0, 0))
+        big_list = [w for w in merged.get("screensaver_big_widgets", []) if w in _valid_big]
+        small_list = [w for w in merged.get("screensaver_small_widgets", []) if w in _valid_small]
+        merged["screensaver_big_widgets"] = big_list[:_caps[0]]
+        merged["screensaver_small_widgets"] = small_list[:_caps[1]]
+
         return merged
-
-    async def _migrate_settings_schema(self):
-        """One-time migration for updated overlay settings schema."""
-        saved = await self.settings_getSetting(SETTINGS_KEY_SETTINGS, {})
-        if not isinstance(saved, dict):
-            return
-
-        updated = dict(saved)
-        changed = False
-
-        # Migrate old display mode values to new schema
-        display_mode_map = {
-            "menu_only": "steam_only",
-            "gaming_and_menu": "both",
-            "games_only": "gaming_only",
-            "steamui_only": "steam_only",
-            "steam_menu_only": "steam_only",
-            "always": "both",
-        }
-        current_display_mode = updated.get("overlay_display_mode")
-        if current_display_mode in display_mode_map:
-            updated["overlay_display_mode"] = display_mode_map[current_display_mode]
-            changed = True
-
-        # Migrate old position values to new schema
-        position_map = {
-            "top": "default",
-            "bottom": "default",
-            "left": "default",
-            "right": "default",
-            "top-bar": "default",
-            "bottom-bar": "default",
-            "top-right": "default",
-            "top-left": "default",
-            "bottom-right": "default",
-            "bottom-left": "default"
-        }
-        current_position = updated.get("overlay_position")
-        if current_position in position_map:
-            updated["overlay_position"] = position_map[current_position]
-            changed = True
-
-        if updated.get("overlay_screensaver_layout") == "floating":
-            updated["overlay_screensaver_layout"] = "large"
-            changed = True
-
-        if "overlay_custom_x" not in updated:
-            updated["overlay_custom_x"] = DEFAULT_SETTINGS["overlay_custom_x"]
-            changed = True
-
-        if "overlay_custom_y" not in updated:
-            updated["overlay_custom_y"] = DEFAULT_SETTINGS["overlay_custom_y"]
-            changed = True
-
-        for stale_key in (
-            "overlay_pixel_shift",
-            "overlay_pixel_shift_interval",
-            "overlay_pixel_shift_range",
-            "overlay_position_steamui"
-        ):
-            if stale_key in updated:
-                del updated[stale_key]
-                changed = True
-
-        if changed:
-            await self.settings_setSetting(SETTINGS_KEY_SETTINGS, updated)
-            await self.settings_commit()
-            decky.logger.info("AlarMe: Migrated overlay settings schema")
 
     async def _migrate_timer_settings(self):
         """Migrate legacy global timer defaults into per-timer properties."""
@@ -4989,7 +4946,6 @@ class Plugin:
         self.timer_tasks = {}
         
         await self.settings_read()
-        await self._migrate_settings_schema()
         await self._migrate_timer_settings()
         await self._emit_screensaver_reset_state()
 

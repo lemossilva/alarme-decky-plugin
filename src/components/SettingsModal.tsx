@@ -13,7 +13,7 @@ import {
     TextField,
     ToggleField
 } from "@decky/ui";
-import { addEventListener, callable, removeEventListener } from "@decky/api";
+import { addEventListener, callable, removeEventListener, toaster } from "@decky/api";
 import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud, FaUpload, FaInfoCircle } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
@@ -25,11 +25,18 @@ import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
 import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile, UserSettings } from "../types";
+import { WIDGET_CAPS } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
 import { OverlayPositionPreview } from "./OverlayPositionPreview";
 import { useSuggestMeStatus, useSuggestMePresets } from "../hooks/useSuggestMe";
 import { AboutInstructionsPage } from "./SettingsAboutPage";
+import {
+    ALL_BIG_WIDGETS,
+    ALL_SMALL_WIDGETS,
+    BIG_WIDGET_LABELS,
+    SMALL_WIDGET_LABELS,
+} from "../utils/widgetOrchestrator";
 
 // Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
@@ -849,9 +856,163 @@ const SuggestMeSettingsSection = ({ settings, updateSetting }: {
     );
 };
 
+// Widget Orchestrator Section
+const WidgetOrchestratorSection = ({
+    title,
+    bucket,
+    layout,
+    settings,
+    updateSetting,
+    updateSettings,
+}: {
+    title: string;
+    bucket: "big" | "small";
+    layout: "large" | "fullscreen";
+    settings: UserSettings;
+    updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => Promise<void>;
+    updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+}) => {
+    const caps = WIDGET_CAPS[layout];
+    const cap = bucket === "big" ? caps.big : caps.small;
+
+    const settingsKey = bucket === "big" ? "screensaver_big_widgets" : "screensaver_small_widgets";
+    const currentList: string[] = (settings[settingsKey] as string[] | undefined) ?? [];
+    const allWidgets = bucket === "big" ? ALL_BIG_WIDGETS : ALL_SMALL_WIDGETS;
+    const labels = bucket === "big" ? BIG_WIDGET_LABELS : SMALL_WIDGET_LABELS;
+    const validOrder = currentList.filter((w) => (allWidgets as readonly string[]).includes(w));
+    const displayOrder = [...validOrder, ...allWidgets.filter((w) => !validOrder.includes(w))];
+    const atCap = validOrder.length >= cap;
+
+    const toggleWidget = async (id: string, on: boolean) => {
+        let newList: string[];
+        if (on) {
+            if (validOrder.includes(id) || validOrder.length >= cap) return;
+            newList = [...validOrder, id];
+        } else {
+            newList = validOrder.filter((w) => w !== id);
+        }
+        await updateSettings({ [settingsKey]: newList } as Partial<UserSettings>);
+    };
+
+    const moveWidget = async (id: string, direction: -1 | 1) => {
+        const idx = validOrder.indexOf(id);
+        if (idx < 0) return;
+        const target = idx + direction;
+        if (target < 0 || target >= validOrder.length) return;
+        const arr = [...validOrder];
+        [arr[idx], arr[target]] = [arr[target], arr[idx]];
+        await updateSettings({ [settingsKey]: arr } as Partial<UserSettings>);
+    };
+
+    const isBatteryEnabled = validOrder.includes("battery");
+
+    return (
+        <PanelSection title={title}>
+            <PanelSectionRow>
+                <div style={{ fontSize: 12, color: '#888', padding: '6px 0 8px 0' }}>
+                    {validOrder.length} / {cap} slots used ({layout === "large" ? "Large" : "Fullscreen"} layout).
+                    {atCap ? " Remove a widget to add another." : ""}
+                </div>
+            </PanelSectionRow>
+            {displayOrder.map((id) => {
+                const enabled = validOrder.includes(id);
+                const disableToggle = !enabled && atCap;
+                const idx = enabled ? validOrder.indexOf(id) : -1;
+                const showOrderRow = enabled && validOrder.length > 1;
+                const atFirst = showOrderRow && idx <= 0;
+                const atLast = showOrderRow && idx >= validOrder.length - 1;
+                return (
+                    <div key={id}>
+                        <PanelSectionRow>
+                            <ToggleField
+                                label={(labels as Record<string, string>)[id] || id}
+                                checked={enabled}
+                                disabled={disableToggle}
+                                description={disableToggle ? `Slot limit reached (${cap})` : undefined}
+                                onChange={(value) => toggleWidget(id, value)}
+                            />
+                        </PanelSectionRow>
+                        {showOrderRow && (
+                                <PanelSectionRow>
+                                    <Focusable
+                                        flow-children="horizontal"
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 8,
+                                            paddingLeft: 40,
+                                            paddingTop: 2,
+                                        }}
+                                    >
+                                        <span style={{ flex: 1, fontSize: 12, color: "#888" }}>Order</span>
+                                        <Focusable
+                                            onActivate={atFirst ? undefined : () => moveWidget(id, -1)}
+                                            onClick={atFirst ? undefined : () => moveWidget(id, -1)}
+                                            style={{
+                                                padding: "4px 10px",
+                                                backgroundColor: atFirst ? "#ffffff11" : "#ffffff22",
+                                                borderRadius: 4,
+                                                opacity: atFirst ? 0.4 : 1,
+                                                cursor: atFirst ? "default" : "pointer",
+                                            }}
+                                        >
+                                            ▲
+                                        </Focusable>
+                                        <Focusable
+                                            onActivate={atLast ? undefined : () => moveWidget(id, 1)}
+                                            onClick={atLast ? undefined : () => moveWidget(id, 1)}
+                                            style={{
+                                                padding: "4px 10px",
+                                                backgroundColor: atLast ? "#ffffff11" : "#ffffff22",
+                                                borderRadius: 4,
+                                                opacity: atLast ? 0.4 : 1,
+                                                cursor: atLast ? "default" : "pointer",
+                                            }}
+                                        >
+                                            ▼
+                                        </Focusable>
+                                    </Focusable>
+                                </PanelSectionRow>
+                        )}
+                        {/* Per-widget settings — always enabled when the widget is on */}
+                        {enabled && id === "battery" && isBatteryEnabled && (
+                            <>
+                                <PanelSectionRow>
+                                    <div style={{ paddingLeft: '40px' }}>
+                                        <ToggleField
+                                            icon={<FaBatteryFull size={16} />}
+                                            label="Show battery bar"
+                                            checked={settings.screensaver_battery_show_bar ?? false}
+                                            onChange={(value) => updateSetting('screensaver_battery_show_bar', value)}
+                                        />
+                                    </div>
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <div style={{ paddingLeft: '40px' }}>
+                                        <SliderField
+                                            label="Low battery threshold"
+                                            description={`${settings.screensaver_battery_low_threshold ?? 20}%`}
+                                            value={settings.screensaver_battery_low_threshold ?? 20}
+                                            min={5}
+                                            max={50}
+                                            step={5}
+                                            onChange={(value) => updateSetting('screensaver_battery_low_threshold', value)}
+                                            icon={<FaBatteryFull size={16} />}
+                                        />
+                                    </div>
+                                </PanelSectionRow>
+                            </>
+                        )}
+                    </div>
+                );
+            })}
+        </PanelSection>
+    );
+};
+
 // Screensaver Settings Page
 const ScreensaverSettingsPage = () => {
-    const { settings, updateSetting } = useSettings();
+    const { settings, updateSetting, updateSettings } = useSettings();
     const { profiles, saveProfile, loadProfile, deleteProfile } = useScreensaverProfiles();
     const mode = settings.screensaver_mode ?? 'off';
 
@@ -990,7 +1151,8 @@ const ScreensaverSettingsPage = () => {
 
     const provider = settings.screensaver_wallpaper_provider || 'none';
     const rawLayoutMode = (settings.overlay_screensaver_layout as unknown as string | undefined) || 'compact';
-    const layoutIsCompact = rawLayoutMode === 'compact';
+    const layoutMode = rawLayoutMode === 'floating' ? 'large' : rawLayoutMode;
+    const layoutIsCompact = layoutMode === 'compact';
     const poolSz = clampWallpaperPoolSize(settings.screensaver_wallpaper_pool_size);
     const autoRotateWallpaper = settings.screensaver_wallpaper_auto_rotate ?? true;
     const cacheUpdatedLabel = (() => {
@@ -1445,11 +1607,11 @@ const ScreensaverSettingsPage = () => {
             )}
 
             {mode !== 'off' && (
-                <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
                     {/* === Activation === */}
                     <PanelSection title="Activation">
                         <PanelSectionRow>
-                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '6px 0', lineHeight: 1.5 }}>
                                 The screensaver activates after a period of inactivity.
                             </div>
                         </PanelSectionRow>
@@ -1498,7 +1660,7 @@ const ScreensaverSettingsPage = () => {
                             </div>
                         </PanelSectionRow>
                         <PanelSectionRow>
-                            <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
+                            <div style={{ fontSize: 11, color: '#666', padding: '6px 0 4px 0' }}>
                                 Idle time used when alerts are preventing sleep. Any button press or touch wakes the screen.
                             </div>
                         </PanelSectionRow>
@@ -1529,14 +1691,34 @@ const ScreensaverSettingsPage = () => {
                                     <Dropdown
                                         rgOptions={layoutOptions}
                                         selectedOption={rawLayoutMode === 'floating' ? 'large' : rawLayoutMode}
-                                        onChange={(option) => updateSetting('overlay_screensaver_layout', option.data as ScreensaverLayout)}
+                                        onChange={async (option) => {
+                                            const newLayout = option.data as ScreensaverLayout;
+                                            const batch: Partial<UserSettings> = { overlay_screensaver_layout: newLayout };
+                                            if (newLayout !== 'compact') {
+                                                const newCaps = WIDGET_CAPS[newLayout];
+                                                const curBig: string[] = (settings.screensaver_big_widgets as string[] | undefined) ?? [];
+                                                const curSmall: string[] = (settings.screensaver_small_widgets as string[] | undefined) ?? [];
+                                                const trimmedBig = curBig.slice(newCaps.big);
+                                                const trimmedSmall = curSmall.slice(newCaps.small);
+                                                if (trimmedBig.length > 0 || trimmedSmall.length > 0) {
+                                                    batch.screensaver_big_widgets = curBig.slice(0, newCaps.big) as any;
+                                                    batch.screensaver_small_widgets = curSmall.slice(0, newCaps.small) as any;
+                                                    const removed = [...trimmedBig, ...trimmedSmall];
+                                                    toaster.toast({
+                                                        title: "Layout adjusted",
+                                                        body: `Removed ${removed.length} widget${removed.length > 1 ? "s" : ""} to fit ${newLayout === "large" ? "Large" : "Fullscreen"} limits.`,
+                                                    });
+                                                }
+                                            }
+                                            await updateSettings(batch);
+                                        }}
                                         strDefaultLabel="Select Layout"
                                     />
                                 </div>
                             </div>
                         </PanelSectionRow>
                         <PanelSectionRow>
-                            <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
+                            <div style={{ fontSize: 11, color: '#666', padding: '6px 0 4px 0' }}>
                                 {(settings.overlay_screensaver_layout || 'compact') === 'compact' &&
                                     'Compact uses a minimal notification-style overlay bar (default placement is the upper corner; adjust under Overlay → Position).'}
                                 {(settings.overlay_screensaver_layout || 'compact') === 'large' &&
@@ -1619,33 +1801,117 @@ const ScreensaverSettingsPage = () => {
                         )}
                     </PanelSection>
 
-                    {/* === Widgets === */}
-                    <PanelSection title="Widgets">
+                    {/* === Widget Configuration (pre-header) === */}
+                    <PanelSection title="Widget Configuration">
                         <PanelSectionRow>
-                            <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>
-                                {layoutIsCompact
-                                    ? 'Compact uses the notification overlay bar (placement: Overlay → Position). Large (Centered) and Fullscreen use the centered screensaver; Fullscreen uses a wide spread without a dim panel behind the widgets.'
-                                    : 'Centered screensaver widgets below. Compact bar toggles are hidden while this layout is active.'}
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '6px 0', lineHeight: 1.5 }}>
+                                Configure integrations used by screensaver widgets. Enable widgets in the sections below.
                             </div>
                         </PanelSectionRow>
 
+                        {/* Weather: location + units (indented under Widget Configuration) */}
                         <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaEye size={16} />}
-                                label="Show Overlay During"
-                                description="Keep alert bar visible above screensaver"
-                                checked={settings.overlay_during_screensaver ?? true}
-                                onChange={(value) => updateSetting('overlay_during_screensaver', value)}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+                                <FaCloud style={{ color: "#888", flexShrink: 0 }} />
+                                <span style={{ flexShrink: 0, fontWeight: 600, fontSize: 13, color: "#ccc" }}>Weather location</span>
+                            </div>
+                        </PanelSectionRow>
+                        <PanelSectionRow>
+                            <div style={{ paddingLeft: 40 }}>
+                                <div style={{ fontSize: 12, color: "#aaaaaa", lineHeight: 1.5, marginBottom: 6 }}>
+                                    Forecasts use Open-Meteo (no account). Pick a city or use approximate IP-based location.
+                                </div>
+                                {(settings.screensaver_weather_lat != null &&
+                                    settings.screensaver_weather_lon != null &&
+                                    (settings.screensaver_weather_city_name || "").trim().length > 0) && (
+                                    <div style={{ fontSize: 12, color: "#888", lineHeight: 1.45, marginBottom: 8 }}>
+                                        Saved:{" "}
+                                        <span style={{ color: "#ddd" }}>{settings.screensaver_weather_city_name}</span>
+                                        {settings.screensaver_weather_location_source === "ip" ? (
+                                            <span style={{ color: "#777" }}> (IP geolocation)</span>
+                                        ) : null}
+                                    </div>
+                                )}
+                                <WeatherLocationPicker />
+                            </div>
                         </PanelSectionRow>
 
-                        {(settings.overlay_during_screensaver ?? true) && layoutIsCompact && (
+                        {(settings.screensaver_show_weather ?? false) && (
                             <>
                                 <PanelSectionRow>
-                                    <div style={{ fontSize: 11, color: '#888', padding: '2px 0 6px 0' }}>
-                                        Second line on the game overlay during compact screensaver (Steam UI or in-game).
+                                    <div style={{ paddingLeft: 40 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                        <FaCloud style={{ color: '#888', flexShrink: 0 }} />
+                                        <span style={{ flexShrink: 0 }}>Temperature unit</span>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <Dropdown
+                                                rgOptions={[
+                                                    { data: 'C' as const, label: 'Celsius' },
+                                                    { data: 'F' as const, label: 'Fahrenheit' },
+                                                ]}
+                                                selectedOption={settings.screensaver_weather_unit || 'C'}
+                                                onChange={(option) => updateSetting('screensaver_weather_unit', option.data)}
+                                                strDefaultLabel="Unit"
+                                            />
+                                        </div>
+                                        </div>
                                     </div>
                                 </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <div style={{ paddingLeft: 40 }}>
+                                    <ToggleField
+                                        icon={<FaCloud size={16} />}
+                                        label="Show daily high / low"
+                                        checked={settings.screensaver_weather_show_highlow ?? true}
+                                        onChange={(value) => updateSetting('screensaver_weather_show_highlow', value)}
+                                    />
+                                    </div>
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <div style={{ paddingLeft: 40 }}>
+                                    <ToggleField
+                                        icon={<FaCloud size={16} />}
+                                        label="Show condition label"
+                                        checked={settings.screensaver_weather_show_condition ?? true}
+                                        onChange={(value) => updateSetting('screensaver_weather_show_condition', value)}
+                                    />
+                                    </div>
+                                </PanelSectionRow>
+                                {((settings.screensaver_show_weather ?? false) || (settings.screensaver_show_forecast ?? false)) && (
+                                    <PanelSectionRow>
+                                        <div style={{ paddingLeft: 40 }}>
+                                        <SliderField
+                                            label="Forecast refresh interval"
+                                            description={`Cached up to ${settings.screensaver_weather_refresh_minutes ?? 30} minutes between fetches`}
+                                            value={settings.screensaver_weather_refresh_minutes ?? 30}
+                                            min={5}
+                                            max={120}
+                                            step={5}
+                                            onChange={(value) => updateSetting('screensaver_weather_refresh_minutes', value)}
+                                            icon={<FaClock size={16} />}
+                                        />
+                                        </div>
+                                    </PanelSectionRow>
+                                )}
+                            </>
+                        )}
+
+                        {/* SuggestMe integration config */}
+                        <SuggestMeSettingsSection settings={settings} updateSetting={updateSetting} />
+                    </PanelSection>
+
+                    {/* === Header Widgets === */}
+                    <PanelSection title="Header">
+                        <PanelSectionRow>
+                            <div style={{ fontSize: 11, color: '#666', padding: '6px 0' }}>
+                                {layoutIsCompact
+                                    ? 'Compact uses the notification overlay bar. These settings apply when a non-compact layout is active.'
+                                    : 'Clock and date shown at the top of the screensaver panel.'}
+                            </div>
+                        </PanelSectionRow>
+
+                        {layoutIsCompact && (
+                            <>
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaClock size={16} />}
@@ -1673,13 +1939,8 @@ const ScreensaverSettingsPage = () => {
                             </>
                         )}
 
-                        {(settings.overlay_during_screensaver ?? true) && !layoutIsCompact && (
+                        {!layoutIsCompact && (
                             <>
-                                <PanelSectionRow>
-                                    <div style={{ fontSize: 11, color: '#888', padding: '2px 0 6px 0' }}>
-                                        Centered screensaver panel (clock, date, battery, and cards below).
-                                    </div>
-                                </PanelSectionRow>
                                 <PanelSectionRow>
                                     <ToggleField
                                         icon={<FaClock size={16} />}
@@ -1712,197 +1973,57 @@ const ScreensaverSettingsPage = () => {
                                         onChange={(value) => updateSetting('screensaver_show_year', value)}
                                     />
                                 </PanelSectionRow>
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaCalendarAlt size={16} />}
-                                        label="Show calendar grid"
-                                        description="Mini monthly calendar"
-                                        checked={settings.screensaver_show_calendar_grid ?? false}
-                                        onChange={(value) => updateSetting('screensaver_show_calendar_grid', value)}
-                                    />
-                                </PanelSectionRow>
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaBatteryFull size={16} />}
-                                        label="Show battery widget"
-                                        checked={settings.screensaver_center_show_battery ?? true}
-                                        onChange={(value) => updateSetting('screensaver_center_show_battery', value)}
-                                    />
-                                </PanelSectionRow>
-                                {(settings.screensaver_center_show_battery ?? true) && (
-                                    <>
-                                        <PanelSectionRow>
-                                            <div style={{ paddingLeft: '40px' }}>
-                                                <ToggleField
-                                                    icon={<FaBatteryFull size={16} />}
-                                                    label="Show battery bar"
-                                                    checked={settings.screensaver_battery_show_bar ?? false}
-                                                    onChange={(value) => updateSetting('screensaver_battery_show_bar', value)}
-                                                />
-                                            </div>
-                                        </PanelSectionRow>
-                                        <PanelSectionRow>
-                                            <div style={{ paddingLeft: '40px' }}>
-                                                <SliderField
-                                                    label="Low battery threshold"
-                                                    description={`${settings.screensaver_battery_low_threshold ?? 20}%`}
-                                                    value={settings.screensaver_battery_low_threshold ?? 20}
-                                                    min={5}
-                                                    max={50}
-                                                    step={5}
-                                                    onChange={(value) => updateSetting('screensaver_battery_low_threshold', value)}
-                                                    icon={<FaBatteryFull size={16} />}
-                                                />
-                                            </div>
-                                        </PanelSectionRow>
-                                    </>
-                                )}
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaBell size={16} />}
-                                        label="Show alerts list"
-                                        description="Active alerts as cards"
-                                        checked={settings.screensaver_show_alerts_list ?? true}
-                                        onChange={(value) => updateSetting('screensaver_show_alerts_list', value)}
-                                    />
-                                </PanelSectionRow>
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaDesktop size={16} />}
-                                        label="Show system stats"
-                                        description="CPU temp, RAM usage, fan speed"
-                                        checked={settings.screensaver_show_system_stats ?? false}
-                                        onChange={(value) => updateSetting('screensaver_show_system_stats', value)}
-                                    />
-                                </PanelSectionRow>
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaDesktop size={16} />}
-                                        label="Show network info"
-                                        description="Wi-Fi or wired: link speed and addresses"
-                                        checked={settings.screensaver_show_network_info ?? false}
-                                        onChange={(value) => updateSetting('screensaver_show_network_info', value)}
-                                    />
-                                </PanelSectionRow>
                             </>
                         )}
                     </PanelSection>
 
-                    <PanelSection title="Weather">
-                        <PanelSectionRow>
-                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
-                                Forecasts powered by Open-Meteo. Free, no account required.
-                            </div>
-                        </PanelSectionRow>
-                        {(settings.screensaver_weather_lat != null &&
-                            settings.screensaver_weather_lon != null &&
-                            (settings.screensaver_weather_city_name || '').trim().length > 0) && (
+                    {/* === Big Widgets === */}
+                    {!layoutIsCompact && (
+                        <WidgetOrchestratorSection
+                            title="Big Widgets"
+                            bucket="big"
+                            layout={layoutMode as 'large' | 'fullscreen'}
+                            settings={settings}
+                            updateSetting={updateSetting}
+                            updateSettings={updateSettings}
+                        />
+                    )}
+
+                    {/* === Small Widgets === */}
+                    {!layoutIsCompact && (
+                        <WidgetOrchestratorSection
+                            title="Small Widgets"
+                            bucket="small"
+                            layout={layoutMode as 'large' | 'fullscreen'}
+                            settings={settings}
+                            updateSetting={updateSetting}
+                            updateSettings={updateSettings}
+                        />
+                    )}
+
+                    {!layoutIsCompact && (
+                        <PanelSection title="Alerts list (screensaver)">
                             <PanelSectionRow>
-                                <div style={{ fontSize: 12, color: '#888', lineHeight: 1.45 }}>
-                                    Saved forecast location:{' '}
-                                    <span style={{ color: '#ccc' }}>{settings.screensaver_weather_city_name}</span>
-                                    {settings.screensaver_weather_location_source === 'ip' ? (
-                                        <span style={{ color: '#777' }}> (IP geolocation)</span>
-                                    ) : null}
+                                <div style={{ fontSize: 12, color: "#aaaaaa", padding: "6px 0", lineHeight: 1.5 }}>
+                                    Part of the widget layout: shown centered under the small-widget row. Does not use a small-widget slot (see counts above).
                                 </div>
                             </PanelSectionRow>
-                        )}
-                        <PanelSectionRow>
-                            <WeatherLocationPicker />
-                        </PanelSectionRow>
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaCloud size={16} />}
-                                label="Show weather on screensaver"
-                                description="Large (Centered) and Fullscreen show a weather card in the screensaver; compact overlay shows a short inline readout when the screensaver is active."
-                                checked={settings.screensaver_show_weather ?? false}
-                                onChange={(value) => updateSetting('screensaver_show_weather', value)}
-                            />
-                        </PanelSectionRow>
-                        {(settings.screensaver_show_weather ?? false) && (
-                            <>
-                                <PanelSectionRow>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                                        <FaCloud style={{ color: '#888', flexShrink: 0 }} />
-                                        <span style={{ flexShrink: 0 }}>Temperature unit</span>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <Dropdown
-                                                rgOptions={[
-                                                    { data: 'C' as const, label: 'Celsius' },
-                                                    { data: 'F' as const, label: 'Fahrenheit' },
-                                                ]}
-                                                selectedOption={settings.screensaver_weather_unit || 'C'}
-                                                onChange={(option) => updateSetting('screensaver_weather_unit', option.data)}
-                                                strDefaultLabel="Unit"
-                                            />
-                                        </div>
-                                    </div>
-                                </PanelSectionRow>
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaCloud size={16} />}
-                                        label="Show daily high / low"
-                                        checked={settings.screensaver_weather_show_highlow ?? true}
-                                        onChange={(value) => updateSetting('screensaver_weather_show_highlow', value)}
-                                    />
-                                </PanelSectionRow>
-                                <PanelSectionRow>
-                                    <ToggleField
-                                        icon={<FaCloud size={16} />}
-                                        label="Show condition label"
-                                        checked={settings.screensaver_weather_show_condition ?? true}
-                                        onChange={(value) => updateSetting('screensaver_weather_show_condition', value)}
-                                    />
-                                </PanelSectionRow>
-                            </>
-                        )}
-                        {!layoutIsCompact && (
                             <PanelSectionRow>
                                 <ToggleField
-                                    icon={<FaCalendarAlt size={16} />}
-                                    label="Show 7-day forecast"
-                                    description="Weekly forecast widget next to the calendar"
-                                    checked={settings.screensaver_show_forecast ?? false}
-                                    onChange={(value) => updateSetting('screensaver_show_forecast', value)}
+                                    icon={<FaBell size={16} />}
+                                    label="Show upcoming alerts"
+                                    description="Same entries as the game overlay bar, ordered by due time, up to the overlay slot limit."
+                                    checked={settings.screensaver_show_alerts_list ?? true}
+                                    onChange={(value) => updateSetting("screensaver_show_alerts_list", value)}
                                 />
                             </PanelSectionRow>
-                        )}
-                        {((settings.screensaver_show_weather ?? false) || (settings.screensaver_show_forecast ?? false)) && (
-                            <PanelSectionRow>
-                                <SliderField
-                                    label="Forecast refresh interval"
-                                    description={`Cached up to ${settings.screensaver_weather_refresh_minutes ?? 30} minutes between fetches`}
-                                    value={settings.screensaver_weather_refresh_minutes ?? 30}
-                                    min={5}
-                                    max={120}
-                                    step={5}
-                                    onChange={(value) => updateSetting('screensaver_weather_refresh_minutes', value)}
-                                    icon={<FaClock size={16} />}
-                                />
-                            </PanelSectionRow>
-                        )}
-                        {(settings.screensaver_show_forecast ?? false) && !layoutIsCompact && (
-                            <PanelSectionRow>
-                                <div style={{ paddingLeft: '40px' }}>
-                                    <ToggleField
-                                        icon={<FaCloud size={16} />}
-                                        label="Show precipitation chance"
-                                        description="Display rain/snow probability for each day"
-                                        checked={settings.screensaver_forecast_show_precip ?? true}
-                                        onChange={(value) => updateSetting('screensaver_forecast_show_precip', value)}
-                                    />
-                                </div>
-                            </PanelSectionRow>
-                        )}
-                    </PanelSection>
-
-                    {/* === SuggestMe Integration === */}
-                    <SuggestMeSettingsSection settings={settings} updateSetting={updateSetting} />
+                        </PanelSection>
+                    )}
 
                     {/* === OLED Protection === */}
                     <PanelSection title="OLED Protection">
                         <PanelSectionRow>
-                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '6px 0', lineHeight: 1.5 }}>
                                 The overlay slowly orbits in a circle to prevent static elements from burning into OLED screens.
                             </div>
                         </PanelSectionRow>
@@ -1952,7 +2073,7 @@ const ScreensaverSettingsPage = () => {
                     {/* === Preview === */}
                     <PanelSection title="Preview">
                         <PanelSectionRow>
-                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0' }}>
+                            <div style={{ fontSize: 12, color: '#aaaaaa', padding: '6px 0' }}>
                                 Test the screensaver immediately. Press any button or touch the screen to dismiss.
                             </div>
                         </PanelSectionRow>
@@ -1966,7 +2087,7 @@ const ScreensaverSettingsPage = () => {
                             </ButtonItem>
                         </PanelSectionRow>
                     </PanelSection>
-                </>
+                </div>
             )}
         </ScrollableContent>
     );

@@ -225,7 +225,6 @@ export interface UserSettings {
     screensaver_weather_refresh_minutes?: number;
     screensaver_weather_location_source?: 'manual' | 'ip' | null;
     screensaver_show_forecast?: boolean;
-    screensaver_forecast_show_precip?: boolean;
     screensaver_nasa_api_key?: string;
     screensaver_wallpaper_show_attribution?: boolean;
     screensaver_wallpaper_provider?: WallpaperProvider;
@@ -242,6 +241,11 @@ export interface UserSettings {
     pixel_shift_enabled?: boolean;
     pixel_shift_range?: number;
     pixel_shift_interval_seconds?: number;
+    // Widget orchestrator
+    screensaver_big_widgets?: ScreensaverBigWidgetId[];
+    screensaver_small_widgets?: ScreensaverSmallWidgetId[];
+    // Steam Downloads widget
+    screensaver_show_downloads?: boolean;
     // SuggestMe integration
     screensaver_show_suggestme?: boolean;
     screensaver_suggestme_mode?: string;
@@ -368,6 +372,16 @@ export type TabId = 'timers' | 'alarms' | 'stopwatch' | 'pomodoro' | 'reminders'
 
 // Screensaver 2.0 types
 export type ScreensaverLayout = 'compact' | 'large' | 'fullscreen';
+
+// Widget orchestrator types
+export type ScreensaverBigWidgetId = 'calendar' | 'forecast' | 'suggestme';
+export type ScreensaverSmallWidgetId = 'battery' | 'system_stats' | 'network' | 'weather' | 'downloads';
+export type ScreensaverWidgetId = ScreensaverBigWidgetId | ScreensaverSmallWidgetId;
+
+export const WIDGET_CAPS: Record<'large' | 'fullscreen', { big: number; small: number }> = {
+    large: { big: 2, small: 4 },
+    fullscreen: { big: 3, small: 5 },
+};
 
 export type ClockStyle = 'digital' | 'digital_seconds' | 'digital_large' | 'analog';
 

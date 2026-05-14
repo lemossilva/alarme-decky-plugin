@@ -1,7 +1,10 @@
+import { Fragment } from "react";
+import type { CSSProperties } from "react";
 import { FaStopwatch, FaBell, FaBrain, FaRedo, FaHourglassHalf, FaShieldAlt, FaVolumeMute, FaMoon } from "react-icons/fa";
 import { useOverlayData } from "../../hooks/useOverlayData";
 import { useSettings } from "../../hooks/useSettings";
 import { formatDuration, formatTime } from "../../utils/time";
+import { displayAlertLabel } from "../../utils/overlayAlertDisplay";
 import type { OverlayAlert } from "../../types";
 
 const ICONS: Record<string, JSX.Element> = {
@@ -9,7 +12,7 @@ const ICONS: Record<string, JSX.Element> = {
     alarm: <FaBell />,
     pomodoro: <FaBrain />,
     reminder: <FaRedo />,
-    stopwatch: <FaStopwatch />
+    stopwatch: <FaStopwatch />,
 };
 
 function formatAlertStr(alert: OverlayAlert, use24h: boolean): string {
@@ -30,51 +33,133 @@ function formatAlertStr(alert: OverlayAlert, use24h: boolean): string {
     return formatTime(date.getHours(), date.getMinutes(), use24h);
 }
 
+export interface AlertsListRowProps {
+    alerts: OverlayAlert[];
+    fontSize: number;
+    maxAlerts: number;
+    use24h: boolean;
+    rowMaxWidth?: number | string;
+    cardPadding?: string;
+}
+
+/** Horizontal chips + separators (same idea as GameOverlay). No hooks. */
+export function AlertsListRow({
+    alerts,
+    fontSize,
+    maxAlerts,
+    use24h,
+    rowMaxWidth = "min(92vw, 1200px)",
+    cardPadding,
+}: AlertsListRowProps) {
+    const visible = alerts.slice(0, maxAlerts);
+    if (visible.length === 0) return null;
+
+    const textSize = Math.max(9, fontSize * 0.58);
+    const iconSize = Math.max(8, textSize - 1);
+
+    const chipStyle: CSSProperties = {
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        whiteSpace: "nowrap",
+        padding: "5px 9px",
+        backgroundColor: "rgba(255,255,255,0.07)",
+        borderRadius: 6,
+        fontSize: textSize,
+        lineHeight: 1,
+        flexShrink: 0,
+    };
+
+    const row = (
+        <div
+            style={{
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                maxWidth: rowMaxWidth,
+                boxSizing: "border-box",
+            }}
+        >
+            {visible.map((alert, index) => (
+                <Fragment key={alert.id}>
+                    {index > 0 && (
+                        <span
+                            style={{
+                                opacity: 0.35,
+                                fontSize: Math.max(9, textSize * 0.85),
+                                lineHeight: 0,
+                                userSelect: "none",
+                            }}
+                        >
+                            ·
+                        </span>
+                    )}
+                    <div style={chipStyle}>
+                        <span style={{ opacity: 0.75, display: "flex", alignItems: "center", fontSize: iconSize }}>
+                            {ICONS[alert.category] || <FaBell />}
+                        </span>
+                        <span style={{ opacity: 0.88, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {displayAlertLabel(alert)}
+                        </span>
+                        {alert.prevent_sleep && (
+                            <FaShieldAlt size={Math.max(8, textSize - 2)} color="#e69900" style={{ flexShrink: 0 }} />
+                        )}
+                        {alert.auto_suspend ? (
+                            <FaMoon size={Math.max(8, textSize - 2)} opacity={0.65} style={{ flexShrink: 0 }} />
+                        ) : (
+                            alert.subtle_mode && <FaVolumeMute size={Math.max(8, textSize - 2)} opacity={0.65} style={{ flexShrink: 0 }} />
+                        )}
+                        <span style={{ fontFamily: "monospace", fontWeight: 600, flexShrink: 0, opacity: 1 }}>
+                            {formatAlertStr(alert, use24h)}
+                        </span>
+                    </div>
+                </Fragment>
+            ))}
+        </div>
+    );
+
+    if (!cardPadding) return row;
+
+    return (
+        <div
+            style={{
+                padding: cardPadding,
+                backgroundColor: "rgba(255,255,255,0.06)",
+                borderRadius: 8,
+                boxSizing: "border-box",
+                display: "flex",
+                justifyContent: "center",
+                maxWidth: rowMaxWidth,
+            }}
+        >
+            {row}
+        </div>
+    );
+}
+
 interface AlertsListWidgetProps {
     fontSize: number;
     maxAlerts: number;
-    /** Default 300; use a CSS length for wide layouts (e.g. fullscreen spread). */
-    stackMaxWidth?: number | string;
+    rowMaxWidth?: number | string;
+    cardPadding?: string;
 }
 
-export function AlertsListWidget({ fontSize, maxAlerts, stackMaxWidth = 300 }: AlertsListWidgetProps) {
+/** Subscribes to overlay data and renders {@link AlertsListRow}. */
+export function AlertsListWidget({ fontSize, maxAlerts, rowMaxWidth, cardPadding }: AlertsListWidgetProps) {
     const { settings } = useSettings();
     const alerts = useOverlayData(settings);
-    const visible = alerts.slice(0, maxAlerts);
-
-    if (visible.length === 0) return null;
-
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", maxWidth: stackMaxWidth }}>
-            {visible.map(alert => (
-                <div key={alert.id} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 8px",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderRadius: 6,
-                    fontSize: fontSize * 0.65,
-                }}>
-                    <span style={{ opacity: 0.7, display: "flex", alignItems: "center", fontSize: fontSize * 0.55 }}>
-                        {ICONS[alert.category] || <FaBell />}
-                    </span>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.85 }}>
-                        {alert.label}
-                    </span>
-                    {alert.prevent_sleep && (
-                        <FaShieldAlt size={fontSize * 0.5} color="#e69900" />
-                    )}
-                    {alert.auto_suspend ? (
-                        <FaMoon size={fontSize * 0.5} opacity={0.6} />
-                    ) : alert.subtle_mode && (
-                        <FaVolumeMute size={fontSize * 0.5} opacity={0.6} />
-                    )}
-                    <span style={{ fontFamily: "monospace", fontWeight: 600, flexShrink: 0 }}>
-                        {formatAlertStr(alert, settings.time_format_24h)}
-                    </span>
-                </div>
-            ))}
-        </div>
+        <AlertsListRow
+            alerts={alerts}
+            fontSize={fontSize}
+            maxAlerts={maxAlerts}
+            use24h={settings.time_format_24h}
+            rowMaxWidth={rowMaxWidth}
+            cardPadding={cardPadding}
+        />
     );
 }

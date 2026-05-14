@@ -69,26 +69,27 @@ export function useOverlayData(settings: UserSettings, isGameRunning?: boolean) 
 
         // Real-time tick updates for stopwatch (calculate elapsed exactly based on start_time)
         const stopwatchInterval = setInterval(() => {
-            setAlerts(prev => prev.map(alert => {
-                if (alert.category === 'stopwatch') {
-                    // alert.time is used here to store the start_time timestamp (in seconds)
-                    // alert.remaining stores the base elapsed_ms (in seconds)
-                    const start_time = alert.time;
-                    if (start_time > 0) {
-                        const now = Date.now() / 1000;
-                        const runningSeconds = now - start_time;
-                        const baseRemaining = (alert as any)._base_remaining ?? alert.remaining;
-                        
-                        return { 
-                            ...alert, 
-                            _base_remaining: baseRemaining,
-                            remaining: Math.floor(baseRemaining + runningSeconds) 
-                        };
+            setAlerts(prev => {
+                const hasStopwatch = prev.some(a => a.category === 'stopwatch');
+                if (!hasStopwatch) return prev;
+                return prev.map(alert => {
+                    if (alert.category === 'stopwatch') {
+                        const start_time = alert.time;
+                        if (start_time > 0) {
+                            const now = Date.now() / 1000;
+                            const runningSeconds = now - start_time;
+                            const baseRemaining = (alert as any)._base_remaining ?? alert.remaining;
+                            return {
+                                ...alert,
+                                _base_remaining: baseRemaining,
+                                remaining: Math.floor(baseRemaining + runningSeconds),
+                            };
+                        }
                     }
-                }
-                return alert;
-            }));
-        }, 1000); 
+                    return alert;
+                });
+            });
+        }, 1000);
 
         const handleStopwatchUpdated = () => fetchOverlayData();
 

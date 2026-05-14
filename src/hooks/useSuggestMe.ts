@@ -76,6 +76,9 @@ export function useSuggestMeCard(
     const [loading, setLoading] = useState(false);
     const fetchedRef = useRef(false);
     const mountedRef = useRef(true);
+    const fetchInFlightRef = useRef(false);
+    const presetsRef = useRef(presets);
+    presetsRef.current = presets;
 
     useEffect(() => {
         mountedRef.current = true;
@@ -83,12 +86,14 @@ export function useSuggestMeCard(
     }, []);
 
     const doFetch = useCallback(async () => {
-        if (!show || loading) return;
+        if (!show || fetchInFlightRef.current) return;
 
         const validMode = ALLOWED_MODES.includes(mode as any) ? mode : "intelligent";
-        const preset = (presetSlot >= 0 && presetSlot < presets.length) ? presets[presetSlot] : null;
+        const curPresets = presetsRef.current;
+        const preset = (presetSlot >= 0 && presetSlot < curPresets.length) ? curPresets[presetSlot] : null;
         const filters = preset?.filters ?? {};
 
+        fetchInFlightRef.current = true;
         setLoading(true);
         try {
             const result = await fetchSuggestion(validMode, filters);
@@ -98,9 +103,10 @@ export function useSuggestMeCard(
                 saveDailyCard(result).catch(() => {});
             }
         } finally {
+            fetchInFlightRef.current = false;
             if (mountedRef.current) setLoading(false);
         }
-    }, [show, mode, presetSlot, strategy, presets, loading]);
+    }, [show, mode, presetSlot, strategy]);
 
     useEffect(() => {
         if (!show) {

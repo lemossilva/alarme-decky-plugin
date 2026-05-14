@@ -32,7 +32,18 @@ function networkRow(
 ): ReactNode {
     if (right === null) {
         return (
-            <div style={{ fontSize: lineFs, opacity: 0.78, minWidth: 0 }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "flex-start",
+                    alignItems: "center",
+                    width: "100%",
+                    fontSize: lineFs,
+                    opacity: 0.78,
+                    minWidth: 0,
+                    textAlign: "left",
+                }}
+            >
                 {left}
             </div>
         );

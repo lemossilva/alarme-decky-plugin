@@ -66,7 +66,7 @@ function DigitalLargeClock({ size }: { size: number }) {
 
 function AnalogClock({ size }: { size: number }) {
     const clock = useScreensaverClock();
-    const scale = 4.35;
+    const scale = 4.12;
     const S = size * scale;
     const r = S / 2;
     const cx = r;

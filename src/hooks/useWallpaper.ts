@@ -229,8 +229,17 @@ export function useWallpaper(show: boolean): WallpaperState & { refresh: () => v
         const advanceRotation = () => {
             let ord = rotationOrderRef.current;
             let pos = rotationPosRef.current + 1;
+            const lastSlot = slotRef.current;
             if (pos >= ord.length) {
                 ord = shuffledSlotIndices(debouncedPoolSize);
+                if (debouncedPoolSize > 1 && ord.length > 0 && ord[0] === lastSlot) {
+                    const swapIdx = ord.findIndex((s) => s !== lastSlot);
+                    if (swapIdx > 0) {
+                        const t = ord[0]!;
+                        ord[0] = ord[swapIdx]!;
+                        ord[swapIdx] = t;
+                    }
+                }
                 rotationOrderRef.current = ord;
                 pos = 0;
             }

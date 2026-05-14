@@ -73,7 +73,6 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_weather_refresh_minutes: 30,
     screensaver_weather_location_source: null,
     screensaver_show_forecast: false,
-    screensaver_forecast_show_precip: true,
     screensaver_nasa_api_key: '',
     screensaver_wallpaper_show_attribution: true,
     screensaver_wallpaper_provider: 'picsum' as const,
@@ -86,6 +85,11 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_wallpaper_cache_updated_at: null,
     screensaver_wallpaper_shift_local: false,
     screensaver_floating_drift_range: 40,
+    // Widget orchestrator
+    screensaver_big_widgets: [],
+    screensaver_small_widgets: ['battery'] as any,
+    // Steam Downloads widget
+    screensaver_show_downloads: false,
     // SuggestMe integration
     screensaver_show_suggestme: false,
     screensaver_suggestme_mode: 'intelligent',

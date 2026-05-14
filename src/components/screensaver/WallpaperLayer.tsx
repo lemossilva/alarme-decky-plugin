@@ -223,7 +223,7 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
                 raf2Ref.current = null;
             }
         };
-    }, [wallpaper.url, dim]);
+    }, [wallpaper.url]);
 
     if (!show) return null;
 

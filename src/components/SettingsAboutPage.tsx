@@ -191,6 +191,10 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                     description="Compact (bar-style), Large (centered panel), or Fullscreen dim or wallpaper modes. Compact placement follows Overlay custom position when set."
                 />
                 <ManualRow
+                    title="Large / Fullscreen widgets"
+                    description="Big and small widget slots are on the Screensaver tab. An optional upcoming-alerts list sits under the small-widget row and has its own toggle; it does not use a small-widget slot."
+                />
+                <ManualRow
                     title="Wallpapers and profiles"
                     description="Choose a wallpaper source, pool size, and optional weather widgets. Save combinations to profile slots and switch from the Screensaver settings tab. Use Preview in the plugin header to test."
                 />
