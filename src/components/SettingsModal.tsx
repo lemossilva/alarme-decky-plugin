@@ -14,7 +14,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { addEventListener, callable, removeEventListener } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud, FaUpload } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud, FaUpload, FaInfoCircle } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { triggerScreensaverPreviewAfterClosingMenus } from "../hooks/useScreensaver";
@@ -28,6 +28,7 @@ import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, Wallp
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
 import { OverlayPositionPreview } from "./OverlayPositionPreview";
+import { AboutInstructionsPage } from "./SettingsAboutPage";
 
 // Backend callables
 const factoryResetCall = callable<[], boolean>('factory_reset');
@@ -40,6 +41,18 @@ const getWallpaperStoragePathsCall = callable<
 const prefetchWallpapersCall = callable<[provider: string, count?: number], { success: boolean; provider_status?: string }>(
     'prefetch_wallpapers'
 );
+
+const showFactoryResetConfirm = (onConfirm: () => void) => {
+    showModal(
+        <ConfirmModal
+            strTitle="Factory Reset"
+            strDescription="This will permanently delete all alarms, timers, reminders, Pomodoro data, and reset all settings to defaults. Custom sounds in ~/Music/AlarMe_Sounds will NOT be deleted. This action cannot be undone."
+            strOKButtonText="Reset Everything"
+            strCancelButtonText="Cancel"
+            onOK={onConfirm}
+        />
+    );
+};
 
 // Scrollable wrapper for SidebarNavigation content pages
 const ScrollableContent = ({ children }: { children: React.ReactNode }) => (
@@ -1850,6 +1863,25 @@ const ScreensaverSettingsPage = () => {
 
 // Backup Settings Page
 const BackupSettingsPage = () => {
+    const [resetting, setResetting] = useState(false);
+    const [resetDone, setResetDone] = useState(false);
+
+    const handleReset = async () => {
+        setResetting(true);
+        try {
+            await factoryResetCall();
+            setResetDone(true);
+        } catch (e) {
+            console.error('Factory reset failed:', e);
+        } finally {
+            setResetting(false);
+        }
+    };
+
+    const handleResetClick = () => {
+        showFactoryResetConfirm(handleReset);
+    };
+
     return (
         <ScrollableContent>
             <PanelSection title="Configuration Backup">
@@ -1876,6 +1908,36 @@ const BackupSettingsPage = () => {
                         Save your configuration before reinstalling or moving to a new device.
                     </div>
                 </PanelSectionRow>
+            </PanelSection>
+
+            <PanelSection title="Factory reset">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                        Export a backup above first if you may need your alarms, timers, or settings later. This removes all alarms, timers, reminders, and Pomodoro data and restores every setting to its default.
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#888888', padding: '4px 0', fontStyle: 'italic' }}>
+                        Custom sounds in ~/Music/AlarMe_Sounds are not deleted.
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <ButtonItem
+                        layout="below"
+                        icon={<FaTrash size={16} />}
+                        onClick={handleResetClick}
+                        disabled={resetting || resetDone}
+                    >
+                        {resetting ? 'Resetting...' : resetDone ? 'Reset Complete!' : 'Factory Reset'}
+                    </ButtonItem>
+                </PanelSectionRow>
+                {resetDone && (
+                    <PanelSectionRow>
+                        <div style={{ fontSize: 12, color: '#88ff88', textAlign: 'center', marginTop: 8 }}>
+                            All data has been reset successfully.
+                        </div>
+                    </PanelSectionRow>
+                )}
             </PanelSection>
         </ScrollableContent>
     );
@@ -2188,97 +2250,6 @@ const OverlaySettingsPage = () => {
     );
 };
 
-// Factory Reset Confirmation Modal
-const showFactoryResetConfirm = (onConfirm: () => void) => {
-    showModal(
-        <ConfirmModal
-            strTitle="Factory Reset"
-            strDescription="This will permanently delete all alarms, timers, reminders, Pomodoro data, and reset all settings to defaults. Custom sounds in ~/Music/AlarMe_Sounds will NOT be deleted. This action cannot be undone."
-            strOKButtonText="Reset Everything"
-            strCancelButtonText="Cancel"
-            onOK={onConfirm}
-        />
-    );
-};
-
-// Factory Reset Page
-const FactoryResetPage = () => {
-    const [resetting, setResetting] = useState(false);
-    const [resetDone, setResetDone] = useState(false);
-    const [version, setVersion] = useState('');
-
-    useEffect(() => {
-        getVersionCall()
-            .then((v) => setVersion((v || '').trim()))
-            .catch(() => setVersion(''));
-    }, []);
-
-    const handleReset = async () => {
-        setResetting(true);
-        try {
-            await factoryResetCall();
-            setResetDone(true);
-        } catch (e) {
-            console.error('Factory reset failed:', e);
-        } finally {
-            setResetting(false);
-        }
-    };
-
-    const handleResetClick = () => {
-        showFactoryResetConfirm(handleReset);
-    };
-
-    return (
-        <ScrollableContent>
-            <PanelSection>
-                <PanelSectionRow>
-                    <div style={{ fontSize: 13, color: '#cccccc', padding: '8px 0' }}>
-                        Reset all settings to defaults and delete all data including alarms, timers, reminders, and Pomodoro sessions.
-                    </div>
-                </PanelSectionRow>
-                <PanelSectionRow>
-                    <div style={{ fontSize: 12, color: '#888888', padding: '4px 0', fontStyle: 'italic' }}>
-                        Note: Custom sounds in ~/Music/AlarMe_Sounds will not be deleted.
-                    </div>
-                </PanelSectionRow>
-                <PanelSectionRow>
-                    <ButtonItem
-                        layout="below"
-                        icon={<FaTrash size={16} />}
-                        onClick={handleResetClick}
-                        disabled={resetting || resetDone}
-                    >
-                        {resetting ? 'Resetting...' : resetDone ? 'Reset Complete!' : 'Factory Reset'}
-                    </ButtonItem>
-                </PanelSectionRow>
-                {resetDone && (
-                    <PanelSectionRow>
-                        <div style={{ fontSize: 12, color: '#88ff88', textAlign: 'center', marginTop: 8 }}>
-                            All data has been reset successfully.
-                        </div>
-                    </PanelSectionRow>
-                )}
-            </PanelSection>
-
-            <PanelSection title="About">
-                <PanelSectionRow>
-                    <Focusable style={{ width: '100%' }}>
-                        <div style={{ fontSize: 13, color: '#888888', textAlign: 'center' }}>
-                            <p style={{ marginBottom: 8 }}>
-                                <strong>AlarMe</strong> {version ? `v${version}` : '…'}
-                            </p>
-                            <p>
-                                By Guilherme Lemos
-                            </p>
-                        </div>
-                    </Focusable>
-                </PanelSectionRow>
-            </PanelSection>
-        </ScrollableContent>
-    );
-};
-
 // Settings route constant
 export const SETTINGS_ROUTE = '/alarme/settings';
 
@@ -2332,9 +2303,9 @@ export const SettingsPage = () => {
             content: <BackupSettingsPage />
         },
         {
-            title: "Reset & About",
-            icon: <FaTrash size={16} />,
-            content: <FactoryResetPage />
+            title: "About",
+            icon: <FaInfoCircle size={16} />,
+            content: <AboutInstructionsPage getVersionCall={getVersionCall} />
         }
     ];
 

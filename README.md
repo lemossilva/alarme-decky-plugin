@@ -68,6 +68,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Auto-suspend** - Automatically suspend the device after alert (enables subtle mode)
 - **24/12 hour format** - Choose your preferred time display
 - **Global volume control** - Per-feature volume settings
+- **About & Instructions** - Full in-plugin manual under Settings → About & Instructions
 
 ### 🎮 In-Game Overlay
 - **Easy check** - Quickly see your alarms and timers
