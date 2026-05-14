@@ -10,6 +10,7 @@ import { SystemStatsWidget } from "./screensaver/SystemStatsWidget";
 import { NetworkWidget } from "./screensaver/NetworkWidget";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
 import { ForecastWidget } from "./screensaver/ForecastWidget";
+import { SuggestMeWidget } from "./screensaver/SuggestMeWidget";
 import { Z_INDEX } from "../utils/zIndex";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
 import type { ScreensaverLayout } from "../types";
@@ -56,6 +57,7 @@ export function ScreensaverContent() {
     const showNetwork = settings.screensaver_show_network_info ?? false;
     const showWeather = settings.screensaver_show_weather ?? false;
     const showForecast = (settings.screensaver_show_forecast ?? false) && showWeather;
+    const showSuggestMe = settings.screensaver_show_suggestme ?? false;
     const maxAlerts = settings.overlay_max_alerts || 2;
 
     const showCenterClock = settings.screensaver_center_show_clock ?? true;
@@ -67,11 +69,13 @@ export function ScreensaverContent() {
         (settings.screensaver_show_day_of_week ?? true);
     const showLargeCalendar =
         (settings.screensaver_show_calendar_grid ?? false) && dateHeadingVisible;
-    const showLargeWidgetsRow = showLargeCalendar || showForecast;
 
     if (!overlayVisible || isCompact) return null;
 
     const spreadLayout = layout === "fullscreen";
+    const suggestMeInLargeRow = showSuggestMe && spreadLayout;
+    const suggestMeInInfoRow = showSuggestMe && !spreadLayout;
+    const showLargeWidgetsRow = showLargeCalendar || showForecast || suggestMeInLargeRow;
     const widgetFontSize = Math.max(10, clockSize * 0.45);
 
     const widgetSurfacePad = spreadLayout ? "14px 16px" : "8px 10px";
@@ -87,8 +91,16 @@ export function ScreensaverContent() {
     const widgetsRowGap = spreadLayout ? Math.max(24, clockSize * 0.28) : Math.max(12, clockSize * 0.16);
     const widgetsMaxWidth = spreadLayout ? "min(96vw, 1580px)" : "min(100%, 900px)";
     const infoRowGap = spreadLayout ? Math.max(18, Math.round(clockSize * 0.32)) : 10;
-    const infoMaxWidth = spreadLayout ? "min(94vw, 1420px)" : "min(100%, 860px)";
-    const infoCardPad = spreadLayout ? "10px 12px" : "6px 10px";
+    const infoMaxWidth = spreadLayout ? "min(94vw, 1420px)" : "min(100%, 900px)";
+    const infoCardPad = spreadLayout ? "10px 12px" : "5px 8px";
+    const infoSlotCount =
+        (showCenterBattery ? 1 : 0) +
+        (showNetwork ? 1 : 0) +
+        (showSystemStats ? 1 : 0) +
+        (showWeather ? 1 : 0) +
+        (suggestMeInInfoRow ? 1 : 0);
+    const centeredInfoWrap = !spreadLayout && infoSlotCount >= 3;
+    const infoRowGapEff = centeredInfoWrap ? Math.max(6, Math.round(infoRowGap * 0.55)) : infoRowGap;
     const columnGap = spreadLayout ? clockSize * 0.38 : clockSize * 0.22;
     const alertsTop = spreadLayout ? clockSize * 0.42 : clockSize * 0.3;
     const alertsStackMax = spreadLayout ? "min(92vw, 920px)" : 300;
@@ -109,13 +121,14 @@ export function ScreensaverContent() {
         <div style={{
             display: "flex",
             flexDirection: "row",
-            flexWrap: "wrap",
+            flexWrap: suggestMeInLargeRow ? "nowrap" : "wrap",
             alignItems: "stretch",
             justifyContent: "center",
             gap: widgetsRowGap,
             width: "100%",
             maxWidth: widgetsMaxWidth,
             marginTop: spreadLayout ? clockSize * 0.22 : clockSize * 0.15,
+            overflowX: suggestMeInLargeRow ? "auto" : "visible",
         }}>
             {showLargeCalendar && (
                 <div style={{ ...largeCardStyle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start" }}>
@@ -125,6 +138,22 @@ export function ScreensaverContent() {
             {showForecast && (
                 <div style={{ ...largeCardStyle, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start" }}>
                     <ForecastWidget fontSize={widgetFontSize} show={showForecast} />
+                </div>
+            )}
+            {suggestMeInLargeRow && (
+                <div style={{
+                    ...largeCardStyle,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "stretch",
+                    justifyContent: "center",
+                    flex: "0 1 auto",
+                    minWidth: 0,
+                    maxWidth: "min(100%, 204px)",
+                    overflow: "hidden",
+                    boxSizing: "border-box",
+                }}>
+                    <SuggestMeWidget fontSize={widgetFontSize} show={showSuggestMe} screensaverLayout={layout} />
                 </div>
             )}
         </div>
@@ -142,13 +171,22 @@ export function ScreensaverContent() {
         </div>
     );
 
-    const infoCellStyle: CSSProperties = {
-        flex: "1 1 0",
-        minWidth: 0,
-        display: "flex",
-        alignItems: "stretch",
-        justifyContent: "center",
-    };
+    const infoCellStyle: CSSProperties = centeredInfoWrap
+        ? {
+            flex: "1 1 118px",
+            minWidth: 0,
+            maxWidth: "calc(50% - 5px)",
+            display: "flex",
+            alignItems: "stretch",
+            justifyContent: "center",
+        }
+        : {
+            flex: "1 1 0",
+            minWidth: 0,
+            display: "flex",
+            alignItems: "stretch",
+            justifyContent: "center",
+        };
 
     const infoCardStyle: CSSProperties = {
         display: "flex",
@@ -160,6 +198,7 @@ export function ScreensaverContent() {
         width: "100%",
         boxSizing: "border-box",
         minWidth: 0,
+        overflow: centeredInfoWrap ? "hidden" : "visible",
     };
 
     const InfoWidgets = () => (
@@ -167,9 +206,11 @@ export function ScreensaverContent() {
             style={{
                 display: "flex",
                 flexDirection: "row",
+                flexWrap: centeredInfoWrap ? "wrap" : "nowrap",
                 alignItems: "stretch",
-                justifyContent: "stretch",
-                gap: infoRowGap,
+                justifyContent: "center",
+                rowGap: centeredInfoWrap ? infoRowGapEff : undefined,
+                gap: infoRowGapEff,
                 width: "100%",
                 maxWidth: infoMaxWidth,
                 marginTop: spreadLayout ? clockSize * 0.32 : clockSize * 0.25,
@@ -200,6 +241,18 @@ export function ScreensaverContent() {
                 <div style={infoCellStyle}>
                     <div style={infoCardStyle}>
                         <WeatherWidget fontSize={widgetFontSize} layout="card" show={showWeather} />
+                    </div>
+                </div>
+            ) : null}
+            {suggestMeInInfoRow ? (
+                <div style={infoCellStyle}>
+                    <div style={infoCardStyle}>
+                        <SuggestMeWidget
+                            fontSize={widgetFontSize}
+                            show={showSuggestMe}
+                            screensaverLayout={layout}
+                            infoRowCompact
+                        />
                     </div>
                 </div>
             ) : null}

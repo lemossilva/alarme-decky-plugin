@@ -26,7 +26,6 @@ export const ScreensaverOverlay = () => {
     wakeUpRef.current = wakeUp;
 
     const overlayRef = useRef<HTMLDivElement>(null);
-    const driftRef = useRef<HTMLDivElement>(null);
 
     // Gamepad capture for both timer-based and standalone screensavers.
     // After a Steam Deck reboot the SteamUI NavigationManager can initialize
@@ -93,7 +92,7 @@ export const ScreensaverOverlay = () => {
     const layout = rawLayout === "floating" ? "large" : rawLayout;
     const isNonCompact = layout !== "compact";
     const shiftVisible = overlayVisible && isNonCompact;
-    usePixelShift(shiftVisible, driftRef);
+    usePixelShift(shiftVisible, overlayRef);
 
     return (
         <div
@@ -117,7 +116,6 @@ export const ScreensaverOverlay = () => {
             {isWallpaper && <WallpaperLayer show={overlayVisible} />}
             {isNonCompact ? (
                 <div
-                    ref={driftRef}
                     style={{
                         position: "absolute",
                         inset: 0,
@@ -147,6 +145,8 @@ export const ScreensaverOverlay = () => {
                     backgroundColor: "rgba(0,0,0,0.35)",
                     padding: "4px 8px",
                     borderRadius: 999,
+                    transform: "translate(var(--alarme-br-nudge-x, 0px), var(--alarme-br-nudge-y, 0px))",
+                    opacity: "var(--alarme-shift-opacity, 1)",
                 }}>
                     {isPreview ? (
                         <>

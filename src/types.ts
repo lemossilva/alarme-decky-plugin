@@ -242,6 +242,11 @@ export interface UserSettings {
     pixel_shift_enabled?: boolean;
     pixel_shift_range?: number;
     pixel_shift_interval_seconds?: number;
+    // SuggestMe integration
+    screensaver_show_suggestme?: boolean;
+    screensaver_suggestme_mode?: string;
+    screensaver_suggestme_preset_slot?: number;
+    screensaver_suggestme_pick_strategy?: 'daily' | 'shuffle';
     // Legacy/deprecated (kept for migration)
     overlay_position_steamui?: OverlayPosition;
     overlay_pixel_shift?: boolean;
@@ -445,6 +450,43 @@ export interface WeatherGeocodeResult {
     latitude: number;
     longitude: number;
     display_name: string;
+}
+
+export interface SuggestMeStatus {
+    available: boolean;
+    version: string | null;
+    compatible: boolean;
+}
+
+export interface SuggestMeGame {
+    appid: number;
+    name: string;
+    playtime_forever?: number;
+    img_icon_url?: string;
+    genres?: string[];
+    tags?: string[];
+    community_tags?: string[];
+    is_non_steam?: boolean;
+    matched_appid?: number | null;
+    source?: string;
+    steam_review_score?: number;
+    steam_review_description?: string;
+    metacritic_score?: number;
+}
+
+export interface SuggestMeCard {
+    game: SuggestMeGame | null;
+    reason?: string;
+    mode_used?: string;
+    error?: string | null;
+    needs_fetch?: boolean;
+    candidates_count?: number;
+    excluded_count?: number;
+}
+
+export interface SuggestMeFilterPreset {
+    label: string;
+    filters: Record<string, unknown>;
 }
 
 export interface ScreensaverProfile {

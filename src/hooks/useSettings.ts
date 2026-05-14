@@ -86,6 +86,11 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_wallpaper_cache_updated_at: null,
     screensaver_wallpaper_shift_local: false,
     screensaver_floating_drift_range: 40,
+    // SuggestMe integration
+    screensaver_show_suggestme: false,
+    screensaver_suggestme_mode: 'intelligent',
+    screensaver_suggestme_preset_slot: -1,
+    screensaver_suggestme_pick_strategy: 'daily' as const,
     // Pixel shift for OLED burn-in prevention
     pixel_shift_enabled: true,
     pixel_shift_range: 3,

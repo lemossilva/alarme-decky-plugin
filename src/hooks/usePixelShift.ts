@@ -6,6 +6,10 @@ const SHIFT_Y = "--alarme-shift-y";
 const DRIFT_X = "--alarme-drift-x";
 const DRIFT_Y = "--alarme-drift-y";
 const SHIFT_OPACITY = "--alarme-shift-opacity";
+const BR_NUDGE_X = "--alarme-br-nudge-x";
+const BR_NUDGE_Y = "--alarme-br-nudge-y";
+const BL_NUDGE_X = "--alarme-bl-nudge-x";
+const BL_NUDGE_Y = "--alarme-bl-nudge-y";
 
 function zeroMotion(el: HTMLElement) {
     el.style.setProperty(SHIFT_X, "0px");
@@ -13,6 +17,10 @@ function zeroMotion(el: HTMLElement) {
     el.style.setProperty(DRIFT_X, "0px");
     el.style.setProperty(DRIFT_Y, "0px");
     el.style.setProperty(SHIFT_OPACITY, "1");
+    el.style.setProperty(BR_NUDGE_X, "0px");
+    el.style.setProperty(BR_NUDGE_Y, "0px");
+    el.style.setProperty(BL_NUDGE_X, "0px");
+    el.style.setProperty(BL_NUDGE_Y, "0px");
 }
 
 function easeInOutCubic(t: number): number {
@@ -35,6 +43,24 @@ function pickTarget(range: number, ox: number, oy: number): { x: number; y: numb
     return { x: nx, y: ny };
 }
 
+function normalizeScreensaverLayout(raw: string | undefined): string {
+    const r = (raw || "compact").trim();
+    return r === "floating" ? "large" : r;
+}
+
+/** Large (centered) panel is ~94vw × 88vh max; cap drift so the dim card stays on-screen. */
+function driftPixelsForLayout(requestedDriftRange: number, layoutRaw: string | undefined): number {
+    const L = normalizeScreensaverLayout(layoutRaw);
+    if (L !== "large") return requestedDriftRange;
+    if (typeof window === "undefined") return Math.min(requestedDriftRange, 26);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const slackX = Math.max(12, w * (1 - 0.94) / 2 - 20);
+    const slackY = Math.max(12, h * (1 - 0.88) / 2 - 36);
+    const cap = Math.max(14, Math.min(32, Math.floor(Math.min(slackX, slackY, w * 0.045, h * 0.04))));
+    return Math.min(requestedDriftRange, cap);
+}
+
 function applyShift(el: HTMLElement, x: number, y: number, driftRange: number, opacity: number) {
     el.style.setProperty(SHIFT_X, `${x}px`);
     el.style.setProperty(SHIFT_Y, `${y}px`);
@@ -43,11 +69,23 @@ function applyShift(el: HTMLElement, x: number, y: number, driftRange: number, o
     el.style.setProperty(DRIFT_X, `${dx.toFixed(2)}px`);
     el.style.setProperty(DRIFT_Y, `${dy.toFixed(2)}px`);
     el.style.setProperty(SHIFT_OPACITY, opacity.toFixed(3));
+
+    const cap = Math.min(10, Math.max(3, driftRange * 0.14 + 2.5));
+    const brNx = Math.max(-cap, Math.min(cap, -dx * 0.22));
+    const brNy = Math.max(-cap, Math.min(cap, -dy * 0.22));
+    const blNx = Math.max(-cap, Math.min(cap, dx * 0.22));
+    const blNy = brNy;
+    el.style.setProperty(BR_NUDGE_X, `${brNx.toFixed(2)}px`);
+    el.style.setProperty(BR_NUDGE_Y, `${brNy.toFixed(2)}px`);
+    el.style.setProperty(BL_NUDGE_X, `${blNx.toFixed(2)}px`);
+    el.style.setProperty(BL_NUDGE_Y, `${blNy.toFixed(2)}px`);
 }
 
 /**
  * Stepped OLED-style shift with crossfade: holds at each pixel offset for `pixel_shift_interval_seconds`,
  * then fades out, moves to a new offset, and fades back in. Updates CSS custom properties on `rootRef` only.
+ * For the screensaver, pass the full overlay root so children (e.g. wallpaper attribution, mode pill) inherit
+ * `--alarme-drift-*`, `--alarme-shift-opacity`, and clamped corner nudges `--alarme-br-nudge-*` / `--alarme-bl-nudge-*`.
  */
 export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement | null>) {
     const { settings } = useSettings();
@@ -55,6 +93,8 @@ export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement |
     const range = settings.pixel_shift_range ?? 3;
     const intervalSec = settings.pixel_shift_interval_seconds ?? 60;
     const driftRange = settings.screensaver_floating_drift_range || 40;
+    const settingsRef = useRef(settings);
+    settingsRef.current = settings;
 
     const rafRef = useRef<number | null>(null);
     const mountedRef = useRef(true);
@@ -109,7 +149,11 @@ export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement |
             const now = performance.now();
 
             if (phase.kind === "hold") {
-                applyShift(el, phase.x, phase.y, driftRange, 1);
+                const effDrift = driftPixelsForLayout(
+                    driftRange,
+                    settingsRef.current.overlay_screensaver_layout as string | undefined,
+                );
+                applyShift(el, phase.x, phase.y, effDrift, 1);
                 if (now >= phase.until) {
                     const next = pickTarget(clampedRange, phase.x, phase.y);
                     phase = {
@@ -125,7 +169,11 @@ export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement |
                 const rawT = (now - phase.started) / fadeMs;
                 const t = rawT >= 1 ? 1 : rawT;
                 const opacity = 1 - easeInOutCubic(t);
-                applyShift(el, phase.x, phase.y, driftRange, opacity);
+                const effDrift = driftPixelsForLayout(
+                    driftRange,
+                    settingsRef.current.overlay_screensaver_layout as string | undefined,
+                );
+                applyShift(el, phase.x, phase.y, effDrift, opacity);
                 if (t >= 1) {
                     phase = {
                         kind: "fade_in",
@@ -138,7 +186,11 @@ export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement |
                 const rawT = (now - phase.started) / fadeMs;
                 const t = rawT >= 1 ? 1 : rawT;
                 const opacity = easeInOutCubic(t);
-                applyShift(el, phase.x, phase.y, driftRange, opacity);
+                const effDrift = driftPixelsForLayout(
+                    driftRange,
+                    settingsRef.current.overlay_screensaver_layout as string | undefined,
+                );
+                applyShift(el, phase.x, phase.y, effDrift, opacity);
                 if (t >= 1) {
                     phase = {
                         kind: "hold",

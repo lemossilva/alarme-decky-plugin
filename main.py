@@ -137,6 +137,8 @@ SCREENSAVER_PROFILE_KEYS = [
     "overlay_compact_screensaver_show_battery",
     "overlay_during_screensaver", "pomodoro_screensaver_mode",
     "pixel_shift_enabled", "pixel_shift_range", "pixel_shift_interval_seconds",
+    "screensaver_show_suggestme", "screensaver_suggestme_mode",
+    "screensaver_suggestme_preset_slot", "screensaver_suggestme_pick_strategy",
 ]
 
 # Limits to prevent excessive data
@@ -258,7 +260,12 @@ DEFAULT_SETTINGS = {
     # Pixel shift for OLED burn-in prevention
     "pixel_shift_enabled": True,
     "pixel_shift_range": 3,          # max pixel displacement (1-10)
-    "pixel_shift_interval_seconds": 60  # seconds between shifts
+    "pixel_shift_interval_seconds": 60,  # seconds between shifts
+    # SuggestMe integration
+    "screensaver_show_suggestme": False,
+    "screensaver_suggestme_mode": "intelligent",
+    "screensaver_suggestme_preset_slot": -1,
+    "screensaver_suggestme_pick_strategy": "daily",
 }
 
 # Default presets
@@ -5041,6 +5048,75 @@ class Plugin:
         await self._update_sleep_inhibitor()
         
         decky.logger.info("AlarMe: Plugin initialized successfully")
+
+    # ==================== SUGGESTME INTEGRATION ====================
+
+    _SUGGESTME_MIN_VERSION = "1.6.0"
+    _suggestme_daily_cache: dict | None = None
+
+    def _find_suggestme_plugin_json(self) -> str | None:
+        plugin_dir = os.environ.get("DECKY_PLUGIN_DIR", "")
+        if not plugin_dir:
+            return None
+        plugins_root = os.path.dirname(plugin_dir)
+        candidate = os.path.join(plugins_root, "SuggestMe", "plugin.json")
+        if os.path.isfile(candidate):
+            return candidate
+        for entry in os.listdir(plugins_root):
+            pj = os.path.join(plugins_root, entry, "plugin.json")
+            if not os.path.isfile(pj):
+                continue
+            try:
+                with open(pj, "r") as f:
+                    data = json.load(f)
+                if data.get("name") == "SuggestMe":
+                    return pj
+            except Exception:
+                continue
+        return None
+
+    @staticmethod
+    def _semver_satisfies(version: str, minimum: str) -> bool:
+        def parse(v: str):
+            parts = v.lstrip("v").split(".")
+            return tuple(int(p) for p in parts[:3])
+        try:
+            return parse(version) >= parse(minimum)
+        except (ValueError, IndexError):
+            return False
+
+    async def get_suggestme_status(self) -> dict:
+        pj = self._find_suggestme_plugin_json()
+        if not pj:
+            return {"available": False, "version": None, "compatible": False}
+        try:
+            with open(pj, "r") as f:
+                data = json.load(f)
+            version = data.get("version", "0.0.0")
+            compatible = self._semver_satisfies(version, self._SUGGESTME_MIN_VERSION)
+            return {"available": True, "version": version, "compatible": compatible}
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to read SuggestMe plugin.json: {e}")
+            return {"available": False, "version": None, "compatible": False}
+
+    async def get_suggestme_daily_card(self) -> dict:
+        user_settings = await self._get_user_settings()
+        if not user_settings.get("screensaver_show_suggestme", False):
+            return {"game": None, "error": "Widget disabled"}
+
+        strategy = user_settings.get("screensaver_suggestme_pick_strategy", "daily")
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        if strategy == "daily" and self._suggestme_daily_cache:
+            if self._suggestme_daily_cache.get("date") == today:
+                return self._suggestme_daily_cache.get("payload", {"game": None, "error": "No cached data"})
+
+        return {"game": None, "needs_fetch": True}
+
+    async def save_suggestme_daily_card(self, payload: dict) -> bool:
+        today = datetime.now().strftime("%Y-%m-%d")
+        self._suggestme_daily_cache = {"date": today, "payload": payload}
+        return True
 
     async def factory_reset(self) -> bool:
         """Factory reset - restore all settings to defaults and clear all data."""

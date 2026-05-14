@@ -24,10 +24,11 @@ import { useScreensaverProfiles } from "../hooks/useScreensaverProfiles";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
-import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile } from "../types";
+import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile, UserSettings } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
 import { OverlayPositionPreview } from "./OverlayPositionPreview";
+import { useSuggestMeStatus, useSuggestMePresets } from "../hooks/useSuggestMe";
 import { AboutInstructionsPage } from "./SettingsAboutPage";
 
 // Backend callables
@@ -744,6 +745,107 @@ const ProfileSlotCard = ({
                 </Focusable>
             </Focusable>
         </div>
+    );
+};
+
+// SuggestMe Integration Settings Section
+const SUGGESTME_MODE_OPTIONS = [
+    { data: "intelligent", label: "Smart" },
+    { data: "luck", label: "Random" },
+    { data: "guided", label: "Guided" },
+    { data: "fresh_air", label: "Fresh Air" },
+];
+
+const SUGGESTME_STRATEGY_OPTIONS = [
+    { data: "daily", label: "Daily suggestion" },
+    { data: "shuffle", label: "Shuffle every time" },
+];
+
+const SuggestMeSettingsSection = ({ settings, updateSetting }: {
+    settings: UserSettings;
+    updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => Promise<void>;
+}) => {
+    const status = useSuggestMeStatus();
+    const enabled = settings.screensaver_show_suggestme ?? false;
+    const presets = useSuggestMePresets(enabled && !!status?.compatible);
+
+    if (!status) return null;
+
+    if (!status.available || !status.compatible) {
+        return (
+            <PanelSection title="Game Recommendations">
+                <PanelSectionRow>
+                    <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.6 }}>
+                        {!status.available ? (
+                            <>
+                                Show a game recommendation on your screensaver, powered by <span style={{ color: '#ccc', fontWeight: 600 }}>SuggestMe</span>.
+                                <br /><br />
+                                SuggestMe is not installed. Install it from the <span style={{ color: '#ccc' }}>Decky Store</span> to enable this feature.
+                            </>
+                        ) : (
+                            <>
+                                Your SuggestMe version (<span style={{ color: '#ccc' }}>{status.version}</span>) is too old.
+                                Please update to <span style={{ color: '#ccc' }}>v1.6.0</span> or later from the <span style={{ color: '#ccc' }}>Decky Store</span>.
+                            </>
+                        )}
+                    </div>
+                </PanelSectionRow>
+            </PanelSection>
+        );
+    }
+
+    const presetOptions = presets.map((p, i) => ({
+        data: i,
+        label: p ? p.label : `Slot ${i + 1} (empty)`,
+        disabled: !p,
+    }));
+    presetOptions.unshift({ data: -1, label: "No filter preset", disabled: false });
+
+    return (
+        <PanelSection title="Game Recommendations">
+            <PanelSectionRow>
+                <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
+                    Powered by SuggestMe ({status.version}). Shows a game pick from your library on the screensaver.
+                </div>
+            </PanelSectionRow>
+            <PanelSectionRow>
+                <ToggleField
+                    icon={<FaGamepad size={16} />}
+                    label="Show game recommendation"
+                    description="Large (Centered) and Fullscreen: SuggestMe card in the upper row (with calendar / forecast when enabled). Compact overlay does not show this widget."
+                    checked={enabled}
+                    onChange={(value) => updateSetting('screensaver_show_suggestme', value)}
+                />
+            </PanelSectionRow>
+            {enabled && (
+                <>
+                    <PanelSectionRow>
+                        <Dropdown
+                            rgOptions={SUGGESTME_MODE_OPTIONS}
+                            selectedOption={settings.screensaver_suggestme_mode ?? "intelligent"}
+                            onChange={(option) => updateSetting('screensaver_suggestme_mode', option.data)}
+                            strDefaultLabel="Recommendation mode"
+                        />
+                    </PanelSectionRow>
+                    <PanelSectionRow>
+                        <Dropdown
+                            rgOptions={presetOptions.filter((o: any) => !o.disabled || o.data === -1)}
+                            selectedOption={settings.screensaver_suggestme_preset_slot ?? -1}
+                            onChange={(option) => updateSetting('screensaver_suggestme_preset_slot', option.data)}
+                            strDefaultLabel="Filter preset"
+                        />
+                    </PanelSectionRow>
+                    <PanelSectionRow>
+                        <Dropdown
+                            rgOptions={SUGGESTME_STRATEGY_OPTIONS}
+                            selectedOption={settings.screensaver_suggestme_pick_strategy ?? "daily"}
+                            onChange={(option) => updateSetting('screensaver_suggestme_pick_strategy', option.data)}
+                            strDefaultLabel="Pick strategy"
+                        />
+                    </PanelSectionRow>
+                </>
+            )}
+        </PanelSection>
     );
 };
 
@@ -1706,6 +1808,9 @@ const ScreensaverSettingsPage = () => {
                             </PanelSectionRow>
                         )}
                         <PanelSectionRow>
+                            <WeatherLocationPicker />
+                        </PanelSectionRow>
+                        <PanelSectionRow>
                             <ToggleField
                                 icon={<FaCloud size={16} />}
                                 label="Show weather on screensaver"
@@ -1714,63 +1819,69 @@ const ScreensaverSettingsPage = () => {
                                 onChange={(value) => updateSetting('screensaver_show_weather', value)}
                             />
                         </PanelSectionRow>
-                        <PanelSectionRow>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                                <FaCloud style={{ color: '#888', flexShrink: 0 }} />
-                                <span style={{ flexShrink: 0 }}>Temperature unit</span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <Dropdown
-                                        rgOptions={[
-                                            { data: 'C' as const, label: 'Celsius' },
-                                            { data: 'F' as const, label: 'Fahrenheit' },
-                                        ]}
-                                        selectedOption={settings.screensaver_weather_unit || 'C'}
-                                        onChange={(option) => updateSetting('screensaver_weather_unit', option.data)}
-                                        strDefaultLabel="Unit"
+                        {(settings.screensaver_show_weather ?? false) && (
+                            <>
+                                <PanelSectionRow>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                                        <FaCloud style={{ color: '#888', flexShrink: 0 }} />
+                                        <span style={{ flexShrink: 0 }}>Temperature unit</span>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <Dropdown
+                                                rgOptions={[
+                                                    { data: 'C' as const, label: 'Celsius' },
+                                                    { data: 'F' as const, label: 'Fahrenheit' },
+                                                ]}
+                                                selectedOption={settings.screensaver_weather_unit || 'C'}
+                                                onChange={(option) => updateSetting('screensaver_weather_unit', option.data)}
+                                                strDefaultLabel="Unit"
+                                            />
+                                        </div>
+                                    </div>
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCloud size={16} />}
+                                        label="Show daily high / low"
+                                        checked={settings.screensaver_weather_show_highlow ?? true}
+                                        onChange={(value) => updateSetting('screensaver_weather_show_highlow', value)}
                                     />
-                                </div>
-                            </div>
-                        </PanelSectionRow>
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaCloud size={16} />}
-                                label="Show daily high / low"
-                                checked={settings.screensaver_weather_show_highlow ?? true}
-                                onChange={(value) => updateSetting('screensaver_weather_show_highlow', value)}
-                            />
-                        </PanelSectionRow>
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaCloud size={16} />}
-                                label="Show condition label"
-                                checked={settings.screensaver_weather_show_condition ?? true}
-                                onChange={(value) => updateSetting('screensaver_weather_show_condition', value)}
-                            />
-                        </PanelSectionRow>
-                        <PanelSectionRow>
-                            <SliderField
-                                label="Forecast refresh interval"
-                                description={`Cached up to ${settings.screensaver_weather_refresh_minutes ?? 30} minutes between fetches`}
-                                value={settings.screensaver_weather_refresh_minutes ?? 30}
-                                min={5}
-                                max={120}
-                                step={5}
-                                onChange={(value) => updateSetting('screensaver_weather_refresh_minutes', value)}
-                                icon={<FaClock size={16} />}
-                            />
-                        </PanelSectionRow>
-                        {!layoutIsCompact && (
-                        <PanelSectionRow>
-                            <ToggleField
-                                icon={<FaCalendarAlt size={16} />}
-                                label="Show 7-day forecast"
-                                description="Weekly forecast widget next to the calendar"
-                                checked={settings.screensaver_show_forecast ?? false}
-                                onChange={(value) => updateSetting('screensaver_show_forecast', value)}
-                            />
-                        </PanelSectionRow>
+                                </PanelSectionRow>
+                                <PanelSectionRow>
+                                    <ToggleField
+                                        icon={<FaCloud size={16} />}
+                                        label="Show condition label"
+                                        checked={settings.screensaver_weather_show_condition ?? true}
+                                        onChange={(value) => updateSetting('screensaver_weather_show_condition', value)}
+                                    />
+                                </PanelSectionRow>
+                            </>
                         )}
-                        {settings.screensaver_show_forecast && !layoutIsCompact && (
+                        {!layoutIsCompact && (
+                            <PanelSectionRow>
+                                <ToggleField
+                                    icon={<FaCalendarAlt size={16} />}
+                                    label="Show 7-day forecast"
+                                    description="Weekly forecast widget next to the calendar"
+                                    checked={settings.screensaver_show_forecast ?? false}
+                                    onChange={(value) => updateSetting('screensaver_show_forecast', value)}
+                                />
+                            </PanelSectionRow>
+                        )}
+                        {((settings.screensaver_show_weather ?? false) || (settings.screensaver_show_forecast ?? false)) && (
+                            <PanelSectionRow>
+                                <SliderField
+                                    label="Forecast refresh interval"
+                                    description={`Cached up to ${settings.screensaver_weather_refresh_minutes ?? 30} minutes between fetches`}
+                                    value={settings.screensaver_weather_refresh_minutes ?? 30}
+                                    min={5}
+                                    max={120}
+                                    step={5}
+                                    onChange={(value) => updateSetting('screensaver_weather_refresh_minutes', value)}
+                                    icon={<FaClock size={16} />}
+                                />
+                            </PanelSectionRow>
+                        )}
+                        {(settings.screensaver_show_forecast ?? false) && !layoutIsCompact && (
                             <PanelSectionRow>
                                 <div style={{ paddingLeft: '40px' }}>
                                     <ToggleField
@@ -1783,10 +1894,10 @@ const ScreensaverSettingsPage = () => {
                                 </div>
                             </PanelSectionRow>
                         )}
-                        <PanelSectionRow>
-                            <WeatherLocationPicker />
-                        </PanelSectionRow>
                     </PanelSection>
+
+                    {/* === SuggestMe Integration === */}
+                    <SuggestMeSettingsSection settings={settings} updateSetting={updateSetting} />
 
                     {/* === OLED Protection === */}
                     <PanelSection title="OLED Protection">

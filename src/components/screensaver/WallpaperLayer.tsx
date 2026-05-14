@@ -303,7 +303,7 @@ export function WallpaperLayer({ show }: WallpaperLayerProps) {
                     backgroundColor: "rgba(0,0,0,0.35)",
                     padding: "4px 10px",
                     borderRadius: 999,
-                    transform: "translate(var(--alarme-shift-x, 0px), var(--alarme-shift-y, 0px))",
+                    transform: "translate(var(--alarme-bl-nudge-x, 0px), var(--alarme-bl-nudge-y, 0px))",
                     opacity: "var(--alarme-shift-opacity, 1)",
                 }}>
                     {attributionText}

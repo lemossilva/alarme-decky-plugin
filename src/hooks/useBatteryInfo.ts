@@ -12,20 +12,21 @@ const emptyInfo: BatteryInfo = {
     ok: false,
 };
 
-function normalize(data: Record<string, unknown> | null | undefined): BatteryInfo {
+function normalize(data: unknown): BatteryInfo {
     if (!data || typeof data !== "object") return { ...emptyInfo };
+    const d = data as Record<string, unknown>;
     return {
-        percent: typeof data.percent === "number" && Number.isFinite(data.percent) ? data.percent : null,
-        charging: typeof data.charging === "boolean" ? data.charging : null,
+        percent: typeof d.percent === "number" && Number.isFinite(d.percent) ? d.percent : null,
+        charging: typeof d.charging === "boolean" ? d.charging : null,
         time_to_empty_sec:
-            typeof data.time_to_empty_sec === "number" && Number.isFinite(data.time_to_empty_sec)
-                ? data.time_to_empty_sec
+            typeof d.time_to_empty_sec === "number" && Number.isFinite(d.time_to_empty_sec)
+                ? d.time_to_empty_sec
                 : null,
         time_to_full_sec:
-            typeof data.time_to_full_sec === "number" && Number.isFinite(data.time_to_full_sec)
-                ? data.time_to_full_sec
+            typeof d.time_to_full_sec === "number" && Number.isFinite(d.time_to_full_sec)
+                ? d.time_to_full_sec
                 : null,
-        ok: Boolean(data.ok),
+        ok: Boolean(d.ok),
     };
 }
 
@@ -44,7 +45,7 @@ export function useBatteryInfo(show: boolean): BatteryInfo {
         const fetch = async () => {
             try {
                 const data = await getBatteryInfoCall();
-                setInfo(normalize(data as Record<string, unknown>));
+                setInfo(normalize(data));
             } catch (e) {
                 console.error("[AlarMe] Failed to fetch battery info:", e);
                 setInfo(emptyInfo);
