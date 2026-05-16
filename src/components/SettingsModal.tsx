@@ -14,7 +14,7 @@ import {
     ToggleField
 } from "@decky/ui";
 import { addEventListener, callable, removeEventListener, toaster } from "@decky/api";
-import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud, FaUpload, FaInfoCircle } from "react-icons/fa";
+import { FaVolumeUp, FaBell, FaClock, FaBrain, FaCoffee, FaPlay, FaPause, FaHourglassHalf, FaSave, FaFileImport, FaBullseye, FaMusic, FaTrash, FaCog, FaDatabase, FaEye, FaGamepad, FaHistory, FaBellSlash, FaStar, FaRedo, FaStopwatch, FaShieldAlt, FaDesktop, FaCalendarAlt, FaBatteryFull, FaPhotoVideo, FaCloud, FaUpload, FaInfoCircle, FaNewspaper } from "react-icons/fa";
 import { useEffect, useState, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { triggerScreensaverPreviewAfterClosingMenus } from "../hooks/useScreensaver";
@@ -31,6 +31,7 @@ import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
 import { OverlayPositionPreview } from "./OverlayPositionPreview";
 import { useSuggestMeStatus, useSuggestMePresets } from "../hooks/useSuggestMe";
 import { AboutInstructionsPage } from "./SettingsAboutPage";
+import { SettingsNewsPage } from "./SettingsNewsPage";
 import {
     ALL_BIG_WIDGETS,
     ALL_SMALL_WIDGETS,
@@ -2528,6 +2529,11 @@ export const SettingsPage = () => {
             title: "Screensaver",
             icon: <FaDesktop size={16} />,
             content: <ScreensaverSettingsPage />
+        },
+        {
+            title: "News",
+            icon: <FaNewspaper size={16} />,
+            content: <SettingsNewsPage />
         },
         {
             title: "Backup",

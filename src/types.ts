@@ -249,6 +249,11 @@ export interface UserSettings {
     screensaver_suggestme_mode?: string;
     screensaver_suggestme_preset_slot?: number;
     screensaver_suggestme_pick_strategy?: 'daily' | 'shuffle';
+    // News widget settings
+    screensaver_news_custom_feeds?: NewsCustomFeed[];
+    screensaver_news_enabled?: boolean;
+    screensaver_news_refresh_minutes?: number;
+    screensaver_news_enabled_preset_ids?: string[];
     // Legacy/deprecated (kept for migration)
     overlay_position_steamui?: OverlayPosition;
     overlay_pixel_shift?: boolean;
@@ -373,7 +378,13 @@ export type ScreensaverLayout = 'compact' | 'large' | 'fullscreen';
 
 // Widget orchestrator types
 export type ScreensaverBigWidgetId = 'calendar' | 'forecast' | 'suggestme';
-export type ScreensaverSmallWidgetId = 'battery' | 'system_stats' | 'network' | 'weather';
+export interface NewsCustomFeed {
+    id: string;
+    label: string;
+    url: string;
+}
+
+export type ScreensaverSmallWidgetId = 'battery' | 'system_stats' | 'network' | 'weather' | 'news';
 export type ScreensaverWidgetId = ScreensaverBigWidgetId | ScreensaverSmallWidgetId;
 
 export const WIDGET_CAPS: Record<'large' | 'fullscreen', { big: number; small: number }> = {

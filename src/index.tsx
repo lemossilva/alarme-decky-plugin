@@ -13,7 +13,7 @@ import {
     callable
 } from "@decky/api";
 import { showModal } from "@decky/ui";
-import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaShieldAlt, FaMoon } from "react-icons/fa";
+import { FaBell, FaCog, FaBrain, FaStopwatch, FaHourglassHalf, FaRedo, FaShieldAlt, FaMoon, FaNewspaper } from "react-icons/fa";
 import { useState, useEffect, useRef, useMemo } from "react";
 
 // Components
@@ -29,6 +29,8 @@ import { ReminderNotification } from "./components/ReminderNotification";
 import { GameOverlay } from "./components/GameOverlay";
 import showMissedReportModal from "./components/MissedReportModal";
 import { showSleepInhibitorModal } from "./components/SleepInhibitorModal";
+import { showNewsListModal } from "./components/NewsListModal";
+import { fetchNewsShared } from "./hooks/useNews";
 import { ScreensaverOverlay } from "./components/ScreensaverOverlay";
 import { AlarMeUIComposition } from "./components/AlarMeUIComposition";
 import { playAlarmSound } from "./utils/sounds";
@@ -220,40 +222,49 @@ function Content() {
         showMissedReportModal(missedItems, use24h);
     };
     const screensaverEnabled = (userSettings.screensaver_mode || 'off') !== 'off';
+    const newsEnabled = userSettings.screensaver_news_enabled ?? false;
+
+    const handleOpenNews = () => {
+        void fetchNewsShared();
+        showNewsListModal();
+    };
+
+    const headerIconButtonStyle = {
+        flex: '1 1 0' as const,
+        minWidth: 0,
+        padding: 8,
+        display: 'flex' as const,
+        alignItems: 'center' as const,
+        justifyContent: 'center' as const,
+        borderRadius: 12,
+        border: '2px solid transparent',
+        transition: 'all 0.1s ease-in-out',
+        position: 'relative' as const,
+    };
 
     return (
         <div ref={contentRef}>
-            {/* Notification Bar: 3 buttons (Missed, Sleep, Settings) - compact row */}
+            {/* Header icon row: missed, sleep, optional news/preview, settings */}
             <div style={{ padding: '8px 16px 8px 16px' }}>
                 <Focusable
                     flow-children="row"
                     style={{
                         display: 'flex',
                         alignItems: 'stretch',
-                        gap: 8,
+                        gap: 6,
                         width: '100%',
                         minWidth: 0,
-                        overflow: 'hidden'
+                        flexWrap: 'nowrap',
                     }}
                 >
                     {/* Missed Alerts Button */}
                     <Focusable
                         onActivate={hasMissedAlerts ? handleOpenMissedModal : undefined}
                         style={{
-                            flex: '1 1 0',
-                            minWidth: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            padding: 8,
+                            ...headerIconButtonStyle,
                             backgroundColor: hasMissedAlerts ? '#ff444422' : '#ffffff08',
-                            borderRadius: 12,
-                            border: '2px solid transparent',
                             cursor: hasMissedAlerts ? 'pointer' : 'default',
                             opacity: hasMissedAlerts ? 1 : 0.6,
-                            transition: 'all 0.1s ease-in-out',
-                            position: 'relative'
                         }}
                         onFocus={(e: any) => {
                             if (hasMissedAlerts) {
@@ -266,48 +277,56 @@ function Content() {
                             e.target.style.borderColor = 'transparent';
                         }}
                     >
-                        <FaBell size={14} style={{ color: hasMissedAlerts ? '#ff4444' : '#666666' }} />
-                        <span style={{
-                            fontSize: 12,
-                            color: hasMissedAlerts ? '#ff6666' : '#666666',
-                            fontWeight: 500,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {hasMissedAlerts ? `${missedItems.length} Missed` : 'Missed'}
-                        </span>
-                        {/* New report indicator (red dot) */}
-                        {hasNewMissedAlerts && (
-                            <div style={{
-                                position: 'absolute',
-                                top: 4,
-                                right: 4,
-                                width: 6,
-                                height: 6,
-                                backgroundColor: '#ff4444',
-                                borderRadius: '50%'
-                            }} />
+                        <FaBell
+                            size={16}
+                            style={{ color: hasMissedAlerts ? '#ff4444' : '#666666' }}
+                            title={hasMissedAlerts ? `${missedItems.length} missed` : 'Missed alerts'}
+                        />
+                        {hasMissedAlerts && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    bottom: 2,
+                                    right: 2,
+                                    minWidth: 14,
+                                    height: 14,
+                                    padding: '0 3px',
+                                    borderRadius: 7,
+                                    backgroundColor: '#ff4444',
+                                    color: '#fff',
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    lineHeight: '14px',
+                                    textAlign: 'center',
+                                    fontVariantNumeric: 'tabular-nums',
+                                }}
+                            >
+                                {missedItems.length > 9 ? '9+' : missedItems.length}
+                            </span>
+                        )}
+                        {hasNewMissedAlerts && !hasMissedAlerts && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    top: 4,
+                                    right: 4,
+                                    width: 6,
+                                    height: 6,
+                                    backgroundColor: '#ff4444',
+                                    borderRadius: '50%',
+                                }}
+                            />
                         )}
                     </Focusable>
 
-                    {/* Sleep Inhibitor Button */}
+                    {/* Sleep inhibitor */}
                     <Focusable
                         onActivate={(sleepInhibitorActive && screensaverEnabled) ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
                         style={{
-                            flex: '1 1 0',
-                            minWidth: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            padding: 8,
+                            ...headerIconButtonStyle,
                             backgroundColor: (sleepInhibitorActive && screensaverEnabled) ? '#e6990022' : '#ffffff08',
-                            borderRadius: 12,
-                            border: '2px solid transparent',
                             cursor: (sleepInhibitorActive && screensaverEnabled) ? 'pointer' : 'default',
                             opacity: (sleepInhibitorActive && screensaverEnabled) ? 1 : 0.6,
-                            transition: 'all 0.1s ease-in-out'
                         }}
                         onFocus={(e: any) => {
                             if (sleepInhibitorActive && screensaverEnabled) {
@@ -320,18 +339,34 @@ function Content() {
                             e.target.style.borderColor = 'transparent';
                         }}
                     >
-                        <FaShieldAlt size={14} style={{ color: (sleepInhibitorActive && screensaverEnabled) ? '#e69900' : '#666666' }} />
-                        <span style={{
-                            fontSize: 12,
-                            color: (sleepInhibitorActive && screensaverEnabled) ? '#e69900' : '#666666',
-                            fontWeight: 500,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {sleepInhibitorActive ? 'Awake' : 'Sleep'}
-                        </span>
+                        <FaShieldAlt
+                            size={16}
+                            style={{ color: (sleepInhibitorActive && screensaverEnabled) ? '#e69900' : '#666666' }}
+                            title={sleepInhibitorActive ? 'Sleep blocked' : 'Sleep'}
+                        />
                     </Focusable>
+
+                    {newsEnabled ? (
+                        <Focusable
+                            onActivate={handleOpenNews}
+                            style={{
+                                ...headerIconButtonStyle,
+                                backgroundColor: '#ffffff08',
+                                cursor: 'pointer',
+                                opacity: 1,
+                            }}
+                            onFocus={(e: any) => {
+                                e.target.style.backgroundColor = '#4488aa';
+                                e.target.style.borderColor = 'white';
+                            }}
+                            onBlur={(e: any) => {
+                                e.target.style.backgroundColor = '#ffffff08';
+                                e.target.style.borderColor = 'transparent';
+                            }}
+                        >
+                            <FaNewspaper size={16} style={{ color: '#7eb8da' }} title="Headlines" />
+                        </Focusable>
+                    ) : null}
 
                     {/* Screensaver Preview Button */}
                     {(() => {
@@ -341,17 +376,10 @@ function Content() {
                             <Focusable
                                 onActivate={() => triggerScreensaverPreviewAfterClosingMenus()}
                                 style={{
-                                    flex: '0 0 auto',
-                                    padding: 8,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
+                                    ...headerIconButtonStyle,
                                     backgroundColor: '#ffffff08',
-                                    borderRadius: 12,
-                                    border: '2px solid transparent',
                                     cursor: 'pointer',
                                     color: '#888888',
-                                    transition: 'all 0.1s ease-in-out'
                                 }}
                                 onFocus={(e: any) => {
                                     e.target.style.backgroundColor = '#4488aa';
@@ -373,17 +401,10 @@ function Content() {
                     <Focusable
                         onActivate={navigateToSettings}
                         style={{
-                            flex: '0 0 auto',
-                            padding: 8,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            ...headerIconButtonStyle,
                             backgroundColor: '#ffffff08',
-                            borderRadius: 12,
-                            border: '2px solid transparent',
                             cursor: 'pointer',
                             color: '#888888',
-                            transition: 'all 0.1s ease-in-out'
                         }}
                         onFocus={(e: any) => {
                             e.target.style.backgroundColor = '#4488aa';

@@ -93,6 +93,14 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_suggestme_mode: 'intelligent',
     screensaver_suggestme_preset_slot: -1,
     screensaver_suggestme_pick_strategy: 'daily' as const,
+    // News widget settings
+    screensaver_news_enabled: false,
+    screensaver_news_refresh_minutes: 30,
+    screensaver_news_enabled_preset_ids: [
+        "ap", "bbc", "npr", "hn", "ars", "verge",
+        "rps", "pcgamer", "eurogamer", "guardian", "nasa", "nature",
+    ],
+    screensaver_news_custom_feeds: [],
     // Pixel shift for OLED burn-in prevention
     pixel_shift_enabled: true,
     pixel_shift_range: 3,

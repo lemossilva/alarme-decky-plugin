@@ -208,6 +208,33 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                 />
             </PanelSection>
 
+            <PanelSection title="News Widget">
+                <ManualRow
+                    title="Headlines on screensaver"
+                    description="Add the News widget to a small-widget slot on the screensaver info row. Enable feeds under Settings → News, then add News under Settings → Screensaver widgets."
+                />
+                <ManualRow
+                    title="Reading an article"
+                    description="Tap the newspaper icon in the plugin header (between Sleep and the screensaver preview when both are visible) to open the headline list. The first entry matches what the screensaver last showed. Use Open on any row to read it in the Steam browser."
+                />
+                <ManualRow
+                    title="Feed sources"
+                    description="Enable curated feeds or add your own RSS/Atom URLs under Settings → News. Custom feeds are tested (fetch and parse) before they are saved. Headlines from enabled sources are merged on the screensaver."
+                />
+                <ManualRow
+                    title="Prefetch and refresh"
+                    description="News headlines are fetched in the background before the screensaver shows (like weather). The refresh interval controls how often fresh data is pulled when the prefetch is active."
+                />
+                <ManualRow
+                    title="Offline support"
+                    description="When network is unavailable, cached headlines are shown with an 'offline' label. The cache persists across restarts."
+                />
+                <ManualRow
+                    title="Opening articles in Settings"
+                    description="Settings → News also lists recent headlines with Open buttons. The header newspaper icon is the quickest way to browse everything currently cached."
+                />
+            </PanelSection>
+
             <PanelSection title="Sounds">
                 <ManualRow
                     title="Built-in and soundless"

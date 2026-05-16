@@ -12,6 +12,7 @@ import { NetworkWidget } from "./screensaver/NetworkWidget";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
 import { ForecastWidget } from "./screensaver/ForecastWidget";
 import { SuggestMeWidget } from "./screensaver/SuggestMeWidget";
+import { NewsWidget } from "./screensaver/NewsWidget";
 import { Z_INDEX } from "../utils/zIndex";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
 import type {
@@ -273,6 +274,9 @@ export function ScreensaverContent() {
                 break;
             case "weather":
                 content = <WeatherWidget fontSize={widgetFontSize} layout="card" show />;
+                break;
+            case "news":
+                content = <NewsWidget fontSize={widgetFontSize} show />;
                 break;
             default:
                 return null;

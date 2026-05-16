@@ -1,7 +1,7 @@
 {
     "name": "AlarMe",
     "author": "Guilherme Lemos",
-    "version": "1.7.7",
+    "version": "1.7.8",
     "main": "main.py",
     "flags": [],
     "api_version": 1,

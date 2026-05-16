@@ -7,6 +7,7 @@ import { WallpaperLayer } from "./screensaver/WallpaperLayer";
 import { useSettings } from "../hooks/useSettings";
 import { usePixelShift } from "../hooks/usePixelShift";
 import { useWeatherPrefetch } from "../hooks/useWeather";
+import { useNewsPrefetch } from "../hooks/useNews";
 import type { ScreensaverBigWidgetId, ScreensaverSmallWidgetId } from "../types";
 import { Z_INDEX } from "../utils/zIndex";
 import { FaBell, FaMoon, FaDesktop } from "react-icons/fa";
@@ -37,6 +38,15 @@ export const ScreensaverOverlay = () => {
         weatherRelevant &&
         (inhibitorActive || standaloneEnabled || isPreview);
     useWeatherPrefetch(prefetchWeather);
+
+    const newsRelevant =
+        smallWidgets.includes("news") && (settings.screensaver_news_enabled ?? false);
+    const prefetchNews =
+        effectiveMode !== "off" &&
+        newsRelevant &&
+        (inhibitorActive || standaloneEnabled || isPreview);
+    useNewsPrefetch(prefetchNews);
+
     const { subscribe, release } = useCatchAllGamepad();
 
     const wakeUpRef = useRef(wakeUp);
@@ -44,10 +54,6 @@ export const ScreensaverOverlay = () => {
 
     const overlayRef = useRef<HTMLDivElement>(null);
 
-    // Gamepad capture for both timer-based and standalone screensavers.
-    // After a Steam Deck reboot the SteamUI NavigationManager can initialize
-    // late or get swapped out, so the binding is refreshed on a short cadence
-    // (each subscribe call attaches against the current manager).
     useEffect(() => {
         if (!shouldListen) {
             release();
@@ -69,8 +75,6 @@ export const ScreensaverOverlay = () => {
         };
     }, [shouldListen, subscribe, release]);
 
-    // Close side menus (QAM, main menu) when screensaver activates so they
-    // don't sit on top of the overlay.
     const prevVisibleRef = useRef(false);
     useEffect(() => {
         if (overlayVisible && !prevVisibleRef.current) {
@@ -79,9 +83,6 @@ export const ScreensaverOverlay = () => {
         prevVisibleRef.current = overlayVisible;
     }, [overlayVisible]);
 
-    // Native touch/pointer listeners on the overlay div.
-    // React's synthetic events don't fire in Decky's CEF overlay mode,
-    // so we use native addEventListener with capture phase instead.
     useEffect(() => {
         const el = overlayRef.current;
         if (!el || !overlayVisible) return;

@@ -23,6 +23,366 @@ _BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like G
 
 _WALLPAPER_POOL_MAX = 20
 
+_NEWS_MAX_AGE_HOURS = 48
+_NEWS_MAX_HEADLINES = 200
+_NEWS_MAX_CUSTOM_FEEDS = 10
+_NEWS_FEED_TIMEOUT = 8
+
+NEWS_PRESETS = [
+    {"id": "ap", "label": "AP Top News", "url": "https://feeds.apnews.com/rss/apf-topnews"},
+    {"id": "bbc", "label": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml"},
+    {"id": "npr", "label": "NPR News", "url": "https://feeds.npr.org/1001/rss.xml"},
+    {"id": "hn", "label": "Hacker News", "url": "https://hnrss.org/frontpage"},
+    {"id": "ars", "label": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index"},
+    {"id": "verge", "label": "The Verge", "url": "https://www.theverge.com/rss/index.xml"},
+    {"id": "rps", "label": "Rock Paper Shotgun", "url": "https://www.rockpapershotgun.com/feed"},
+    {"id": "pcgamer", "label": "PC Gamer", "url": "https://www.pcgamer.com/rss/"},
+    {"id": "eurogamer", "label": "Eurogamer", "url": "https://www.eurogamer.net/feed"},
+    {"id": "guardian", "label": "The Guardian", "url": "https://www.theguardian.com/world/rss"},
+    {"id": "nasa", "label": "NASA Breaking News", "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss"},
+    {"id": "nature", "label": "Nature News", "url": "https://www.nature.com/nature.rss"},
+]
+
+_NEWS_PRESET_IDS = frozenset(p["id"] for p in NEWS_PRESETS)
+
+
+def _news_custom_feed_id(url: str) -> str:
+    import hashlib
+
+    digest = hashlib.sha256(url.strip().encode("utf-8")).hexdigest()[:12]
+    return f"custom_{digest}"
+
+
+def _news_guess_feed_label(url: str) -> str:
+    from urllib.parse import urlparse
+
+    try:
+        host = urlparse(url).hostname or ""
+        if host.startswith("www."):
+            host = host[4:]
+        return (host[:80] if host else "Custom feed") or "Custom feed"
+    except Exception:
+        return "Custom feed"
+
+
+def _news_sanitize_custom_feeds(raw) -> list[dict]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict] = []
+    seen_urls: set[str] = set()
+    for entry in raw[:_NEWS_MAX_CUSTOM_FEEDS]:
+        if not isinstance(entry, dict):
+            continue
+        url = (entry.get("url") or "").strip()
+        if not url.startswith(("http://", "https://")) or len(url) > 2048:
+            continue
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        label = (entry.get("label") or "").strip()[:80] or _news_guess_feed_label(url)
+        feed_id = (entry.get("id") or "").strip()
+        if not feed_id.startswith("custom_"):
+            feed_id = _news_custom_feed_id(url)
+        out.append({"id": feed_id, "label": label, "url": url, "custom": True})
+    return out
+
+
+def _news_all_presets(user: dict) -> list[dict]:
+    curated = [dict(p) for p in NEWS_PRESETS]
+    custom = _news_sanitize_custom_feeds(user.get("screensaver_news_custom_feeds"))
+    return curated + custom
+
+
+def _news_all_preset_ids(user: dict) -> frozenset[str]:
+    return frozenset(p["id"] for p in _news_all_presets(user))
+
+
+def _news_enabled_preset_ids(user: dict) -> list[str]:
+    """Return enabled preset ids; empty stored list means all presets (default)."""
+    allowed = _news_all_preset_ids(user)
+    raw = user.get("screensaver_news_enabled_preset_ids")
+    if not isinstance(raw, list) or len(raw) == 0:
+        return list(allowed)
+    remap = {"reuters": "ap"}
+    ids = []
+    for pid in raw:
+        mapped = remap.get(pid, pid)
+        if mapped in allowed:
+            ids.append(mapped)
+    return ids if ids else list(allowed)
+
+
+def _news_local_tag(tag: str) -> str:
+    if tag and "}" in tag:
+        return tag.rsplit("}", 1)[-1].lower()
+    return (tag or "").lower()
+
+
+def _news_find_children(parent, local_name: str):
+    name = local_name.lower()
+    for child in parent:
+        if _news_local_tag(child.tag) == name:
+            yield child
+
+
+def _news_element_text(el) -> str:
+    if el is None:
+        return ""
+    return "".join(el.itertext()).strip()
+
+
+def _news_parse_date_string(raw: str | None) -> float | None:
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(s).timestamp()
+    except Exception:
+        pass
+    try:
+        s_iso = s.replace("Z", "+00:00")
+        return datetime.fromisoformat(s_iso).timestamp()
+    except Exception:
+        pass
+    return None
+
+
+def _news_entry_link(entry_el) -> str:
+    for link_el in _news_find_children(entry_el, "link"):
+        href = (link_el.get("href") or "").strip()
+        if href.startswith(("http://", "https://")):
+            rel = (link_el.get("rel") or "alternate").lower()
+            if rel in ("alternate", ""):
+                return href
+        text = _news_element_text(link_el)
+        if text.startswith(("http://", "https://")):
+            return text
+    url_el = next(_news_find_children(entry_el, "url"), None)
+    if url_el is not None:
+        href = (url_el.get("href") or "").strip()
+        if href.startswith(("http://", "https://")):
+            return href
+        text = _news_element_text(url_el)
+        if text.startswith(("http://", "https://")):
+            return text
+    guid_el = next(_news_find_children(entry_el, "guid"), None)
+    if guid_el is not None:
+        if (guid_el.get("isPermaLink") or "true").lower() != "false":
+            text = _news_element_text(guid_el)
+            if text.startswith(("http://", "https://")):
+                return text
+    return ""
+
+
+def _news_entry_pub_ts(entry_el) -> float | None:
+    for key in ("published", "updated", "pubdate", "date", "dc:date"):
+        for child in entry_el:
+            if _news_local_tag(child.tag) == key.split(":")[-1].lower():
+                ts = _news_parse_date_string(_news_element_text(child))
+                if ts is not None:
+                    return ts
+    return None
+
+
+_NEWS_ELEMENTTREE = None
+_NEWS_ELEMENTTREE_CHECKED = False
+
+
+def _news_get_elementtree():
+    """ElementTree when the runtime ships xml.etree; None on stripped Decky Python."""
+    global _NEWS_ELEMENTTREE, _NEWS_ELEMENTTREE_CHECKED
+    if _NEWS_ELEMENTTREE_CHECKED:
+        return _NEWS_ELEMENTTREE
+    _NEWS_ELEMENTTREE_CHECKED = True
+    try:
+        import importlib
+
+        _NEWS_ELEMENTTREE = importlib.import_module("xml.etree.ElementTree")
+    except ImportError:
+        _NEWS_ELEMENTTREE = None
+    return _NEWS_ELEMENTTREE
+
+
+def _news_strip_markup(text: str) -> str:
+    import re
+
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+def _news_unwrap_cdata(text: str) -> str:
+    import re
+
+    return re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL).strip()
+
+
+def _news_xml_field(block: str, tag: str) -> str:
+    import re
+
+    pat = re.compile(
+        rf"<{re.escape(tag)}(?:\s[^>]*)?>(.*?)</{re.escape(tag)}>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    match = pat.search(block)
+    if not match:
+        return ""
+    return _news_strip_markup(_news_unwrap_cdata(match.group(1)))
+
+
+def _news_xml_link_from_block(block: str) -> str:
+    import re
+
+    for link_match in re.finditer(r"<link\s+([^>]+?)/?\s*>", block, re.IGNORECASE):
+        attrs = link_match.group(1)
+        href_match = re.search(r"""href=["']([^"']+)["']""", attrs, re.IGNORECASE)
+        if not href_match:
+            continue
+        href = href_match.group(1).strip()
+        if not href.startswith(("http://", "https://")):
+            continue
+        rel_match = re.search(r"""rel=["']([^"']+)["']""", attrs, re.IGNORECASE)
+        rel = (rel_match.group(1) if rel_match else "alternate").lower()
+        if rel in ("alternate", ""):
+            return href
+    for tag in ("link", "guid", "url"):
+        text = _news_xml_field(block, tag)
+        if text.startswith(("http://", "https://")):
+            return text
+    return ""
+
+
+def _news_xml_pub_ts_from_block(block: str) -> float | None:
+    for tag in ("published", "updated", "pubdate", "date"):
+        val = _news_xml_field(block, tag)
+        if val:
+            ts = _news_parse_date_string(val)
+            if ts is not None:
+                return ts
+    return None
+
+
+def _news_parse_xml_feed_regex(raw: bytes) -> list[dict]:
+    import re
+
+    text = raw.decode("utf-8", errors="replace")
+    blocks = []
+    for tag in ("item", "entry"):
+        pat = re.compile(
+            rf"<{tag}(?:\s[^>]*)?>(.*?)</{tag}>",
+            re.IGNORECASE | re.DOTALL,
+        )
+        blocks.extend(match.group(0) for match in pat.finditer(text))
+    out = []
+    for block in blocks[:50]:
+        title = _news_xml_field(block, "title")
+        url = _news_xml_link_from_block(block)
+        if not title or not url.startswith(("http://", "https://")):
+            continue
+        out.append({"title": title, "url": url, "published_ts": _news_xml_pub_ts_from_block(block)})
+    return out
+
+
+def _news_parse_xml_feed_etree(raw: bytes) -> list[dict]:
+    ET = _news_get_elementtree()
+    if ET is None:
+        return []
+    root = ET.fromstring(raw)
+    root_local = _news_local_tag(root.tag)
+    entry_nodes = []
+    if root_local == "feed":
+        entry_nodes = list(_news_find_children(root, "entry"))
+    else:
+        for el in root.iter():
+            if _news_local_tag(el.tag) == "item":
+                entry_nodes.append(el)
+    out = []
+    for entry in entry_nodes[:50]:
+        title_el = next(_news_find_children(entry, "title"), None)
+        title = _news_element_text(title_el)
+        url = _news_entry_link(entry)
+        if not title or not url.startswith(("http://", "https://")):
+            continue
+        pub_ts = _news_entry_pub_ts(entry)
+        out.append({"title": title, "url": url, "published_ts": pub_ts})
+    return out
+
+
+def _news_parse_json_feed(raw: bytes) -> list[dict] | None:
+    try:
+        text = raw.decode("utf-8", errors="replace").lstrip()
+        if not text.startswith("{"):
+            return None
+        data = json.loads(text)
+    except Exception:
+        return None
+    version = data.get("version") or ""
+    if not str(version).startswith("https://jsonfeed.org/"):
+        return None
+    out = []
+    for entry in (data.get("items") or [])[:50]:
+        if not isinstance(entry, dict):
+            continue
+        url = (entry.get("url") or entry.get("external_url") or "").strip()
+        if not url.startswith(("http://", "https://")):
+            continue
+        title = (entry.get("title") or "").strip()
+        if not title:
+            continue
+        pub_ts = None
+        for key in ("date_published", "date_modified"):
+            raw_date = entry.get(key)
+            if raw_date:
+                pub_ts = _news_parse_date_string(str(raw_date))
+                if pub_ts is not None:
+                    break
+        out.append({"title": title, "url": url, "published_ts": pub_ts})
+    return out
+
+
+def _news_parse_xml_feed(raw: bytes) -> list[dict]:
+    if _news_get_elementtree() is not None:
+        try:
+            parsed = _news_parse_xml_feed_etree(raw)
+            if parsed:
+                return parsed
+        except Exception:
+            pass
+    return _news_parse_xml_feed_regex(raw)
+
+
+def _news_parse_feed_bytes(raw: bytes) -> list[dict]:
+    """Parse RSS, Atom, or JSON Feed without feedparser."""
+    json_items = _news_parse_json_feed(raw)
+    if json_items:
+        return json_items
+    return _news_parse_xml_feed(raw)
+
+
+def _open_news_url_on_deck(url: str) -> None:
+    import shutil
+    import subprocess
+
+    env = {**os.environ}
+    env.setdefault("DISPLAY", ":0")
+    steam_bin = shutil.which("steam") or "/usr/bin/steam"
+    xdg = shutil.which("xdg-open") or "/usr/bin/xdg-open"
+    for args in ([steam_bin, f"steam://openurl/{url}"], [xdg, url]):
+        if not args[0]:
+            continue
+        try:
+            subprocess.Popen(
+                args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                env=env,
+            )
+            decky.logger.info(f"AlarMe: opened news url via {args[0]}")
+            return
+        except OSError as e:
+            decky.logger.debug(f"AlarMe: open url via {args[0]} failed: {e}")
+    raise OSError("no url opener available")
+
 
 def _http_get_bytes(url: str, timeout: int = 20) -> bytes:
     import urllib.request
@@ -54,6 +414,36 @@ def _wallpaper_cache_dir() -> str:
 
 def _weather_cache_path() -> str:
     return os.path.join(_wallpaper_cache_dir(), "weather_cache.json")
+
+
+def _news_cache_dir() -> str:
+    d = os.path.join(runtimeDir, "news_cache")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _news_legacy_cache_path() -> str:
+    return os.path.join(_wallpaper_cache_dir(), "news_cache.json")
+
+
+def _news_cache_path() -> str:
+    return os.path.join(_news_cache_dir(), "cache.json")
+
+
+def _news_migrate_legacy_cache() -> None:
+    """Move cache out of wallpaper_cache/ if an older build wrote it there."""
+    legacy = _news_legacy_cache_path()
+    current = _news_cache_path()
+    if os.path.isfile(current):
+        return
+    if not os.path.isfile(legacy):
+        return
+    try:
+        os.makedirs(os.path.dirname(current), exist_ok=True)
+        os.replace(legacy, current)
+        decky.logger.info(f"AlarMe: migrated news cache to {current}")
+    except OSError as e:
+        decky.logger.warning(f"AlarMe: news cache migration failed: {e}")
 
 
 def _wallpaper_meta_sidecar_path(image_path: str) -> str:
@@ -271,6 +661,11 @@ DEFAULT_SETTINGS = {
     "screensaver_suggestme_mode": "intelligent",
     "screensaver_suggestme_preset_slot": -1,
     "screensaver_suggestme_pick_strategy": "daily",
+    # News widget settings
+    "screensaver_news_enabled": False,
+    "screensaver_news_refresh_minutes": 30,
+    "screensaver_news_enabled_preset_ids": list(_NEWS_PRESET_IDS),
+    "screensaver_news_custom_feeds": [],
 }
 
 # Default presets
@@ -3960,6 +4355,341 @@ class Plugin:
 
         return dict(payload)
 
+    # ==================== NEWS FEED METHODS ====================
+
+    def _news_parse_feed(self, feed_id: str, feed_label: str, url: str) -> dict:
+        """Parse a single RSS/Atom/JSON feed. Returns {ok, error, items}."""
+        import hashlib
+        import html
+        import re
+
+        try:
+            raw = _http_get_bytes(url, timeout=_NEWS_FEED_TIMEOUT)
+            parsed_entries = _news_parse_feed_bytes(raw)
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:100], "items": []}
+
+        if not parsed_entries:
+            return {"ok": False, "error": "no_entries", "items": []}
+
+        items = []
+        tag_re = re.compile(r"<[^>]+>")
+        cutoff_ts = time.time() - (_NEWS_MAX_AGE_HOURS * 3600)
+
+        for entry in parsed_entries:
+            link = entry.get("url") or ""
+            if not link.startswith(("http://", "https://")):
+                continue
+
+            title_raw = entry.get("title") or ""
+            title = html.unescape(tag_re.sub("", title_raw)).strip()
+            if not title:
+                continue
+
+            pub_ts = entry.get("published_ts")
+            if pub_ts is None:
+                pub_ts = time.time()
+
+            if pub_ts < cutoff_ts:
+                continue
+
+            item_id = hashlib.sha256(link.encode()).hexdigest()[:8]
+            items.append({
+                "id": item_id,
+                "title": title[:200],
+                "url": link,
+                "source_id": feed_id,
+                "source_label": feed_label,
+                "published_ts": pub_ts,
+            })
+
+        if not items:
+            return {"ok": False, "error": "no_recent_entries", "items": []}
+
+        return {"ok": True, "error": None, "items": items}
+
+    def _news_merge_and_cache(self, all_items: list, feed_statuses: dict) -> dict:
+        """Dedupe, sort, cap and write cache. Returns full payload."""
+        seen_urls = set()
+        unique = []
+        for item in all_items:
+            if item["url"] not in seen_urls:
+                seen_urls.add(item["url"])
+                unique.append(item)
+
+        unique.sort(key=lambda x: x.get("published_ts") or 0, reverse=True)
+        unique = unique[:_NEWS_MAX_HEADLINES]
+
+        now_ts = time.time()
+        fetched_iso = datetime.now().isoformat(timespec="seconds")
+
+        cache_data = {
+            "fetched_at_ts": now_ts,
+            "stale": False,
+            "items": unique,
+            "feeds": feed_statuses,
+        }
+
+        try:
+            with open(_news_cache_path(), "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, indent=0)
+        except Exception as e:
+            decky.logger.error(f"AlarMe: news cache write failed: {e}")
+
+        return {
+            "items": unique,
+            "feeds": feed_statuses,
+            "fetched_at": fetched_iso,
+            "stale": False,
+            "offline": False,
+            "from_cache": False,
+        }
+
+    def _news_read_cache(self) -> dict | None:
+        """Read existing cache file, if any."""
+        _news_migrate_legacy_cache()
+        cache_path = _news_cache_path()
+        if not os.path.isfile(cache_path):
+            return None
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            decky.logger.debug(f"AlarMe: news cache read failed: {e}")
+            return None
+
+    async def fetch_news(self) -> dict:
+        """Fetch news from enabled presets. Returns cache if fresh."""
+        empty = {
+            "items": [],
+            "feeds": {},
+            "fetched_at": None,
+            "stale": False,
+            "offline": False,
+            "from_cache": False,
+        }
+
+        user = await self._get_user_settings()
+        try:
+            refresh_min = int(user.get("screensaver_news_refresh_minutes") or 30)
+        except (TypeError, ValueError):
+            refresh_min = 30
+        refresh_min = max(5, min(refresh_min, 180))
+
+        enabled_ids_set = set(_news_enabled_preset_ids(user))
+        if not enabled_ids_set:
+            return empty
+
+        now_ts = time.time()
+        cached = self._news_read_cache()
+        if cached:
+            ts = cached.get("fetched_at_ts")
+            if isinstance(ts, (int, float)) and (now_ts - ts) < refresh_min * 60:
+                fetched_iso = datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+                return {
+                    "items": cached.get("items", []),
+                    "feeds": cached.get("feeds", {}),
+                    "fetched_at": fetched_iso,
+                    "stale": False,
+                    "offline": False,
+                    "from_cache": True,
+                }
+
+        all_items, feed_statuses = await self._news_fetch_enabled_presets(enabled_ids_set)
+
+        if not all_items and cached:
+            ts = cached.get("fetched_at_ts") or 0
+            fetched_iso = datetime.fromtimestamp(ts).isoformat(timespec="seconds") if ts else None
+            return {
+                "items": cached.get("items", []),
+                "feeds": cached.get("feeds", {}),
+                "fetched_at": fetched_iso,
+                "stale": True,
+                "offline": True,
+                "from_cache": True,
+            }
+
+        if not all_items:
+            return empty
+
+        return self._news_merge_and_cache(all_items, feed_statuses)
+
+    async def _news_fetch_enabled_presets(self, enabled_ids_set: set) -> tuple[list, dict]:
+        user = await self._get_user_settings()
+        preset_by_id = {p["id"]: p for p in _news_all_presets(user)}
+        presets_to_fetch = [preset_by_id[pid] for pid in enabled_ids_set if pid in preset_by_id]
+        total = len(presets_to_fetch)
+        all_items: list = []
+        feed_statuses: dict = {}
+
+        for i, preset in enumerate(presets_to_fetch):
+            try:
+                await decky.emit("alarme_news_prefetch_progress", {
+                    "step": i + 1,
+                    "total": max(1, total),
+                    "feed_id": preset["id"],
+                })
+            except Exception:
+                pass
+
+            result = await asyncio.to_thread(
+                self._news_parse_feed, preset["id"], preset["label"], preset["url"]
+            )
+            feed_statuses[preset["id"]] = {
+                "ok": result["ok"],
+                "error": result.get("error"),
+                "count": len(result.get("items", [])),
+            }
+            all_items.extend(result.get("items", []))
+
+        return all_items, feed_statuses
+
+    async def prefetch_news(self) -> dict:
+        """Force network fetch of news, emitting progress events."""
+        user = await self._get_user_settings()
+        enabled_ids_set = set(_news_enabled_preset_ids(user))
+
+        user = await self._get_user_settings()
+        preset_by_id = {p["id"]: p for p in _news_all_presets(user)}
+        presets_to_fetch = [preset_by_id[pid] for pid in enabled_ids_set if pid in preset_by_id]
+        if not presets_to_fetch:
+            try:
+                await decky.emit("alarme_news_prefetch_complete", {
+                    "success": False,
+                    "item_count": 0,
+                    "error": "no_feeds_enabled",
+                })
+            except Exception:
+                pass
+            return {"success": False, "error": "no_feeds_enabled", "payload": {"feeds": {}}}
+
+        try:
+            await decky.emit("alarme_news_prefetch_progress", {
+                "step": 0,
+                "total": len(presets_to_fetch),
+                "feed_id": "",
+            })
+        except Exception:
+            pass
+
+        all_items, feed_statuses = await self._news_fetch_enabled_presets(enabled_ids_set)
+
+        success = len(all_items) > 0
+        fetched_iso = datetime.now().isoformat(timespec="seconds")
+        if all_items:
+            payload = self._news_merge_and_cache(all_items, feed_statuses)
+        else:
+            payload = {
+                "items": [],
+                "feeds": feed_statuses,
+                "fetched_at": fetched_iso,
+                "stale": False,
+                "offline": False,
+                "from_cache": False,
+            }
+            try:
+                with open(_news_cache_path(), "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "fetched_at_ts": time.time(),
+                            "stale": False,
+                            "items": [],
+                            "feeds": feed_statuses,
+                        },
+                        f,
+                        indent=0,
+                    )
+            except Exception as e:
+                decky.logger.error(f"AlarMe: news cache write failed: {e}")
+
+        try:
+            await decky.emit("alarme_news_prefetch_complete", {
+                "success": success,
+                "item_count": len(payload.get("items", [])),
+            })
+        except Exception:
+            pass
+
+        return {"success": success, "payload": payload}
+
+    async def check_news_feeds(self) -> dict:
+        """Quick health check of enabled news feeds."""
+        user = await self._get_user_settings()
+        enabled_ids_set = set(_news_enabled_preset_ids(user))
+
+        if not enabled_ids_set:
+            return {"reachable": False, "feeds": [], "message": "No feeds enabled"}
+
+        feeds_status = []
+        any_ok = False
+
+        user = await self._get_user_settings()
+        for preset in _news_all_presets(user):
+            if preset["id"] not in enabled_ids_set:
+                continue
+            try:
+                import urllib.request
+                req = urllib.request.Request(preset["url"], method="HEAD", headers={"User-Agent": _BROWSER_UA})
+                with urllib.request.urlopen(req, timeout=5, context=_NO_VERIFY_SSL) as resp:
+                    ok = resp.status < 400
+                    feeds_status.append({"id": preset["id"], "ok": ok, "message": f"HTTP {resp.status}"})
+                    if ok:
+                        any_ok = True
+            except Exception as e:
+                feeds_status.append({"id": preset["id"], "ok": False, "message": str(e)[:60]})
+
+        return {"reachable": any_ok, "feeds": feeds_status}
+
+    async def validate_news_feed(self, url: str, label: str = "") -> dict:
+        """Fetch and parse an RSS/Atom URL before saving as a custom feed."""
+        u = (url or "").strip()
+        if not u.startswith(("http://", "https://")) or len(u) > 2048:
+            return {"ok": False, "error": "invalid_url"}
+        name = (label or "").strip()[:80]
+        try:
+            result = await asyncio.to_thread(self._news_parse_feed, "_validate", name or "Feed", u)
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:100]}
+        if not result.get("ok"):
+            err = result.get("error") or "parse_failed"
+            return {"ok": False, "error": err}
+        items = result.get("items") or []
+        if not items:
+            return {"ok": False, "error": "no_recent_entries"}
+        sample = items[0].get("title") or ""
+        suggested = name or _news_guess_feed_label(u)
+        return {
+            "ok": True,
+            "feed_id": _news_custom_feed_id(u),
+            "entry_count": len(items),
+            "sample_title": sample[:120],
+            "suggested_label": suggested,
+        }
+
+    async def get_news_presets(self) -> list:
+        """Return curated presets plus user custom feeds for settings UI."""
+        user = await self._get_user_settings()
+        return _news_all_presets(user)
+
+    async def get_news_storage_paths(self) -> dict:
+        """Return news cache paths for diagnostics."""
+        return {
+            "news_cache_dir": _news_cache_dir(),
+            "news_cache": _news_cache_path(),
+        }
+
+    async def open_news_url(self, url: str) -> dict:
+        """Open a headline URL via steam:// or xdg-open (works from screensaver overlay)."""
+        u = (url or "").strip()
+        if not u.startswith(("http://", "https://")) or len(u) > 2048:
+            return {"success": False, "error": "invalid_url"}
+        try:
+            await asyncio.to_thread(_open_news_url_on_deck, u)
+            return {"success": True, "url": u}
+        except Exception as e:
+            decky.logger.error(f"AlarMe: open_news_url failed: {e}")
+            return {"success": False, "error": str(e)[:100]}
+
     async def get_overlay_data(self) -> dict:
         """Get aggregated data for the in-game overlay.
         
@@ -4294,11 +5024,17 @@ class Plugin:
 
         # Enforce orchestrator caps for the current layout.
         _valid_big = frozenset({"calendar", "forecast", "suggestme"})
-        _valid_small = frozenset({"battery", "system_stats", "network", "weather"})
+        _valid_small = frozenset({"battery", "system_stats", "network", "weather", "news"})
         _layout = merged.get("overlay_screensaver_layout", "compact")
         _caps = {"large": (2, 4), "fullscreen": (3, 5)}.get(_layout, (0, 0))
-        big_list = [w for w in merged.get("screensaver_big_widgets", []) if w in _valid_big]
-        small_list = [w for w in merged.get("screensaver_small_widgets", []) if w in _valid_small]
+        big_raw = list(merged.get("screensaver_big_widgets", []))
+        small_raw = list(merged.get("screensaver_small_widgets", []))
+        if "news" in big_raw:
+            big_raw = [w for w in big_raw if w != "news"]
+            if "news" not in small_raw:
+                small_raw.append("news")
+        big_list = [w for w in big_raw if w in _valid_big]
+        small_list = [w for w in small_raw if w in _valid_small]
         merged["screensaver_big_widgets"] = big_list[:_caps[0]]
         merged["screensaver_small_widgets"] = small_list[:_caps[1]]
 
@@ -5164,7 +5900,15 @@ class Plugin:
             await self.settings_setSetting("missed_alerts_items", [])
             await self.settings_setSetting(SETTINGS_KEY_SUGGESTME_DAILY, None)
             self._suggestme_daily_cache = None
-            
+
+            # 7b. Clear news cache (current + legacy location)
+            for cache_file in (_news_cache_path(), _news_legacy_cache_path()):
+                try:
+                    if os.path.isfile(cache_file):
+                        os.remove(cache_file)
+                except OSError as e:
+                    decky.logger.debug(f"AlarMe: news cache remove during reset: {e}")
+
             # 8. Reset Pomodoro stats
             await self.settings_setSetting("pomodoro_stats", {
                 "daily_focus_time": 0,

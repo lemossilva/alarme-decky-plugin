@@ -3,7 +3,7 @@
 An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze functionality, Pomodoro productivity timer, and customizable sounds.
 
 ![AlarMe](https://img.shields.io/badge/Decky-Plugin-blue)
-![Version](https://img.shields.io/badge/release-v1.7.7-green)
+![Version](https://img.shields.io/badge/release-v1.7.8-green)
 ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://plugins.deckbrew.xyz/plugins?query=AlarMe&query=$[:1].downloads&suffix=%20downloads&label=Decky%20Store&color=blue)
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
@@ -89,6 +89,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **System stats & network info** - Optionally show CPU temp, RAM, and network (Wi-Fi or wired link speed, IPv4/IPv6) during screensaver
 - **Weather** - Optional Open-Meteo forecast (no API key): large/fullscreen layouts show a weather card; compact overlay shows a short inline readout during the screensaver. City search with live suggestions, or an approximate IP-based location (tries ipapi.co, then geojs.io) when no city is saved
 - **7-day forecast widget** - Enable a weekly forecast grid showing day abbreviations, weather icons, high/low temperatures, and precipitation chance for each day
+- **News headlines** - Optional RSS/Atom widget on the screensaver info row; curated sources plus custom feeds (tested before save); header newspaper button opens a grouped headline list with publish times; tap **Open** to read in the Steam browser
 - **Screensaver profiles** - Save your screensaver configuration to one of 3 profile slots; quickly switch between setups for bedtime, gaming, or minimal modes
 - **Quick preview** - **Screen** in the header closes the QAM and runs the screensaver immediately for a clean test
 - **Badge indicators** - 🌙 badge shows which items have screensaver enabled
