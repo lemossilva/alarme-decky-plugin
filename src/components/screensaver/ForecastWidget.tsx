@@ -13,7 +13,7 @@ import {
 } from "react-icons/fa";
 import { useSettings } from "../../hooks/useSettings";
 import { useScreensaverClock } from "../../hooks/useScreensaverClock";
-import { screensaverCalendarGridContentHeightPx } from "./DateWidget";
+import { screensaverCalendarGridContentHeightPx, type ScreensaverWidgetDensity } from "./DateWidget";
 import { useWeather, ForecastDay } from "../../hooks/useWeather";
 
 const DAY_ABBREV = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -64,9 +64,10 @@ function formatUv(uv: number | null): string | null {
 interface ForecastWidgetProps {
     fontSize: number;
     show: boolean;
+    density?: ScreensaverWidgetDensity;
 }
 
-export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
+export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastWidgetProps) {
     const { settings } = useSettings();
     const clock = useScreensaverClock();
     const w = useWeather(show);
@@ -90,13 +91,19 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
 
-    const colWidth = Math.max(56, Math.round(fontSize * 2.55));
-    const colGap = Math.max(4, Math.min(10, Math.round(fontSize * 0.16)));
-    const labelFs = Math.max(9, fontSize * 0.55);
-    const tempFs = Math.max(10, fontSize * 0.65);
-    const precipFs = Math.max(9, fontSize * 0.5);
-    const extrasFs = Math.max(8, fontSize * 0.42);
-    const iconSize = Math.max(14, fontSize * 0.95);
+    const tight = density === "tight";
+    const colWidth = tight
+        ? Math.max(48, Math.round(fontSize * 2.05))
+        : Math.max(56, Math.round(fontSize * 2.55));
+    const colGap = tight
+        ? Math.max(3, Math.min(8, Math.round(fontSize * 0.12)))
+        : Math.max(4, Math.min(10, Math.round(fontSize * 0.16)));
+    const fontScale = tight ? 0.92 : 1;
+    const labelFs = Math.max(9, fontSize * 0.55 * fontScale);
+    const tempFs = Math.max(10, fontSize * 0.65 * fontScale);
+    const precipFs = Math.max(9, fontSize * 0.5 * fontScale);
+    const extrasFs = Math.max(8, fontSize * 0.42 * fontScale);
+    const iconSize = Math.max(14, fontSize * 0.95 * fontScale);
 
     const rowLabel = Math.ceil(labelFs * 1.32);
     const rowIcon = Math.ceil(iconSize + 6);
@@ -128,7 +135,7 @@ export function ForecastWidget({ fontSize, show }: ForecastWidgetProps) {
         boxSizing: "border-box",
     };
 
-    const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month);
+    const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month, density);
 
     return (
         <div

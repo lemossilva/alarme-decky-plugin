@@ -1,11 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash, FaBatteryFull, FaDownload } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash, FaBatteryFull } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { useScreensaver } from "../hooks/useScreensaver";
 import { useMissedAlerts } from "../hooks/useMissedAlerts";
-import { useSteamDownloads } from "../hooks/useSteamDownloads";
 import { formatDuration, formatTime } from "../utils/time";
 import { usePixelShift } from "../hooks/usePixelShift";
 import { Z_INDEX } from "../utils/zIndex";
@@ -167,9 +166,6 @@ export const GameOverlay = () => {
 
     const showBattery = settings.overlay_compact_screensaver_show_battery ?? true;
     const batteryActive = screensaverVisible && showBattery;
-    const showDownloadsCompact = screensaverVisible && (settings.screensaver_show_downloads ?? false);
-    const dlState = useSteamDownloads(showDownloadsCompact);
-
     useEffect(() => {
         if (!batteryActive) return;
         let interval: ReturnType<typeof setInterval>;
@@ -230,8 +226,7 @@ export const GameOverlay = () => {
     const showClock = settings.overlay_compact_screensaver_show_clock ?? true;
     const showDate = settings.overlay_compact_screensaver_show_date ?? true;
     const showWeatherHud = screensaverVisible && (settings.screensaver_show_weather ?? false);
-    const dlActive = showDownloadsCompact && dlState.isDownloading;
-    const showExtra = screensaverVisible && (showWeatherHud || showClock || showDate || showBattery || batteryPct !== null || dlActive);
+    const showExtra = screensaverVisible && (showWeatherHud || showClock || showDate || showBattery || batteryPct !== null);
     const now = new Date();
 
     const baseOpacity = settings.overlay_opacity ?? 0.85;
@@ -372,26 +367,6 @@ export const GameOverlay = () => {
                             <FaBatteryFull size={(settings.overlay_text_size ?? 11) - 1} />
                             {batteryPct}%
                         </span>
-                    )}
-                    {dlActive && (
-                        <>
-                            {(showClock || showDate || (showBattery && batteryPct !== null)) && (
-                                <span style={{ opacity: 0.3 }}>·</span>
-                            )}
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
-                                <FaDownload size={(settings.overlay_text_size ?? 11) - 2} />
-                                {dlState.progressPct.toFixed(0)}%
-                                {dlState.etaSeconds > 0 && Number.isFinite(dlState.etaSeconds) && (
-                                    <span style={{ opacity: 0.7 }}>
-                                        {dlState.etaSeconds < 60
-                                            ? "<1m"
-                                            : dlState.etaSeconds < 3600
-                                              ? `${Math.ceil(dlState.etaSeconds / 60)}m`
-                                              : `${Math.floor(dlState.etaSeconds / 3600)}h ${Math.floor((dlState.etaSeconds % 3600) / 60)}m`}
-                                    </span>
-                                )}
-                            </span>
-                        </>
                     )}
                 </div>
             )}

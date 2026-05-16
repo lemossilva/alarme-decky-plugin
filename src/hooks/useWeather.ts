@@ -30,6 +30,32 @@ export interface WeatherData {
     loading: boolean;
 }
 
+const INITIAL_WEATHER: WeatherData = {
+    success: false,
+    temperature: null,
+    temperatureUnit: "C",
+    weathercode: null,
+    isDay: null,
+    tempMax: null,
+    tempMin: null,
+    aqiUs: null,
+    forecast: [],
+    fetchedAt: null,
+    error: null,
+    loading: false,
+};
+
+let sharedData: WeatherData = { ...INITIAL_WEATHER };
+let sharedIntervalMs = 30 * 60 * 1000;
+let sharedIntervalId: ReturnType<typeof setInterval> | null = null;
+let prefetchEnabled = false;
+let inFlight: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+function notifyListeners() {
+    listeners.forEach((fn) => fn());
+}
+
 function readNum(v: unknown): number | null {
     if (v === null || v === undefined) return null;
     const n = typeof v === "number" ? v : Number(v);
@@ -74,77 +100,98 @@ function parseResponse(raw: Record<string, unknown>): Omit<WeatherData, "loading
     };
 }
 
-export function useWeather(show: boolean) {
+function stopSharedInterval() {
+    if (sharedIntervalId) {
+        clearInterval(sharedIntervalId);
+        sharedIntervalId = null;
+    }
+}
+
+function startSharedInterval() {
+    stopSharedInterval();
+    if (!prefetchEnabled) return;
+    sharedIntervalId = setInterval(() => {
+        void fetchWeatherShared();
+    }, sharedIntervalMs);
+}
+
+export async function fetchWeatherShared(): Promise<void> {
+    if (inFlight) return inFlight;
+
+    if (!sharedData.fetchedAt) {
+        sharedData = { ...sharedData, loading: true, error: null };
+        notifyListeners();
+    }
+
+    inFlight = (async () => {
+        try {
+            const raw = await fetchWeatherCall();
+            const parsed = parseResponse(raw || {});
+            sharedData = { ...parsed, loading: false };
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            sharedData = {
+                ...sharedData,
+                success: false,
+                loading: false,
+                error: msg,
+            };
+        } finally {
+            inFlight = null;
+            notifyListeners();
+        }
+    })();
+
+    return inFlight;
+}
+
+export function setWeatherPrefetch(enabled: boolean, intervalMs: number) {
+    prefetchEnabled = enabled;
+    sharedIntervalMs = intervalMs;
+    if (!enabled) {
+        stopSharedInterval();
+        return;
+    }
+    void fetchWeatherShared();
+    startSharedInterval();
+}
+
+export function useWeatherPrefetch(enabled: boolean) {
     const { settings } = useSettings();
     const refreshMin = Math.max(5, Math.min(Number(settings.screensaver_weather_refresh_minutes) || 30, 180));
     const intervalMs = refreshMin * 60 * 1000;
 
-    const [data, setData] = useState<WeatherData>({
-        success: false,
-        temperature: null,
-        temperatureUnit: "C",
-        weathercode: null,
-        isDay: null,
-        tempMax: null,
-        tempMin: null,
-        aqiUs: null,
-        forecast: [],
-        fetchedAt: null,
-        error: null,
-        loading: false,
-    });
+    useEffect(() => {
+        setWeatherPrefetch(enabled, intervalMs);
+        return () => setWeatherPrefetch(false, intervalMs);
+    }, [enabled, intervalMs]);
+}
 
+export function useWeather(show: boolean) {
+    const [, bump] = useState(0);
     const mountedRef = useRef(true);
 
     useEffect(() => {
         mountedRef.current = true;
+        const listener = () => {
+            if (mountedRef.current) bump((n) => n + 1);
+        };
+        listeners.add(listener);
         return () => {
             mountedRef.current = false;
+            listeners.delete(listener);
         };
     }, []);
 
-    const load = useCallback(async () => {
-        if (!show) return;
-        setData((d) => ({ ...d, loading: true, error: null }));
-        try {
-            const raw = await fetchWeatherCall();
-            if (!mountedRef.current) return;
-            const parsed = parseResponse(raw || {});
-            setData({ ...parsed, loading: false });
-        } catch (e) {
-            if (!mountedRef.current) return;
-            const msg = e instanceof Error ? e.message : String(e);
-            setData((prev) => ({
-                ...prev,
-                success: false,
-                loading: false,
-                error: msg,
-            }));
-        }
-    }, [show]);
+    const refetch = useCallback(() => fetchWeatherShared(), []);
 
     useEffect(() => {
-        if (!show) {
-            setData((d) => ({
-                ...d,
-                loading: false,
-                success: false,
-                temperature: null,
-                weathercode: null,
-                isDay: null,
-                tempMax: null,
-                tempMin: null,
-                aqiUs: null,
-                forecast: [],
-                fetchedAt: null,
-                error: null,
-            }));
-            return;
+        if (!show) return undefined;
+        if (!sharedData.fetchedAt && !sharedData.loading && !inFlight) {
+            void fetchWeatherShared();
         }
-        load();
-        const id = window.setInterval(load, intervalMs);
-        return () => clearInterval(id);
-    }, [show, load, intervalMs]);
+        return undefined;
+    }, [show]);
 
-    return { ...data, refetch: load };
+    return { ...sharedData, refetch };
 }

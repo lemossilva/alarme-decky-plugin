@@ -88,8 +88,6 @@ const DEFAULT_SETTINGS: UserSettings = {
     // Widget orchestrator
     screensaver_big_widgets: [],
     screensaver_small_widgets: ['battery'] as any,
-    // Steam Downloads widget
-    screensaver_show_downloads: false,
     // SuggestMe integration
     screensaver_show_suggestme: false,
     screensaver_suggestme_mode: 'intelligent',

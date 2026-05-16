@@ -116,6 +116,7 @@ SETTINGS_KEY_RECENT_TIMERS = "recent_timers"
 SETTINGS_KEY_REMINDERS = "reminders"
 SETTINGS_KEY_STOPWATCH = "stopwatch_state"
 SETTINGS_KEY_PROFILES = "screensaver_profiles"
+SETTINGS_KEY_SUGGESTME_DAILY = "suggestme_daily_card"
 
 SCREENSAVER_PROFILE_KEYS = [
     "screensaver_mode", "screensaver_dim_opacity", "screensaver_idle_seconds",
@@ -138,7 +139,6 @@ SCREENSAVER_PROFILE_KEYS = [
     "overlay_during_screensaver", "pomodoro_screensaver_mode",
     "pixel_shift_enabled", "pixel_shift_range", "pixel_shift_interval_seconds",
     "screensaver_big_widgets", "screensaver_small_widgets",
-    "screensaver_show_downloads",
     "screensaver_show_suggestme", "screensaver_suggestme_mode",
     "screensaver_suggestme_preset_slot", "screensaver_suggestme_pick_strategy",
 ]
@@ -266,8 +266,6 @@ DEFAULT_SETTINGS = {
     # Widget orchestrator
     "screensaver_big_widgets": [],
     "screensaver_small_widgets": ["battery"],
-    # Steam Downloads widget
-    "screensaver_show_downloads": False,
     # SuggestMe integration
     "screensaver_show_suggestme": False,
     "screensaver_suggestme_mode": "intelligent",
@@ -4296,7 +4294,7 @@ class Plugin:
 
         # Enforce orchestrator caps for the current layout.
         _valid_big = frozenset({"calendar", "forecast", "suggestme"})
-        _valid_small = frozenset({"battery", "system_stats", "network", "weather", "downloads"})
+        _valid_small = frozenset({"battery", "system_stats", "network", "weather"})
         _layout = merged.get("overlay_screensaver_layout", "compact")
         _caps = {"large": (2, 4), "fullscreen": (3, 5)}.get(_layout, (0, 0))
         big_list = [w for w in merged.get("screensaver_big_widgets", []) if w in _valid_big]
@@ -5055,24 +5053,59 @@ class Plugin:
             decky.logger.error(f"AlarMe: Failed to read SuggestMe plugin.json: {e}")
             return {"available": False, "version": None, "compatible": False}
 
+    async def _load_suggestme_daily_cache(self) -> dict | None:
+        cached = await self.settings_getSetting(SETTINGS_KEY_SUGGESTME_DAILY, None)
+        return cached if isinstance(cached, dict) else None
+
+    async def _persist_suggestme_daily_cache(self, entry: dict) -> None:
+        await self.settings_setSetting(SETTINGS_KEY_SUGGESTME_DAILY, entry)
+        await self.settings_commit()
+
     async def get_suggestme_daily_card(self) -> dict:
         user_settings = await self._get_user_settings()
         if not user_settings.get("screensaver_show_suggestme", False):
             return {"game": None, "error": "Widget disabled"}
 
         strategy = user_settings.get("screensaver_suggestme_pick_strategy", "daily")
-        today = datetime.now().strftime("%Y-%m-%d")
+        if strategy != "daily":
+            return {"game": None, "needs_fetch": True}
 
-        if strategy == "daily" and self._suggestme_daily_cache:
-            if self._suggestme_daily_cache.get("date") == today:
-                return self._suggestme_daily_cache.get("payload", {"game": None, "error": "No cached data"})
+        today = datetime.now().strftime("%Y-%m-%d")
+        mode = user_settings.get("screensaver_suggestme_mode", "intelligent")
+        preset_slot = user_settings.get("screensaver_suggestme_preset_slot", -1)
+
+        cached = self._suggestme_daily_cache
+        if not cached:
+            cached = await self._load_suggestme_daily_cache()
+            if cached:
+                self._suggestme_daily_cache = cached
+
+        if (
+            cached
+            and cached.get("date") == today
+            and cached.get("mode") == mode
+            and cached.get("preset_slot") == preset_slot
+        ):
+            return cached.get("payload", {"game": None, "error": "No cached data"})
 
         return {"game": None, "needs_fetch": True}
 
     async def save_suggestme_daily_card(self, payload: dict) -> bool:
+        user_settings = await self._get_user_settings()
         today = datetime.now().strftime("%Y-%m-%d")
-        self._suggestme_daily_cache = {"date": today, "payload": payload}
-        return True
+        entry = {
+            "date": today,
+            "mode": user_settings.get("screensaver_suggestme_mode", "intelligent"),
+            "preset_slot": user_settings.get("screensaver_suggestme_preset_slot", -1),
+            "payload": payload,
+        }
+        self._suggestme_daily_cache = entry
+        try:
+            await self._persist_suggestme_daily_cache(entry)
+            return True
+        except Exception as e:
+            decky.logger.error(f"AlarMe: Failed to persist SuggestMe daily card: {e}")
+            return False
 
     async def factory_reset(self) -> bool:
         """Factory reset - restore all settings to defaults and clear all data."""
@@ -5129,6 +5162,8 @@ class Plugin:
                 "laps": []
             })
             await self.settings_setSetting("missed_alerts_items", [])
+            await self.settings_setSetting(SETTINGS_KEY_SUGGESTME_DAILY, None)
+            self._suggestme_daily_cache = None
             
             # 8. Reset Pomodoro stats
             await self.settings_setSetting("pomodoro_stats", {

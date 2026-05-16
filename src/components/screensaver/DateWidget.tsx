@@ -5,17 +5,25 @@ import { useSettings } from "../../hooks/useSettings";
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+export type ScreensaverWidgetDensity = "normal" | "tight";
+
+function calendarScale(density: ScreensaverWidgetDensity): number {
+    return density === "tight" ? 0.89 : 1;
+}
+
 /** Pixel height of `ScreensaverCalendarGrid` for a given month (weekday row + day cell rows). */
 export function screensaverCalendarGridContentHeightPx(
     fontSize: number,
     year: number,
     monthZeroBased: number,
+    density: ScreensaverWidgetDensity = "normal",
 ): number {
+    const scale = calendarScale(density);
     const firstDay = new Date(year, monthZeroBased, 1).getDay();
     const daysInMonth = new Date(year, monthZeroBased + 1, 0).getDate();
     const dayRows = Math.ceil((firstDay + daysInMonth) / 7);
-    const weekdayRowH = fontSize * 0.8;
-    const cellH = fontSize * 1.1;
+    const weekdayRowH = fontSize * 0.8 * scale;
+    const cellH = fontSize * 1.1 * scale;
     const gap = 1;
     return weekdayRowH + gap + dayRows * cellH + Math.max(0, dayRows - 1) * gap;
 }
@@ -56,9 +64,11 @@ export function ScreensaverDateHeading({ fontSize }: { fontSize: number }) {
 export function ScreensaverCalendarGrid({
     fontSize,
     stretchToContainer = false,
+    density = "normal",
 }: {
     fontSize: number;
     stretchToContainer?: boolean;
+    density?: ScreensaverWidgetDensity;
 }) {
     const { settings } = useSettings();
     const clock = useScreensaverClock();
@@ -70,9 +80,10 @@ export function ScreensaverCalendarGrid({
     const firstDay = new Date(clock.year, clock.month, 1).getDay();
     const daysInMonth = new Date(clock.year, clock.month + 1, 0).getDate();
     const numDayRows = Math.ceil((firstDay + daysInMonth) / 7);
-    const weekdayRowH = fontSize * 0.8;
-    const cellMinH = fontSize * 1.1;
-    const cellW = fontSize * 1.1;
+    const scale = calendarScale(density);
+    const weekdayRowH = fontSize * 0.8 * scale;
+    const cellMinH = fontSize * 1.1 * scale;
+    const cellW = fontSize * 1.1 * scale;
     const gridMinWidthPx = 7 * cellW + 6;
 
     const cells: JSX.Element[] = [];
@@ -132,8 +143,8 @@ export function ScreensaverCalendarGrid({
                   justifyContent: "center",
               }
             : {
-                  width: fontSize * 1.1,
-                  height: fontSize * 0.8,
+                  width: cellW,
+                  height: weekdayRowH,
                   textAlign: "center",
                   fontSize: fontSize * 0.45,
                   opacity: 0.4,
@@ -146,7 +157,7 @@ export function ScreensaverCalendarGrid({
     });
 
     if (stretchToContainer) {
-        const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month);
+        const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month, density);
         return (
             <div
                 style={{

@@ -75,6 +75,7 @@ export function useSuggestMeCard(
     const [card, setCard] = useState<SuggestMeCard | null>(null);
     const [loading, setLoading] = useState(false);
     const fetchedRef = useRef(false);
+    const dailyCardRef = useRef<SuggestMeCard | null>(null);
     const mountedRef = useRef(true);
     const fetchInFlightRef = useRef(false);
     const presetsRef = useRef(presets);
@@ -100,7 +101,8 @@ export function useSuggestMeCard(
             if (!mountedRef.current) return;
             setCard(result);
             if (strategy === "daily" && result.game) {
-                saveDailyCard(result).catch(() => {});
+                dailyCardRef.current = result;
+                await saveDailyCard(result);
             }
         } finally {
             fetchInFlightRef.current = false;
@@ -110,23 +112,32 @@ export function useSuggestMeCard(
 
     useEffect(() => {
         if (!show) {
-            setCard(null);
-            fetchedRef.current = false;
+            if (strategy !== "daily") {
+                setCard(null);
+                fetchedRef.current = false;
+            }
             return;
         }
 
         if (strategy === "daily") {
+            if (dailyCardRef.current?.game) {
+                setCard(dailyCardRef.current);
+                fetchedRef.current = true;
+                return;
+            }
+
             getDailyCard().then((cached) => {
                 if (!mountedRef.current) return;
                 if (cached?.game) {
+                    dailyCardRef.current = cached;
                     setCard(cached);
                     fetchedRef.current = true;
-                } else if (!fetchedRef.current) {
+                } else if (!fetchedRef.current && !fetchInFlightRef.current) {
                     fetchedRef.current = true;
                     doFetch();
                 }
             }).catch(() => {
-                if (!fetchedRef.current && mountedRef.current) {
+                if (!fetchedRef.current && !fetchInFlightRef.current && mountedRef.current) {
                     fetchedRef.current = true;
                     doFetch();
                 }

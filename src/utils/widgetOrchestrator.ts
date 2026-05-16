@@ -16,7 +16,6 @@ export const ALL_SMALL_WIDGETS: ScreensaverSmallWidgetId[] = [
     "system_stats",
     "network",
     "weather",
-    "downloads",
 ];
 
 export const BIG_WIDGET_LABELS: Record<ScreensaverBigWidgetId, string> = {
@@ -30,7 +29,6 @@ export const SMALL_WIDGET_LABELS: Record<ScreensaverSmallWidgetId, string> = {
     system_stats: "System Stats",
     network: "Network Info",
     weather: "Weather",
-    downloads: "Steam Downloads",
 };
 
 export function getCaps(layout: ScreensaverLayout): { big: number; small: number } {

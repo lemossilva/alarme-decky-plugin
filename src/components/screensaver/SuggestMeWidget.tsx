@@ -139,10 +139,22 @@ function formatPlaytimeHours(mins: number | undefined): string | null {
     return `${Math.round(hours)}h`;
 }
 
-function formatSteamReviewSubline(score: number | undefined): string | null {
-    if (score == null || !Number.isFinite(score) || score <= 0) return null;
-    if (Number.isInteger(score) && score >= 1 && score <= 8) return `Steam review score ${score}/8`;
-    return null;
+function formatReleaseDate(value: string | number | undefined): string | null {
+    if (value == null) return null;
+    if (typeof value === "number" && Number.isFinite(value)) {
+        const d = new Date(value > 1e12 ? value : value * 1000);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return `Released ${d.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+    }
+    const s = String(value).trim();
+    if (!s) return null;
+    if (/^\d{4}$/.test(s)) return s;
+    const parsed = Date.parse(s);
+    if (!Number.isNaN(parsed)) {
+        const d = new Date(parsed);
+        return `Released ${d.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+    }
+    return s;
 }
 
 /** Fullscreen: full-width Steam header strip + compact detail. */
@@ -178,9 +190,9 @@ function SuggestMeFullscreenHeaderCard({ card, fontSize }: { card: SuggestMeCard
         lineHeight: 1.18,
     };
 
-    const steamUserLine = formatSteamReviewSubline(g.steam_review_score);
+    const releaseLine = formatReleaseDate(g.release_date);
     const reasonSnippet = (card.reason ?? "").trim().slice(0, 96);
-    const detailSubline = [steamUserLine, reasonSnippet].filter(Boolean).join(" · ");
+    const detailSubline = [releaseLine, reasonSnippet].filter(Boolean).join(" · ");
 
     const sublineClamp: CSSProperties = {
         display: "-webkit-box",

@@ -244,8 +244,6 @@ export interface UserSettings {
     // Widget orchestrator
     screensaver_big_widgets?: ScreensaverBigWidgetId[];
     screensaver_small_widgets?: ScreensaverSmallWidgetId[];
-    // Steam Downloads widget
-    screensaver_show_downloads?: boolean;
     // SuggestMe integration
     screensaver_show_suggestme?: boolean;
     screensaver_suggestme_mode?: string;
@@ -375,7 +373,7 @@ export type ScreensaverLayout = 'compact' | 'large' | 'fullscreen';
 
 // Widget orchestrator types
 export type ScreensaverBigWidgetId = 'calendar' | 'forecast' | 'suggestme';
-export type ScreensaverSmallWidgetId = 'battery' | 'system_stats' | 'network' | 'weather' | 'downloads';
+export type ScreensaverSmallWidgetId = 'battery' | 'system_stats' | 'network' | 'weather';
 export type ScreensaverWidgetId = ScreensaverBigWidgetId | ScreensaverSmallWidgetId;
 
 export const WIDGET_CAPS: Record<'large' | 'fullscreen', { big: number; small: number }> = {
@@ -486,6 +484,7 @@ export interface SuggestMeGame {
     steam_review_score?: number;
     steam_review_description?: string;
     metacritic_score?: number;
+    release_date?: string | number;
 }
 
 export interface SuggestMeCard {

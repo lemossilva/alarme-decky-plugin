@@ -6,6 +6,8 @@ import { ScreensaverContent } from "./ScreensaverContent";
 import { WallpaperLayer } from "./screensaver/WallpaperLayer";
 import { useSettings } from "../hooks/useSettings";
 import { usePixelShift } from "../hooks/usePixelShift";
+import { useWeatherPrefetch } from "../hooks/useWeather";
+import type { ScreensaverBigWidgetId, ScreensaverSmallWidgetId } from "../types";
 import { Z_INDEX } from "../utils/zIndex";
 import { FaBell, FaMoon, FaDesktop } from "react-icons/fa";
 
@@ -19,7 +21,22 @@ export const ScreensaverOverlay = () => {
         shouldListen,
         isStandaloneIdle,
         isPreview,
+        inhibitorActive,
+        standaloneEnabled,
     } = useScreensaver();
+
+    const bigWidgets: ScreensaverBigWidgetId[] = settings.screensaver_big_widgets ?? [];
+    const smallWidgets: ScreensaverSmallWidgetId[] = settings.screensaver_small_widgets ?? [];
+    const weatherRelevant =
+        (settings.screensaver_show_weather ?? false) ||
+        (settings.screensaver_show_forecast ?? false) ||
+        smallWidgets.includes("weather") ||
+        bigWidgets.includes("forecast");
+    const prefetchWeather =
+        effectiveMode !== "off" &&
+        weatherRelevant &&
+        (inhibitorActive || standaloneEnabled || isPreview);
+    useWeatherPrefetch(prefetchWeather);
     const { subscribe, release } = useCatchAllGamepad();
 
     const wakeUpRef = useRef(wakeUp);

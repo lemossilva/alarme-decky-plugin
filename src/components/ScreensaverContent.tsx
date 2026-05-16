@@ -3,7 +3,6 @@ import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useScreensaver } from "../hooks/useScreensaver";
 import { useScreensaverViewportScale } from "../hooks/useScreensaverViewportScale";
-import { useSteamDownloads } from "../hooks/useSteamDownloads";
 import { ClockWidget } from "./screensaver/ClockWidget";
 import { DateWidget, ScreensaverDateHeading, ScreensaverCalendarGrid } from "./screensaver/DateWidget";
 import { BatteryWidget } from "./screensaver/BatteryWidget";
@@ -13,7 +12,6 @@ import { NetworkWidget } from "./screensaver/NetworkWidget";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
 import { ForecastWidget } from "./screensaver/ForecastWidget";
 import { SuggestMeWidget } from "./screensaver/SuggestMeWidget";
-import { DownloadQueueWidget } from "./screensaver/DownloadQueueWidget";
 import { Z_INDEX } from "../utils/zIndex";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
 import type {
@@ -75,9 +73,6 @@ export function ScreensaverContent() {
         showCenterDate ||
         (settings.screensaver_show_day_of_week ?? true);
 
-    const showDownloads = smallWidgets.includes("downloads");
-    const dlState = useSteamDownloads(overlayVisible && !isCompact && showDownloads);
-
     if (!overlayVisible || isCompact) return null;
 
     const spreadLayout = layout === "fullscreen";
@@ -85,6 +80,8 @@ export function ScreensaverContent() {
     const isAnalogClock = clockStyle === "analog";
     const hasBigWidgets = bigWidgets.length > 0;
     const hasSuggestMe = bigWidgets.includes("suggestme");
+    const tripleBigRow = spreadLayout && bigWidgets.length === 3;
+    const widgetDensity = tripleBigRow ? "tight" : "normal";
     const displayClockSize =
         layout === "large" && isAnalogClock ? clockSize * 0.75 : clockSize;
     const widgetFontSize = Math.max(10, clockSize * 0.45);
@@ -121,17 +118,33 @@ export function ScreensaverContent() {
                             flexDirection: "column",
                             justifyContent: "flex-start",
                             alignItems: hasSuggestMe ? "stretch" : "center",
+                            flex: tripleBigRow ? "0 1 auto" : undefined,
                             minWidth: 0,
                             minHeight: 0,
                         }}
                     >
-                        <ScreensaverCalendarGrid fontSize={widgetFontSize} stretchToContainer={hasSuggestMe} />
+                        <ScreensaverCalendarGrid
+                            fontSize={widgetFontSize}
+                            stretchToContainer={hasSuggestMe}
+                            density={widgetDensity}
+                        />
                     </div>
                 );
             case "forecast":
                 return (
-                    <div key={id} style={{ ...largeCardStyle, flexDirection: "column", alignItems: "center", justifyContent: "flex-start" }}>
-                        <ForecastWidget fontSize={widgetFontSize} show />
+                    <div
+                        key={id}
+                        style={{
+                            ...largeCardStyle,
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "flex-start",
+                            flex: tripleBigRow ? "1 1 0" : undefined,
+                            minWidth: tripleBigRow ? 0 : undefined,
+                            overflow: tripleBigRow ? "hidden" : undefined,
+                        }}
+                    >
+                        <ForecastWidget fontSize={widgetFontSize} show density={widgetDensity} />
                     </div>
                 );
             case "suggestme":
@@ -260,9 +273,6 @@ export function ScreensaverContent() {
                 break;
             case "weather":
                 content = <WeatherWidget fontSize={widgetFontSize} layout="card" show />;
-                break;
-            case "downloads":
-                content = <DownloadQueueWidget fontSize={widgetFontSize} show downloadState={dlState} />;
                 break;
             default:
                 return null;
