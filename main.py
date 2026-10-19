@@ -507,6 +507,7 @@ SETTINGS_KEY_REMINDERS = "reminders"
 SETTINGS_KEY_STOPWATCH = "stopwatch_state"
 SETTINGS_KEY_PROFILES = "screensaver_profiles"
 SETTINGS_KEY_SUGGESTME_DAILY = "suggestme_daily_card"
+SETTINGS_KEY_LAST_BOOT_ID = "last_boot_id"
 
 SCREENSAVER_PROFILE_SLOTS = ("slot_1", "slot_2", "slot_3")
 SCREENSAVER_MODES = ("black", "dim", "wallpaper")
@@ -568,6 +569,7 @@ DEFAULT_SETTINGS = {
     "missed_alerts_window": 24,
     "reminder_suspend_behavior": "continue",
     "pomodoro_suspend_behavior": "continue",
+    "pomodoro_auto_start": "off",  # "off" | "boot" | "boot_and_wake"
     # Stopwatch settings
     "stopwatch_reset_after_sleep": True,
     # Display settings
@@ -3191,6 +3193,21 @@ class Plugin:
         await self._update_sleep_inhibitor()
         return state
 
+    async def _auto_start_pomodoro(self, trigger: str):
+        """Start a focus session on boot or wake when the user opted in and none is running."""
+        user_settings = await self._get_user_settings()
+        mode = user_settings.get("pomodoro_auto_start", "off")
+        if mode == "off" or (trigger == "wake" and mode != "boot_and_wake"):
+            return
+
+        pomodoro = await self._get_pomodoro_state()
+        if pomodoro.get("active") and pomodoro.get("end_time", 0) > time.time():
+            return
+
+        state = await self.start_pomodoro()
+        decky.logger.info(f"AlarMe: Pomodoro auto-started on {trigger}")
+        await decky.emit("alarme_pomodoro_auto_started", {"trigger": trigger, "duration": state.get("duration")})
+
     async def stop_pomodoro(self) -> bool:
         """Stop the current Pomodoro session."""
         if self.pomodoro_task:
@@ -5805,6 +5822,8 @@ class Plugin:
                             decky.logger.info(f"AlarMe: Emitting missed items: {count}")
                             await decky.emit("alarme_missed_items_toast", count)
 
+                    await self._auto_start_pomodoro("wake")
+
                 self.last_tick = now
             except asyncio.CancelledError:
                 break
@@ -5875,6 +5894,15 @@ class Plugin:
         
         # Check and activate sleep inhibitor if any alerts require it
         await self._update_sleep_inhibitor()
+
+        # A new boot_id means the Deck booted; plugin reloads and Steam restarts keep it.
+        boot_id = self._get_boot_id()
+        if boot_id:
+            last_boot_id = await self.settings_getSetting(SETTINGS_KEY_LAST_BOOT_ID, "")
+            if boot_id != last_boot_id:
+                await self.settings_setSetting(SETTINGS_KEY_LAST_BOOT_ID, boot_id)
+                await self.settings_commit()
+                await self._auto_start_pomodoro("boot")
         
         decky.logger.info("AlarMe: Plugin initialized successfully")
 

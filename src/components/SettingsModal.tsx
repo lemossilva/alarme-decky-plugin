@@ -24,7 +24,7 @@ import { useScreensaverProfiles } from "../hooks/useScreensaverProfiles";
 import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
-import type { SoundFile, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile, UserSettings } from "../types";
+import type { SoundFile, PomodoroAutoStart, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile, UserSettings } from "../types";
 import { WIDGET_CAPS } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
@@ -433,6 +433,30 @@ const PomodoroSettingsPage = () => {
                     onChange={(val) => updateSetting('pomodoro_suspend_behavior', val as 'continue' | 'pause')}
                     icon={<FaBrain size={16} />}
                 />
+
+                <PanelSectionRow>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                        <FaPlay style={{ color: '#888', flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>Start automatically</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Dropdown
+                                rgOptions={[
+                                    { data: 'off', label: 'Never' },
+                                    { data: 'boot', label: 'When the Deck boots' },
+                                    { data: 'boot_and_wake', label: 'On boot and wake from sleep' },
+                                ]}
+                                selectedOption={settings.pomodoro_auto_start || 'off'}
+                                onChange={(option) => updateSetting('pomodoro_auto_start', option.data as PomodoroAutoStart)}
+                                strDefaultLabel="Never"
+                            />
+                        </div>
+                    </div>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                    <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
+                        Begins a focus session if none is running. Restarting Steam or reloading plugins does not count as a boot.
+                    </div>
+                </PanelSectionRow>
             </PanelSection>
         </ScrollableContent>
     );

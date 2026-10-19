@@ -600,6 +600,15 @@ export default definePlugin(() => {
     };
     addEventListener('alarme_missed_items_toast', handleMissedItemsToast);
 
+    const handlePomodoroAutoStarted = (event: { trigger: string; duration?: number }) => {
+        const minutes = event.duration ? Math.round(event.duration / 60) : null;
+        toaster.toast({
+            title: "AlarMe",
+            body: `Focus session started automatically${minutes ? ` (${minutes} min)` : ''}.`
+        });
+    };
+    addEventListener('alarme_pomodoro_auto_started', handlePomodoroAutoStarted);
+
     // Game lifecycle listeners using app lifetime notification
     let unregisterGameListener: any;
 
@@ -674,6 +683,7 @@ export default definePlugin(() => {
             removeEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
             removeEventListener('alarme_reminder_triggered', handleReminderTriggered);
             removeEventListener('alarme_missed_items_toast', handleMissedItemsToast);
+            removeEventListener('alarme_pomodoro_auto_started', handlePomodoroAutoStarted);
             // Unregister settings route and overlay
             routerHook.removeRoute(SETTINGS_ROUTE);
             routerHook.removeGlobalComponent(OVERLAY_COMPONENT_NAME);

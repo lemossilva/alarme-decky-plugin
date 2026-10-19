@@ -2,6 +2,7 @@
 
 export type ScreensaverMode = 'black' | 'dim' | 'wallpaper';
 export type ScreensaverProfileSlot = 'slot_1' | 'slot_2' | 'slot_3';
+export type PomodoroAutoStart = 'off' | 'boot' | 'boot_and_wake';
 
 // Timer types
 export interface Timer {
@@ -158,6 +159,7 @@ export interface UserSettings {
     // Suspend Behavior
     reminder_suspend_behavior?: 'continue' | 'pause';
     pomodoro_suspend_behavior?: 'continue' | 'pause';
+    pomodoro_auto_start?: PomodoroAutoStart;
     // Stopwatch settings
     stopwatch_reset_after_sleep?: boolean;
     // Display settings

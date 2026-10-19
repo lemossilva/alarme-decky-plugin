@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { addEventListener, removeEventListener, callable } from '@decky/api';
-import type { UserSettings, Preset, ScreensaverMode, ScreensaverProfileSlot } from '../types';
+import type { UserSettings, Preset, PomodoroAutoStart, ScreensaverMode, ScreensaverProfileSlot } from '../types';
 
 // Backend callables
 const getSettingsCall = callable<[], UserSettings>('get_settings');
@@ -107,6 +107,7 @@ const DEFAULT_SETTINGS: UserSettings = {
     // Suspend Behavior
     reminder_suspend_behavior: 'continue', // 'continue' = missed alerts, 'pause' = shift schedule
     pomodoro_suspend_behavior: 'continue', // 'continue' = missed session, 'pause' = shift session
+    pomodoro_auto_start: 'off' as PomodoroAutoStart,
     // Stopwatch settings
     stopwatch_reset_after_sleep: true,
     // Display settings

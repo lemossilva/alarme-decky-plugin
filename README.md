@@ -42,6 +42,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Visual progress** - See your focus progress at a glance
 - **Skip controls** - Skip to break or back to work anytime
 - **Background persistence** - Timer continues running even if you close the menu
+- **Auto-start** - Optionally begin a focus session when the Deck boots, or on boot and every wake from sleep
 - **Reset Stats** - Option to wipe your history and start fresh
 
 ### 🔁 Periodic Reminders

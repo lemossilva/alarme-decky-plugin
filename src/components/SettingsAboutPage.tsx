@@ -171,6 +171,10 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                     title="Statistics"
                     description="Daily and lifetime focus time and session counts are shown on the Pomodoro tab. You can reset statistics from there when you want a clean slate."
                 />
+                <ManualRow
+                    title="Start automatically"
+                    description="Settings → Pomodoro → Start automatically begins a focus session when the Deck boots, or on boot and every wake from sleep, if no session is already running."
+                />
             </PanelSection>
 
             <PanelSection title="Reminders">
