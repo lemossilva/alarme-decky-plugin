@@ -3198,10 +3198,12 @@ class Plugin:
         user_settings = await self._get_user_settings()
         mode = user_settings.get("pomodoro_auto_start", "off")
         if mode == "off" or (trigger == "wake" and mode != "boot_and_wake"):
+            decky.logger.info(f"AlarMe: Pomodoro auto-start skipped on {trigger} (setting: {mode})")
             return
 
         pomodoro = await self._get_pomodoro_state()
-        if pomodoro.get("active") and pomodoro.get("end_time", 0) > time.time():
+        if pomodoro.get("active") and (pomodoro.get("end_time") or 0) > time.time():
+            decky.logger.info(f"AlarMe: Pomodoro auto-start skipped on {trigger} (session already running)")
             return
 
         state = await self.start_pomodoro()
@@ -5900,6 +5902,7 @@ class Plugin:
         if boot_id:
             last_boot_id = await self.settings_getSetting(SETTINGS_KEY_LAST_BOOT_ID, "")
             if boot_id != last_boot_id:
+                decky.logger.info("AlarMe: New boot detected")
                 await self.settings_setSetting(SETTINGS_KEY_LAST_BOOT_ID, boot_id)
                 await self.settings_commit()
                 await self._auto_start_pomodoro("boot")
