@@ -22,7 +22,7 @@ export const ScreensaverOverlay = () => {
         shouldListen,
         isStandaloneIdle,
         isPreview,
-        inhibitorActive,
+        screensaverArmed,
         standaloneEnabled,
     } = useScreensaver();
 
@@ -30,21 +30,16 @@ export const ScreensaverOverlay = () => {
     const smallWidgets: ScreensaverSmallWidgetId[] = settings.screensaver_small_widgets ?? [];
     const weatherRelevant =
         (settings.screensaver_show_weather ?? false) ||
-        (settings.screensaver_show_forecast ?? false) ||
         smallWidgets.includes("weather") ||
         bigWidgets.includes("forecast");
     const prefetchWeather =
-        effectiveMode !== "off" &&
-        weatherRelevant &&
-        (inhibitorActive || standaloneEnabled || isPreview);
+        weatherRelevant && (screensaverArmed || standaloneEnabled || isPreview);
     useWeatherPrefetch(prefetchWeather);
 
     const newsRelevant =
         smallWidgets.includes("news") && (settings.screensaver_news_enabled ?? false);
     const prefetchNews =
-        effectiveMode !== "off" &&
-        newsRelevant &&
-        (inhibitorActive || standaloneEnabled || isPreview);
+        newsRelevant && (screensaverArmed || standaloneEnabled || isPreview);
     useNewsPrefetch(prefetchNews);
 
     const { subscribe, release } = useCatchAllGamepad();

@@ -9,6 +9,7 @@ import {
     FaBolt,
     FaCloudShowersHeavy,
     FaTint,
+    FaUmbrella,
     FaWind,
 } from "react-icons/fa";
 import { useSettings } from "../../hooks/useSettings";
@@ -55,6 +56,11 @@ function formatWind(kmh: number | null, useMph: boolean): string | null {
     return `${Math.round(kmh)} km/h`;
 }
 
+function formatHumidity(pct: number | null): string | null {
+    if (pct == null || !Number.isFinite(pct)) return null;
+    return `${Math.round(pct)}%`;
+}
+
 function formatUv(uv: number | null): string | null {
     if (uv == null || !Number.isFinite(uv) || uv < 1) return null;
     if (uv >= 10) return `UV ${Math.round(uv)}`;
@@ -73,9 +79,6 @@ export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastW
     const w = useWeather(show);
 
     if (!show) return null;
-
-    const showForecast = settings.screensaver_show_forecast ?? false;
-    if (!showForecast) return null;
 
     if (w.loading && w.forecast.length === 0 && !w.error) {
         return (
@@ -113,6 +116,7 @@ export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastW
     const rowSum = Math.ceil(Math.max(15, extrasFs * 1.52));
     const rowWind = Math.ceil(Math.max(16, extrasFs * 1.58));
     const rowUv = Math.ceil(Math.max(15, extrasFs * 1.48));
+    const rowHumidity = Math.ceil(Math.max(15, extrasFs * 1.52));
 
     const gridTemplateRows = [
         `${rowLabel}px`,
@@ -123,6 +127,7 @@ export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastW
         `minmax(${rowSum}px, 1fr)`,
         `minmax(${rowWind}px, 1fr)`,
         `minmax(${rowUv}px, 1fr)`,
+        `minmax(${rowHumidity}px, 1fr)`,
     ].join(" ");
 
     const slot: CSSProperties = {
@@ -169,8 +174,9 @@ export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastW
                     const sumLine = formatPrecipSum(day.precip_sum_mm);
                     const windLine = formatWind(day.wind_speed_max_kmh, unitF);
                     const uvLine = formatUv(day.uv_index_max);
+                    const humidityLine = formatHumidity(day.humidity_mean);
 
-                    const rowTrackCount = 8;
+                    const rowTrackCount = 9;
                     const colStyle: CSSProperties = {
                         display: "grid",
                         gridColumn: i + 1,
@@ -236,7 +242,7 @@ export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastW
                                 color: precip != null && precip >= 50 ? "#6ba3d6" : undefined,
                             }}
                         >
-                            <FaTint size={Math.round(precipFs * 0.88)} style={{ opacity: 0.75, flexShrink: 0 }} />
+                            <FaUmbrella size={Math.round(precipFs * 0.88)} style={{ opacity: 0.75, flexShrink: 0 }} />
                             <span>{wet && precip != null ? `${Math.round(precip)}%` : "—"}</span>
                         </div>,
                         <div
@@ -278,6 +284,19 @@ export function ForecastWidget({ fontSize, show, density = "normal" }: ForecastW
                             }}
                         >
                             {uvLine ?? "—"}
+                        </div>,
+                        <div
+                            key="hu"
+                            style={{
+                                ...slot,
+                                gap: 3,
+                                fontSize: extrasFs,
+                                fontVariantNumeric: "tabular-nums",
+                                opacity: humidityLine ? 0.74 : 0.32,
+                            }}
+                        >
+                            <FaTint size={Math.round(extrasFs * 0.92)} style={{ opacity: 0.75, flexShrink: 0 }} />
+                            <span>{humidityLine ?? "—"}</span>
                         </div>
                     );
 

@@ -13,6 +13,7 @@ export interface ForecastDay {
     precip_sum_mm: number | null;
     wind_speed_max_kmh: number | null;
     uv_index_max: number | null;
+    humidity_mean: number | null;
 }
 
 export interface WeatherData {
@@ -24,6 +25,7 @@ export interface WeatherData {
     tempMax: number | null;
     tempMin: number | null;
     aqiUs: number | null;
+    humidity: number | null;
     forecast: ForecastDay[];
     fetchedAt: string | null;
     error: string | null;
@@ -39,6 +41,7 @@ const INITIAL_WEATHER: WeatherData = {
     tempMax: null,
     tempMin: null,
     aqiUs: null,
+    humidity: null,
     forecast: [],
     fetchedAt: null,
     error: null,
@@ -73,6 +76,7 @@ function parseForecast(rawForecast: unknown): ForecastDay[] {
         precip_sum_mm: readNum(day.precip_sum_mm),
         wind_speed_max_kmh: readNum(day.wind_speed_max_kmh),
         uv_index_max: readNum(day.uv_index_max),
+        humidity_mean: readNum(day.humidity_mean),
     }));
 }
 
@@ -94,6 +98,7 @@ function parseResponse(raw: Record<string, unknown>): Omit<WeatherData, "loading
         tempMax: readNum(raw.temp_max),
         tempMin: readNum(raw.temp_min),
         aqiUs: readNum(raw.aqi_us) as number | null,
+        humidity: readNum(raw.humidity),
         forecast: parseForecast(raw.forecast),
         fetchedAt: typeof raw.fetched_at === "string" ? raw.fetched_at : null,
         error: err,

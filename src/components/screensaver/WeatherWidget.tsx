@@ -8,6 +8,7 @@ import {
     FaSnowflake,
     FaBolt,
     FaCloudShowersHeavy,
+    FaTint,
 } from "react-icons/fa";
 import { useSettings } from "../../hooks/useSettings";
 import { useWeather } from "../../hooks/useWeather";
@@ -96,12 +97,28 @@ export function WeatherWidget({ fontSize, show, layout }: WeatherWidgetProps) {
     const u = `°${unit}`;
 
     const aqiVal = w.aqiUs != null && Number.isFinite(w.aqiUs) ? Math.round(w.aqiUs) : null;
+    const humidityVal = w.humidity != null && Number.isFinite(w.humidity) ? Math.round(w.humidity) : null;
 
     if (layout === "compact") {
         return (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", fontSize }}>
                 <span style={{ display: "flex", opacity: 0.9 }}>{icon}</span>
                 <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{t}{u}</span>
+                {humidityVal != null ? (
+                    <span
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 2,
+                            fontFamily: "monospace",
+                            fontWeight: 600,
+                            fontSize: fontSize * 0.88,
+                            opacity: 0.8,
+                        }}
+                    >
+                        · <FaTint size={Math.round(fontSize * 0.75)} /> {humidityVal}%
+                    </span>
+                ) : null}
                 {aqiVal != null ? (
                     <span
                         style={{
@@ -152,6 +169,12 @@ export function WeatherWidget({ fontSize, show, layout }: WeatherWidgetProps) {
                     {subParts.join(" · ")}
                 </div>
             )}
+            {humidityVal != null ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: fontSize * 0.62, opacity: 0.78, lineHeight: 1.2 }}>
+                    <FaTint size={Math.round(fontSize * 0.55)} />
+                    <span>{humidityVal}% humidity</span>
+                </div>
+            ) : null}
             {aqiVal != null ? (
                 <div style={{ fontSize: fontSize * 0.62, fontWeight: 600, color: aqiColor(aqiVal), lineHeight: 1.2 }}>
                     AQI {aqiVal}

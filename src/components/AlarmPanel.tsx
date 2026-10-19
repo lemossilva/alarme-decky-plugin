@@ -132,8 +132,8 @@ export function AlarmPanel() {
 
     const handleCreateAlarm = useCallback(() => {
         showAlarmEditorModal({
-            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode) => {
-                await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode);
+            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode, screensaverProfile) => {
+                await createAlarm(hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode, screensaverProfile);
             },
             getSounds,
             use24h,
@@ -144,8 +144,8 @@ export function AlarmPanel() {
     const handleEditAlarm = useCallback((alarm: Alarm) => {
         showAlarmEditorModal({
             alarm,
-            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode) => {
-                await updateAlarm(alarm.id, hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode);
+            onSave: async (hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode, screensaverProfile) => {
+                await updateAlarm(alarm.id, hour, minute, label, recurring, sound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode, screensaverProfile);
             },
             onDelete: async () => {
                 await deleteAlarm(alarm.id);

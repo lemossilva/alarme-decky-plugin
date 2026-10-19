@@ -77,7 +77,8 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Pixel shift** - OLED burn-in protection that slowly orbits the overlay position
 
 ### 🌙 Screensaver Mode
-- **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, or stopwatch alongside Prevent Sleep
+- **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, stopwatch, or Pomodoro alongside Prevent Sleep; these toggles (plus Standalone mode) are the on/off switches, so turning one off keeps that item's screensaver off
+- **Per-alert profiles** - Pick a saved screensaver profile right below each Screensaver toggle; it is applied when that item's screensaver arms
 - **Wallpaper backgrounds** - Lorem Picsum, Bing Daily, Lorem Flickr, NASA APOD, or a local folder; cache and personal images live under Decky’s runtime data (`DECKY_PLUGIN_RUNTIME_DIR`, typically under `~/homebrew/data/`); images prefetch before idle so the overlay rarely shows a loading state; automatic rotation walks the pool in a random order each cycle; Bing Daily and NASA APOD apply a slow image drift for OLED burn-in on static daily images; optional drift for local-folder wallpapers in settings
 - **4 clock styles** - Digital, Digital + Seconds, Large (blinking colon), Analog
 - **3 layout modes** - Compact (notification overlay bar; placement under Overlay → Position), Large (centered wide floating panel with dim backdrop), Fullscreen (same widgets, wide spacing, per-widget surfaces only—no extra dim panel)
@@ -87,8 +88,8 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Idle timer** - Configurable delay before the screensaver activates after your last input
 - **Gamepad & touch dismiss** - Any button press or screen tap temporarily wakes the screen
 - **System stats & network info** - Optionally show CPU temp, RAM, and network (Wi-Fi or wired link speed, IPv4/IPv6) during screensaver
-- **Weather** - Optional Open-Meteo forecast (no API key): large/fullscreen layouts show a weather card; compact overlay shows a short inline readout during the screensaver. City search with live suggestions, or an approximate IP-based location (tries ipapi.co, then geojs.io) when no city is saved
-- **7-day forecast widget** - Enable a weekly forecast grid showing day abbreviations, weather icons, high/low temperatures, and precipitation chance for each day
+- **Weather** - Optional Open-Meteo forecast (no API key) with temperature, humidity, and air quality: large/fullscreen layouts show a weather card; compact overlay shows a short inline readout during the screensaver. City search with live suggestions, or an approximate IP-based location (tries ipapi.co, then geojs.io) when no city is saved
+- **7-day forecast widget** - Enable a weekly forecast grid showing day abbreviations, weather icons, high/low temperatures, precipitation chance and amount, wind, UV, and mean humidity for each day
 - **News headlines** - Optional RSS/Atom widget on the screensaver info row; curated sources plus custom feeds (tested before save); header newspaper button opens a grouped headline list with publish times; tap **Open** to read in the Steam browser
 - **Screensaver profiles** - Save your screensaver configuration to one of 3 profile slots; quickly switch between setups for bedtime, gaming, or minimal modes
 - **Quick preview** - **Screen** in the header closes the QAM and runs the screensaver immediately for a clean test

@@ -1,10 +1,11 @@
 import { ConfirmModal, Dropdown, DropdownOption, Focusable, showModal, SliderField, TextField } from "@decky/ui";
 import { FaBell, FaMusic, FaCalendarAlt, FaVolumeUp, FaClock, FaPlay, FaPause } from "react-icons/fa";
 import { useEffect, useRef, useState } from "react";
-import type { Alarm, RecurringType, SoundFile } from "../types";
+import type { Alarm, RecurringType, ScreensaverProfileSlot, SoundFile } from "../types";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
 import { useSettings } from "../hooks/useSettings";
+import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
 
 // Days of the week - 0=Monday per backend convention
 const DAYS_OF_WEEK = [
@@ -28,7 +29,7 @@ const QUICK_RECURRING_OPTIONS: DropdownOption[] = [
 
 interface AlarmEditorModalProps {
     alarm?: Alarm;
-    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean, preventSleep?: boolean, preventSleepWindow?: number, screensaverMode?: string) => Promise<void>;
+    onSave: (hour: number, minute: number, label: string, recurring: RecurringType, sound: string, volume: number, subtleMode?: boolean, autoSuspend?: boolean, preventSleep?: boolean, preventSleepWindow?: number, screensaverMode?: string, screensaverProfile?: ScreensaverProfileSlot | null) => Promise<void>;
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
     closeModal?: () => void;
@@ -150,6 +151,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
     const [preventSleep, setPreventSleep] = useState(alarm?.prevent_sleep ?? false);
     const [preventSleepWindow, setPreventSleepWindow] = useState(alarm?.prevent_sleep_window ?? 60);
     const [screensaverMode, setScreensaverMode] = useState<'off' | 'black' | 'dim'>(alarm?.screensaver_mode ?? 'off');
+    const [screensaverProfile, setScreensaverProfile] = useState<ScreensaverProfileSlot | null>(alarm?.screensaver_profile ?? null);
 
     const [volume, setVolume] = useState(alarm?.volume ?? 100);
 
@@ -357,7 +359,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
             recurring = quickRecurring as RecurringType;
         }
 
-        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode);
+        await onSave(hour, minute, label, recurring, selectedSound, volume, subtleMode, autoSuspend, preventSleep, preventSleepWindow, screensaverMode, screensaverProfile);
         closeModal?.();
     };
 
@@ -834,8 +836,17 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                                     </div>
                                 </Focusable>
                                 <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
-                                    {`Currently set to ${(globalSettings.screensaver_mode || 'off') === 'off' ? 'Off' : globalSettings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : globalSettings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
+                                    {screensaverToggleDescription(globalSettings)}
                                 </div>
+                                {screensaverMode !== 'off' && (
+                                    <div style={{ paddingTop: 8 }}>
+                                        <ScreensaverProfileDropdown
+                                            value={screensaverProfile}
+                                            onChange={setScreensaverProfile}
+                                            indent={0}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
 

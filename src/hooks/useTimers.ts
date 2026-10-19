@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { addEventListener, removeEventListener, callable } from '@decky/api';
-import type { Timer, TimerTickEvent } from '../types';
+import type { ScreensaverProfileSlot, Timer, TimerTickEvent } from '../types';
 
 // Backend callables
-const createTimerCall = callable<[seconds: number, label: string, subtle_mode?: boolean, auto_suspend?: boolean, prevent_sleep?: boolean, screensaver_mode?: string], string>('create_timer');
+const createTimerCall = callable<[seconds: number, label: string, subtle_mode?: boolean, auto_suspend?: boolean, prevent_sleep?: boolean, screensaver_mode?: string, screensaver_profile?: ScreensaverProfileSlot | null], string>('create_timer');
 const cancelTimerCall = callable<[timer_id: string], boolean>('cancel_timer');
 const pauseTimerCall = callable<[timer_id: string], boolean>('pause_timer');
 const resumeTimerCall = callable<[timer_id: string], boolean>('resume_timer');
@@ -18,6 +18,7 @@ export interface RecentTimer {
     auto_suspend?: boolean;
     prevent_sleep?: boolean;
     screensaver_mode?: string;
+    screensaver_profile?: ScreensaverProfileSlot | null;
 }
 
 export function useTimers() {
@@ -54,10 +55,11 @@ export function useTimers() {
         subtleMode?: boolean,
         autoSuspend?: boolean,
         preventSleep?: boolean,
-        screensaverMode?: string
+        screensaverMode?: string,
+        screensaverProfile?: ScreensaverProfileSlot | null
     ) => {
         try {
-            await createTimerCall(seconds, label, subtleMode, autoSuspend, preventSleep, screensaverMode);
+            await createTimerCall(seconds, label, subtleMode, autoSuspend, preventSleep, screensaverMode, screensaverProfile ?? null);
             // Reload recent timers after creating
             loadRecentTimers();
         } catch (e) {

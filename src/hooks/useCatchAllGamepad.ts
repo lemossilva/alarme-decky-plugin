@@ -1,81 +1,78 @@
 import { useCallback, useRef } from "react";
 
-type ReleaseHandle = (() => void) | null;
+type GamepadHandler = (...args: unknown[]) => void;
 
 /**
  * Captures all gamepad input through SteamUI's NavigationManager.
  *
+ * Current Steam clients keep a stack of catch-all handlers: `SetCatchAllGamepadInput`
+ * pushes and returns `{ Unregister }`, and the dispatcher calls every entry on each
+ * button event without a guard. Pushing `null` or throwing from a handler breaks
+ * controller input until Steam restarts. Older clients used a single slot cleared
+ * with `null` and returned nothing.
+ *
  * The plugin can mount before SteamUI finishes wiring up its NavigationManager
- * (typically right after a Steam Deck reboot). Caching the first reference we
- * see leaves us bound to a stale manager that never delivers events, so every
- * subscribe call rebinds against a fresh `SteamUIStore.NavigationManager`.
+ * (typically right after a Steam Deck reboot), so subscribe rebinds when the
+ * `SteamUIStore.NavigationManager` instance changed and is a no-op otherwise.
  */
 export const useCatchAllGamepad = () => {
-    const releaseRef = useRef<ReleaseHandle>(null);
+    const releaseRef = useRef<(() => void) | null>(null);
     const navManagerRef = useRef<any>(null);
-    const handlerRef = useRef<((navEvent: unknown, rawEvent: unknown) => void) | null>(null);
+    const handlerRef = useRef<GamepadHandler | null>(null);
 
     const release = useCallback(() => {
-        if (releaseRef.current) {
-            try {
-                releaseRef.current();
-            } catch {
-                // ignore; SteamUI may already have detached the handler
-            }
-        } else if (navManagerRef.current?.SetCatchAllGamepadInput) {
-            try {
-                navManagerRef.current.SetCatchAllGamepadInput(null);
-            } catch {
-                // ignore
-            }
-        }
-
-        navManagerRef.current = null;
+        const releaseHandle = releaseRef.current;
         releaseRef.current = null;
+        navManagerRef.current = null;
         handlerRef.current = null;
+        if (!releaseHandle) return;
+        try {
+            releaseHandle();
+        } catch (e) {
+            console.warn("[AlarMe] Failed to release gamepad capture", e);
+        }
     }, []);
 
-    const subscribe = useCallback((handler: (navEvent: unknown, rawEvent: unknown) => void) => {
+    const subscribe = useCallback((handler: GamepadHandler) => {
         const navManager = (window as any)?.SteamUIStore?.NavigationManager;
         if (!navManager?.SetCatchAllGamepadInput) {
             return false;
         }
 
-        // Drop any prior binding so we always attach to the current manager.
-        if (releaseRef.current) {
-            try {
-                releaseRef.current();
-            } catch {
-                // ignore
-            }
-        } else if (navManagerRef.current?.SetCatchAllGamepadInput) {
-            try {
-                navManagerRef.current.SetCatchAllGamepadInput(null);
-            } catch {
-                // ignore
-            }
-        }
-        releaseRef.current = null;
-        navManagerRef.current = null;
-
-        navManagerRef.current = navManager;
         handlerRef.current = handler;
-        const releaseHandle = navManager.SetCatchAllGamepadInput(handler);
+        if (releaseRef.current && navManagerRef.current === navManager) {
+            return true;
+        }
 
-        if (typeof releaseHandle === "function") {
-            releaseRef.current = releaseHandle;
+        release();
+        handlerRef.current = handler;
+
+        const guarded = (...args: unknown[]) => {
+            try {
+                handlerRef.current?.(...args);
+            } catch (e) {
+                console.error("[AlarMe] Gamepad handler error", e);
+            }
+            return false;
+        };
+
+        const registration = navManager.SetCatchAllGamepadInput(guarded);
+        navManagerRef.current = navManager;
+
+        if (typeof registration === "function") {
+            releaseRef.current = registration;
+        } else if (typeof registration?.Unregister === "function") {
+            releaseRef.current = () => registration.Unregister();
         } else {
             releaseRef.current = () => {
-                try {
+                if (navManager.m_rgCatchAllGamepadInput === undefined) {
                     navManager.SetCatchAllGamepadInput(null);
-                } catch {
-                    // ignore
                 }
             };
         }
 
         return true;
-    }, []);
+    }, [release]);
 
     return { subscribe, release };
 };

@@ -221,7 +221,6 @@ function Content() {
         markAsSeen();
         showMissedReportModal(missedItems, use24h);
     };
-    const screensaverEnabled = (userSettings.screensaver_mode || 'off') !== 'off';
     const newsEnabled = userSettings.screensaver_news_enabled ?? false;
 
     const handleOpenNews = () => {
@@ -321,27 +320,27 @@ function Content() {
 
                     {/* Sleep inhibitor */}
                     <Focusable
-                        onActivate={(sleepInhibitorActive && screensaverEnabled) ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
+                        onActivate={sleepInhibitorActive ? () => showSleepInhibitorModal(sleepInhibitorItems) : undefined}
                         style={{
                             ...headerIconButtonStyle,
-                            backgroundColor: (sleepInhibitorActive && screensaverEnabled) ? '#e6990022' : '#ffffff08',
-                            cursor: (sleepInhibitorActive && screensaverEnabled) ? 'pointer' : 'default',
-                            opacity: (sleepInhibitorActive && screensaverEnabled) ? 1 : 0.6,
+                            backgroundColor: sleepInhibitorActive ? '#e6990022' : '#ffffff08',
+                            cursor: sleepInhibitorActive ? 'pointer' : 'default',
+                            opacity: sleepInhibitorActive ? 1 : 0.6,
                         }}
                         onFocus={(e: any) => {
-                            if (sleepInhibitorActive && screensaverEnabled) {
+                            if (sleepInhibitorActive) {
                                 e.target.style.backgroundColor = '#4488aa';
                                 e.target.style.borderColor = 'white';
                             }
                         }}
                         onBlur={(e: any) => {
-                            e.target.style.backgroundColor = (sleepInhibitorActive && screensaverEnabled) ? '#e6990022' : '#ffffff08';
+                            e.target.style.backgroundColor = sleepInhibitorActive ? '#e6990022' : '#ffffff08';
                             e.target.style.borderColor = 'transparent';
                         }}
                     >
                         <FaShieldAlt
                             size={16}
-                            style={{ color: (sleepInhibitorActive && screensaverEnabled) ? '#e69900' : '#666666' }}
+                            style={{ color: sleepInhibitorActive ? '#e69900' : '#666666' }}
                             title={sleepInhibitorActive ? 'Sleep blocked' : 'Sleep'}
                         />
                     </Focusable>
@@ -369,33 +368,27 @@ function Content() {
                     ) : null}
 
                     {/* Screensaver Preview Button */}
-                    {(() => {
-                        const screensaverMode = userSettings.screensaver_mode || 'off';
-                        if (screensaverMode === 'off') return null;
-                        return (
-                            <Focusable
-                                onActivate={() => triggerScreensaverPreviewAfterClosingMenus()}
-                                style={{
-                                    ...headerIconButtonStyle,
-                                    backgroundColor: '#ffffff08',
-                                    cursor: 'pointer',
-                                    color: '#888888',
-                                }}
-                                onFocus={(e: any) => {
-                                    e.target.style.backgroundColor = '#4488aa';
-                                    e.target.style.borderColor = 'white';
-                                    e.target.style.color = 'white';
-                                }}
-                                onBlur={(e: any) => {
-                                    e.target.style.backgroundColor = '#ffffff08';
-                                    e.target.style.borderColor = 'transparent';
-                                    e.target.style.color = '#888888';
-                                }}
-                            >
-                                <FaMoon size={16} />
-                            </Focusable>
-                        );
-                    })()}
+                    <Focusable
+                        onActivate={() => triggerScreensaverPreviewAfterClosingMenus()}
+                        style={{
+                            ...headerIconButtonStyle,
+                            backgroundColor: '#ffffff08',
+                            cursor: 'pointer',
+                            color: '#888888',
+                        }}
+                        onFocus={(e: any) => {
+                            e.target.style.backgroundColor = '#4488aa';
+                            e.target.style.borderColor = 'white';
+                            e.target.style.color = 'white';
+                        }}
+                        onBlur={(e: any) => {
+                            e.target.style.backgroundColor = '#ffffff08';
+                            e.target.style.borderColor = 'transparent';
+                            e.target.style.color = '#888888';
+                        }}
+                    >
+                        <FaMoon size={16} />
+                    </Focusable>
 
                     {/* Settings Button */}
                     <Focusable
@@ -599,12 +592,13 @@ export default definePlugin(() => {
     addEventListener('alarme_reminder_triggered', handleReminderTriggered);
 
     // Missed items toast
-    addEventListener('alarme_missed_items_toast', (count: number) => {
+    const handleMissedItemsToast = (count: number) => {
         toaster.toast({
             title: "AlarMe",
             body: `You missed ${count} alert${count !== 1 ? 's' : ''} while away.`
         });
-    });
+    };
+    addEventListener('alarme_missed_items_toast', handleMissedItemsToast);
 
     // Game lifecycle listeners using app lifetime notification
     let unregisterGameListener: any;
@@ -679,6 +673,7 @@ export default definePlugin(() => {
             removeEventListener('alarme_pomodoro_work_ended', handlePomodoroWorkEnded);
             removeEventListener('alarme_pomodoro_break_ended', handlePomodoroBreakEnded);
             removeEventListener('alarme_reminder_triggered', handleReminderTriggered);
+            removeEventListener('alarme_missed_items_toast', handleMissedItemsToast);
             // Unregister settings route and overlay
             routerHook.removeRoute(SETTINGS_ROUTE);
             routerHook.removeGlobalComponent(OVERLAY_COMPONENT_NAME);

@@ -1,5 +1,8 @@
 // TypeScript type definitions for AlarMe plugin
 
+export type ScreensaverMode = 'black' | 'dim' | 'wallpaper';
+export type ScreensaverProfileSlot = 'slot_1' | 'slot_2' | 'slot_3';
+
 // Timer types
 export interface Timer {
     id: string;
@@ -11,6 +14,7 @@ export interface Timer {
     auto_suspend?: boolean;
     prevent_sleep?: boolean;
     screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_profile?: ScreensaverProfileSlot | null;
     remaining?: number;
     paused?: boolean;
     paused_remaining?: number;
@@ -36,6 +40,7 @@ export interface Alarm {
     prevent_sleep?: boolean;  // per-alarm prevent sleep override
     prevent_sleep_window?: number; // minutes before alarm to start preventing sleep
     screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_profile?: ScreensaverProfileSlot | null;
 }
 
 // Sound file types
@@ -53,6 +58,7 @@ export interface Preset {
     auto_suspend?: boolean;
     prevent_sleep?: boolean;
     screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_profile?: ScreensaverProfileSlot | null;
 }
 
 // Pomodoro types
@@ -109,6 +115,7 @@ export interface Reminder {
     subtle_mode: boolean;
     prevent_sleep?: boolean;    // per-reminder prevent sleep
     screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_profile?: ScreensaverProfileSlot | null;
     enabled: boolean;
     created_at: number;
     // Runtime state (read-only from backend)
@@ -186,9 +193,10 @@ export interface UserSettings {
     // Tab Order
     tab_order?: string[];
     // Screensaver settings
-    screensaver_mode: 'off' | 'black' | 'dim' | 'wallpaper';
+    screensaver_mode: ScreensaverMode;
     screensaver_dim_opacity: number;
     pomodoro_screensaver_mode: 'off' | 'black' | 'dim';
+    pomodoro_screensaver_profile?: ScreensaverProfileSlot | null;
     screensaver_idle_seconds: number;
     overlay_during_screensaver: boolean;
     overlay_screensaver_show_clock?: boolean;
@@ -209,7 +217,6 @@ export interface UserSettings {
     screensaver_accent_color?: AccentColorPreset;
     screensaver_show_day_of_week?: boolean;
     screensaver_show_year?: boolean;
-    screensaver_show_calendar_grid?: boolean;
     screensaver_battery_show_bar?: boolean;
     screensaver_battery_low_threshold?: number;
     screensaver_show_alerts_list?: boolean;
@@ -224,7 +231,6 @@ export interface UserSettings {
     screensaver_weather_show_condition?: boolean;
     screensaver_weather_refresh_minutes?: number;
     screensaver_weather_location_source?: 'manual' | 'ip' | null;
-    screensaver_show_forecast?: boolean;
     screensaver_nasa_api_key?: string;
     screensaver_wallpaper_show_attribution?: boolean;
     screensaver_wallpaper_provider?: WallpaperProvider;
@@ -270,14 +276,14 @@ export interface SleepInhibitorItem {
     type: string;
     id: string;
     label: string;
-    screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_mode?: 'off' | ScreensaverMode;
 }
 
 export interface SleepInhibitorStatus {
     active: boolean;
     reason?: string;
     items?: SleepInhibitorItem[];
-    screensaver_mode?: 'off' | 'black' | 'dim' | 'wallpaper';
+    screensaver_mode?: ScreensaverMode;
     screensaver_dim_opacity?: number;
     screensaver_idle_seconds?: number;
     overlay_during_screensaver?: boolean;
@@ -368,6 +374,7 @@ export interface StopwatchState {
     laps: StopwatchLap[];
     prevent_sleep?: boolean;
     screensaver_mode?: 'off' | 'black' | 'dim';
+    screensaver_profile?: ScreensaverProfileSlot | null;
 }
 
 // Tab types
@@ -519,8 +526,4 @@ export interface ScreensaverProfile {
     saved_at: number;
 }
 
-export interface ScreensaverProfiles {
-    slot_1: ScreensaverProfile | null;
-    slot_2: ScreensaverProfile | null;
-    slot_3: ScreensaverProfile | null;
-}
+export type ScreensaverProfiles = Record<ScreensaverProfileSlot, ScreensaverProfile | null>;

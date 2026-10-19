@@ -175,9 +175,6 @@ export const GameOverlay = () => {
                 if ('getBattery' in navigator) {
                     const battery = await (navigator as any).getBattery();
                     if (!cancelled) setBatteryPct(Math.round(battery.level * 100));
-                    battery.addEventListener('levelchange', () => {
-                        if (!cancelled) setBatteryPct(Math.round(battery.level * 100));
-                    });
                 }
             } catch {}
         };

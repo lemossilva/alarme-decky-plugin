@@ -10,6 +10,7 @@ import { FaPlay, FaStop, FaForward, FaCoffee, FaBrain } from "react-icons/fa";
 import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration } from "../utils/time";
+import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
 import { PomodoroStatsPanel } from "./PomodoroStatsPanel";
 
 
@@ -180,9 +181,17 @@ export function PomodoroPanel() {
                         <ToggleField
                             icon={<span style={{ fontSize: 14 }}>🖥️</span>}
                             label="Screensaver"
-                            description={`Currently set to ${(settings.screensaver_mode || 'off') === 'off' ? 'Off' : settings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : settings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
+                            description={screensaverToggleDescription(settings)}
                             checked={(settings.pomodoro_screensaver_mode ?? 'off') !== 'off'}
                             onChange={(val) => updateSetting('pomodoro_screensaver_mode', val ? 'black' : 'off')}
+                        />
+                    </PanelSectionRow>
+                )}
+                {settings.pomodoro_prevent_sleep && (settings.pomodoro_screensaver_mode ?? 'off') !== 'off' && (
+                    <PanelSectionRow>
+                        <ScreensaverProfileDropdown
+                            value={settings.pomodoro_screensaver_profile}
+                            onChange={(slot) => updateSetting('pomodoro_screensaver_profile', slot)}
                         />
                     </PanelSectionRow>
                 )}

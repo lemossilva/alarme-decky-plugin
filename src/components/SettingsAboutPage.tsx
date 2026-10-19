@@ -199,6 +199,10 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                     description="Choose a wallpaper source, pool size, and optional weather widgets. Save combinations to profile slots and switch from the Screensaver settings tab. Use Preview in the plugin header to test."
                 />
                 <ManualRow
+                    title="Turning it on or off"
+                    description="Each timer, alarm, reminder, stopwatch, and Pomodoro has its own Screensaver toggle under Prevent Sleep, with a Profile picker below it that applies a saved profile when that item's screensaver arms. Standalone Mode on the Screensaver tab covers idle time without alerts."
+                />
+                <ManualRow
                     title="Dismiss"
                     description="While the screensaver is showing, any gamepad button or a screen touch dismisses it temporarily."
                 />

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { FaStopwatch, FaBell, FaVolumeMute, FaBatteryFull, FaCloudSun } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaVolumeMute, FaBatteryFull, FaCloudSun, FaTint } from "react-icons/fa";
 import type { UserSettings } from "../types";
 import { formatTime } from "../utils/time";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
@@ -205,6 +205,9 @@ export function OverlayPositionPreview({ settings }: { settings: UserSettings })
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                                         <FaCloudSun size={iconMain} style={{ opacity: 0.9 }} />
                                         <span style={{ fontFamily: "monospace" }}>22°C</span>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontFamily: "monospace", opacity: 0.8 }}>
+                                            · <FaTint size={Math.round(iconMain * 0.8)} /> 64%
+                                        </span>
                                     </span>
                                 )}
                                 {showWeather && (showClock || showDate || showBattery) && (

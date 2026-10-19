@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { callable, addEventListener, removeEventListener } from '@decky/api';
-import type { StopwatchState, StopwatchLap } from '../types';
+import type { ScreensaverProfileSlot, StopwatchState, StopwatchLap } from '../types';
 
 const getStateCall = callable<[], StopwatchState & { auto_reset?: boolean }>('stopwatch_get_state');
 const startCall = callable<[], StopwatchState>('stopwatch_start');
@@ -8,7 +8,7 @@ const pauseCall = callable<[], StopwatchState>('stopwatch_pause');
 const resetCall = callable<[], StopwatchState>('stopwatch_reset');
 const lapCall = callable<[], StopwatchState & { lap_limit_reached?: boolean }>('stopwatch_lap');
 const getLapsTextCall = callable<[], string>('stopwatch_get_laps_text');
-const setPreventSleepCall = callable<[prevent_sleep: boolean, screensaver_mode?: string], StopwatchState>('stopwatch_set_prevent_sleep');
+const setPreventSleepCall = callable<[prevent_sleep: boolean, screensaver_mode?: string, screensaver_profile?: ScreensaverProfileSlot | null], StopwatchState>('stopwatch_set_prevent_sleep');
 
 interface UseStopwatchReturn {
     status: StopwatchState['status'];
@@ -17,6 +17,7 @@ interface UseStopwatchReturn {
     laps: StopwatchLap[];
     preventSleep: boolean;
     screensaverMode: 'off' | 'black' | 'dim';
+    screensaverProfile: ScreensaverProfileSlot | null;
     loading: boolean;
     autoReset: boolean;
     lapLimitReached: boolean;
@@ -25,7 +26,7 @@ interface UseStopwatchReturn {
     reset: () => Promise<void>;
     lap: () => Promise<void>;
     copyLaps: () => Promise<string>;
-    setPreventSleep: (value: boolean, screensaverMode?: 'off' | 'black' | 'dim') => Promise<void>;
+    setPreventSleep: (value: boolean, screensaverMode?: 'off' | 'black' | 'dim', screensaverProfile?: ScreensaverProfileSlot | null) => Promise<void>;
 }
 
 export function useStopwatch(): UseStopwatchReturn {
@@ -172,16 +173,22 @@ export function useStopwatch(): UseStopwatchReturn {
         }
     }, []);
 
-    const setPreventSleep = useCallback(async (value: boolean, screensaverMode: 'off' | 'black' | 'dim' = 'off') => {
+    const currentScreensaverMode = state.screensaver_mode || 'off';
+    const currentScreensaverProfile = state.screensaver_profile ?? null;
+    const setPreventSleep = useCallback(async (
+        value: boolean,
+        screensaverMode: 'off' | 'black' | 'dim' = currentScreensaverMode,
+        screensaverProfile: ScreensaverProfileSlot | null = currentScreensaverProfile,
+    ) => {
         try {
-            const newState = await setPreventSleepCall(value, screensaverMode);
+            const newState = await setPreventSleepCall(value, screensaverMode, screensaverProfile);
             if (mountedRef.current) {
                 setState(newState);
             }
         } catch (e) {
             console.error('Failed to set prevent sleep:', e);
         }
-    }, []);
+    }, [currentScreensaverMode, currentScreensaverProfile]);
 
     const currentLapElapsed = (() => {
         const laps = state.laps || [];
@@ -199,6 +206,7 @@ export function useStopwatch(): UseStopwatchReturn {
         laps: state.laps || [],
         preventSleep: state.prevent_sleep || false,
         screensaverMode: (state.screensaver_mode as 'off' | 'black' | 'dim') || 'off',
+        screensaverProfile: state.screensaver_profile ?? null,
         loading,
         autoReset,
         lapLimitReached,

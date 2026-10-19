@@ -2,11 +2,13 @@ import { useEffect, useState, useCallback } from "react";
 import { addEventListener, removeEventListener, callable } from "@decky/api";
 import { Navigation } from "@decky/ui";
 import { useSettings } from "./useSettings";
-import type { SleepInhibitorStatus } from "../types";
+import type { ScreensaverMode, SleepInhibitorItem, SleepInhibitorStatus } from "../types";
 
 const getScreensaverState = callable<
     [],
     {
+        active: boolean;
+        items: SleepInhibitorItem[];
         screensaver_mode: string;
         screensaver_dim_opacity: number;
         screensaver_idle_seconds: number;
@@ -29,8 +31,7 @@ let sharedStandaloneInterval: ReturnType<typeof setInterval> | null = null;
 let sharedLastActivity = 0;
 
 // Synced copies of React state so reportActivity always sees latest values.
-let sharedInhibitorActive = false;
-let sharedEffectiveMode: string = "off";
+let sharedScreensaverArmed = false;
 let sharedIdleSeconds = 15;
 
 // Preview
@@ -99,7 +100,7 @@ function reportActivity() {
         sharedIsIdle = false;
     }
 
-    if (sharedInhibitorActive && sharedEffectiveMode !== "off") {
+    if (sharedScreensaverArmed) {
         startSharedIdleTimer(sharedIdleSeconds);
     }
 
@@ -135,17 +136,21 @@ export function dismissScreensaverPreview() {
     notifyPreviewListeners();
 }
 
+function hasScreensaverItem(items: SleepInhibitorItem[] | undefined): boolean {
+    return (items ?? []).some((item) => !!item.screensaver_mode && item.screensaver_mode !== "off");
+}
+
 // --- React hook ---
 
 export function useScreensaver() {
     const { settings } = useSettings();
 
-    const effectiveMode =
-        (settings.screensaver_mode as "off" | "black" | "dim" | "wallpaper") ||
-        "off";
+    const effectiveMode: ScreensaverMode = settings.screensaver_mode || "dim";
 
     const [dimOpacity, setDimOpacity] = useState(0.92);
     const [inhibitorActive, setInhibitorActive] = useState(false);
+    // Prevent Sleep can run without a screensaver; only items with their toggle on arm it.
+    const [screensaverArmed, setScreensaverArmed] = useState(false);
     const [idleSeconds, setIdleSeconds] = useState(15);
     const [overlayDuring, setOverlayDuring] = useState(true);
     const [isIdle, setIsIdle] = useState(sharedIsIdle);
@@ -172,8 +177,7 @@ export function useScreensaver() {
 
     // Sync module-level vars on every render so reportActivity sees latest values.
     useEffect(() => {
-        sharedInhibitorActive = inhibitorActive;
-        sharedEffectiveMode = effectiveMode;
+        sharedScreensaverArmed = screensaverArmed && !standaloneEnabled;
         sharedIdleSeconds = idleSeconds;
     });
 
@@ -201,26 +205,19 @@ export function useScreensaver() {
 
     const overlayVisible =
         sharedPreviewActive ||
-        (!standaloneEnabled &&
-            inhibitorActive &&
-            effectiveMode !== "off" &&
-            isIdle) ||
-        (standaloneEnabled && effectiveMode !== "off" && isStandaloneIdle);
+        (!standaloneEnabled && screensaverArmed && isIdle) ||
+        (standaloneEnabled && isStandaloneIdle);
 
-    // Gamepad capture: active when inhibitor is running (timer-based screensaver),
-    // when overlay is visible (dismiss), OR when standalone is enabled (reset idle timer).
-    // This is the same SetCatchAllGamepadInput that the timer-based screensaver uses —
-    // it does NOT block Deck navigation because the handler doesn't consume events.
-    const shouldListen =
-        effectiveMode !== "off" &&
-        (inhibitorActive || overlayVisible || standaloneEnabled);
+    // Gamepad activity resets the idle timers and dismisses the overlay. The
+    // catch-all handler never consumes events, so navigation keeps working.
+    const shouldListen = screensaverArmed || overlayVisible || standaloneEnabled;
 
     const changeScreensaverMode = useCallback(
-        async (mode: "off" | "black" | "dim" | "wallpaper") => {
+        async (mode: ScreensaverMode) => {
             try {
                 await setScreensaverModeCall(mode);
             } catch (e) {
-                console.error("Failed to set screensaver mode:", e);
+                console.error("[AlarMe] Failed to set screensaver mode:", e);
             }
         },
         [],
@@ -231,7 +228,7 @@ export function useScreensaver() {
             try {
                 await setScreensaverModeCall(effectiveMode, opacity);
             } catch (e) {
-                console.error("Failed to set dim opacity:", e);
+                console.error("[AlarMe] Failed to set dim opacity:", e);
             }
         },
         [effectiveMode],
@@ -240,6 +237,7 @@ export function useScreensaver() {
     useEffect(() => {
         const handleStatusUpdate = (status: SleepInhibitorStatus) => {
             setInhibitorActive(status.active);
+            setScreensaverArmed(status.active && hasScreensaverItem(status.items));
             if (status.screensaver_idle_seconds !== undefined) {
                 setIdleSeconds(status.screensaver_idle_seconds);
             }
@@ -260,12 +258,14 @@ export function useScreensaver() {
 
         getScreensaverState()
             .then((state) => {
+                setInhibitorActive(!!state.active);
+                setScreensaverArmed(!!state.active && hasScreensaverItem(state.items));
                 setDimOpacity(state.screensaver_dim_opacity ?? 0.92);
                 setIdleSeconds(state.screensaver_idle_seconds ?? 15);
                 setOverlayDuring(state.overlay_during_screensaver ?? true);
             })
             .catch((e) =>
-                console.error("Failed to load screensaver state:", e),
+                console.error("[AlarMe] Failed to load screensaver state:", e),
             );
 
         return () => {
@@ -279,7 +279,7 @@ export function useScreensaver() {
     // Inhibitor idle timer — skipped when standalone is enabled
     // (standalone mode takes over screensaver responsibility)
     useEffect(() => {
-        if (inhibitorActive && effectiveMode !== "off" && !standaloneEnabled) {
+        if (screensaverArmed && !standaloneEnabled) {
             sharedIsIdle = false;
             setIsIdle(false);
             startSharedIdleTimer(idleSeconds);
@@ -290,27 +290,17 @@ export function useScreensaver() {
             setIsIdle(false);
             notifyIdleListeners();
         }
-    }, [inhibitorActive, effectiveMode, idleSeconds, standaloneEnabled]);
+    }, [screensaverArmed, idleSeconds, standaloneEnabled]);
 
     // Standalone idle timer
     useEffect(() => {
-        if (
-            standaloneEnabled &&
-            effectiveMode !== "off" &&
-            !sharedPreviewActive &&
-            !inhibitorActive
-        ) {
+        if (standaloneEnabled && !sharedPreviewActive && !screensaverArmed) {
             sharedStandaloneIdle = false;
             setIsStandaloneIdle(false);
             startStandaloneTimer(standaloneIdleSeconds);
             notifyIdleListeners();
         }
-        if (
-            !standaloneEnabled ||
-            effectiveMode === "off" ||
-            sharedPreviewActive ||
-            inhibitorActive
-        ) {
+        if (!standaloneEnabled || sharedPreviewActive || screensaverArmed) {
             stopStandaloneTimer();
             sharedStandaloneIdle = false;
             setIsStandaloneIdle(false);
@@ -318,9 +308,8 @@ export function useScreensaver() {
         }
     }, [
         standaloneEnabled,
-        effectiveMode,
         standaloneIdleSeconds,
-        inhibitorActive,
+        screensaverArmed,
         sharedPreviewActive,
     ]);
 
@@ -328,6 +317,7 @@ export function useScreensaver() {
         effectiveMode,
         dimOpacity,
         inhibitorActive,
+        screensaverArmed,
         isIdle,
         isStandaloneIdle,
         overlayVisible,

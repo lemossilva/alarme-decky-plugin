@@ -4,7 +4,7 @@ import { useOverlayData } from "../hooks/useOverlayData";
 import { useScreensaver } from "../hooks/useScreensaver";
 import { useScreensaverViewportScale } from "../hooks/useScreensaverViewportScale";
 import { ClockWidget } from "./screensaver/ClockWidget";
-import { DateWidget, ScreensaverDateHeading, ScreensaverCalendarGrid } from "./screensaver/DateWidget";
+import { ScreensaverDateHeading, ScreensaverCalendarGrid } from "./screensaver/DateWidget";
 import { BatteryWidget } from "./screensaver/BatteryWidget";
 import { AlertsListRow } from "./screensaver/AlertsListWidget";
 import { SystemStatsWidget } from "./screensaver/SystemStatsWidget";
@@ -118,15 +118,17 @@ export function ScreensaverContent() {
                             ...largeCardStyle,
                             flexDirection: "column",
                             justifyContent: "flex-start",
-                            alignItems: hasSuggestMe ? "stretch" : "center",
-                            flex: tripleBigRow ? "0 1 auto" : undefined,
+                            alignItems: "stretch",
+                            alignSelf: "stretch",
+                            flex: tripleBigRow ? "1 1 0" : undefined,
                             minWidth: 0,
                             minHeight: 0,
+                            overflow: tripleBigRow ? "hidden" : undefined,
+                            boxSizing: "border-box",
                         }}
                     >
                         <ScreensaverCalendarGrid
                             fontSize={widgetFontSize}
-                            stretchToContainer={hasSuggestMe}
                             density={widgetDensity}
                         />
                     </div>
@@ -212,7 +214,7 @@ export function ScreensaverContent() {
             width: "100%",
             textAlign: "center",
         }}>
-            <DateWidget fontSize={widgetFontSize} />
+            <ScreensaverDateHeading fontSize={widgetFontSize} />
         </div>
     );
 

@@ -15,8 +15,9 @@ import { useTimers, RecentTimer } from "../hooks/useTimers";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration, formatDurationLong } from "../utils/time";
 import { showTimerLabelModal } from "./TimerLabelModal";
+import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
 
-import type { Timer, Preset } from "../types";
+import type { Timer, Preset, ScreensaverProfileSlot } from "../types";
 
 const MAX_TIMER_MINUTES = 43200; // 1 month in minutes (30 days)
 
@@ -351,13 +352,14 @@ export function TimerPanel() {
     const timerAutoSuspend = settings.timer_auto_suspend ?? false;
     const timerPreventSleep = settings.timer_prevent_sleep ?? false;
     const [timerScreensaver, setTimerScreensaver] = useState(true);
+    const [timerScreensaverProfile, setTimerScreensaverProfile] = useState<ScreensaverProfileSlot | null>(null);
 
     const hasActiveTimers = timers.length > 0;
     const hasRecentTimers = recentTimers.length > 0;
 
     // Quick start timer (no label)
     const handleQuickStart = async () => {
-        await createTimer(timerMinutes * 60, '', timerSubtleMode, timerAutoSuspend, timerPreventSleep, timerScreensaver ? 'black' : 'off');
+        await createTimer(timerMinutes * 60, '', timerSubtleMode, timerAutoSuspend, timerPreventSleep, timerScreensaver ? 'black' : 'off', timerScreensaverProfile);
     };
 
     // Open modal for labeled timer
@@ -365,7 +367,7 @@ export function TimerPanel() {
         showTimerLabelModal({
             seconds: timerMinutes * 60,
             onStart: async (seconds, label) => {
-                await createTimer(seconds, label, timerSubtleMode, timerAutoSuspend, timerPreventSleep, timerScreensaver ? 'black' : 'off');
+                await createTimer(seconds, label, timerSubtleMode, timerAutoSuspend, timerPreventSleep, timerScreensaver ? 'black' : 'off', timerScreensaverProfile);
             }
         });
     };
@@ -375,8 +377,8 @@ export function TimerPanel() {
         const subtleMode = preset.subtle_mode !== undefined ? preset.subtle_mode : timerSubtleMode;
         const autoSuspend = preset.auto_suspend !== undefined ? preset.auto_suspend : timerAutoSuspend;
         const preventSleep = preset.prevent_sleep !== undefined ? preset.prevent_sleep : timerPreventSleep;
-        const screensaverMode = preset.screensaver_mode !== undefined ? preset.screensaver_mode : (settings.screensaver_mode ?? 'off');
-        await createTimer(preset.seconds, preset.label, subtleMode, autoSuspend, preventSleep, screensaverMode);
+        const screensaverMode = preset.screensaver_mode ?? 'black';
+        await createTimer(preset.seconds, preset.label, subtleMode, autoSuspend, preventSleep, screensaverMode, preset.screensaver_profile ?? null);
     };
 
     // Start from recent
@@ -385,8 +387,8 @@ export function TimerPanel() {
         const subtleMode = recent.subtle_mode !== undefined ? recent.subtle_mode : timerSubtleMode;
         const autoSuspend = recent.auto_suspend !== undefined ? recent.auto_suspend : timerAutoSuspend;
         const preventSleep = recent.prevent_sleep !== undefined ? recent.prevent_sleep : timerPreventSleep;
-        const screensaverMode = recent.screensaver_mode !== undefined ? recent.screensaver_mode : (settings.screensaver_mode ?? 'off');
-        await createTimer(recent.seconds, recent.label, subtleMode, autoSuspend, preventSleep, screensaverMode);
+        const screensaverMode = recent.screensaver_mode ?? 'black';
+        await createTimer(recent.seconds, recent.label, subtleMode, autoSuspend, preventSleep, screensaverMode, recent.screensaver_profile ?? null);
     };
 
     // Save active timer as preset
@@ -557,9 +559,17 @@ export function TimerPanel() {
                         <ToggleField
                             icon={<span style={{ fontSize: 14 }}>🖥️</span>}
                             label="Screensaver"
-                            description={`Currently set to ${(settings.screensaver_mode || 'off') === 'off' ? 'Off' : settings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : settings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
+                            description={screensaverToggleDescription(settings)}
                             checked={timerScreensaver}
                             onChange={setTimerScreensaver}
+                        />
+                    </PanelSectionRow>
+                )}
+                {settings.timer_prevent_sleep && timerScreensaver && (
+                    <PanelSectionRow>
+                        <ScreensaverProfileDropdown
+                            value={timerScreensaverProfile}
+                            onChange={setTimerScreensaverProfile}
                         />
                     </PanelSectionRow>
                 )}

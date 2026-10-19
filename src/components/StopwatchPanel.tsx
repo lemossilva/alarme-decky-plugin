@@ -10,6 +10,7 @@ import { FaPlay, FaPause, FaFlag, FaUndo, FaCopy } from "react-icons/fa";
 import { useStopwatch } from "../hooks/useStopwatch";
 import { useSettings } from "../hooks/useSettings";
 import { formatStopwatch, formatLapSplit } from "../utils/time";
+import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
 import type { StopwatchLap } from "../types";
 import { useEffect, useRef, useState } from "react";
 
@@ -22,6 +23,7 @@ export function StopwatchPanel() {
         laps,
         preventSleep,
         screensaverMode,
+        screensaverProfile,
         loading,
         autoReset,
         lapLimitReached,
@@ -258,9 +260,17 @@ export function StopwatchPanel() {
                         <ToggleField
                             icon={<span style={{ fontSize: 14 }}>🖥️</span>}
                             label="Screensaver"
-                            description={`Currently set to ${(settings.screensaver_mode || 'off') === 'off' ? 'Off' : settings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : settings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
+                            description={screensaverToggleDescription(settings)}
                             checked={screensaverMode !== 'off'}
                             onChange={(val) => setPreventSleep(true, val ? 'black' : 'off')}
+                        />
+                    </PanelSectionRow>
+                )}
+                {preventSleep && screensaverMode !== 'off' && (
+                    <PanelSectionRow>
+                        <ScreensaverProfileDropdown
+                            value={screensaverProfile}
+                            onChange={(slot) => setPreventSleep(true, screensaverMode, slot)}
                         />
                     </PanelSectionRow>
                 )}

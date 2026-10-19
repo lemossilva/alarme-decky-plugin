@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { addEventListener, removeEventListener, callable } from '@decky/api';
-import type { UserSettings, Preset } from '../types';
+import type { UserSettings, Preset, ScreensaverMode, ScreensaverProfileSlot } from '../types';
 
 // Backend callables
 const getSettingsCall = callable<[], UserSettings>('get_settings');
@@ -34,9 +34,10 @@ const DEFAULT_SETTINGS: UserSettings = {
     missed_alerts_enabled: true,
     missed_alerts_window: 24,
     // Screensaver settings
-    screensaver_mode: 'dim' as 'off' | 'black' | 'dim' | 'wallpaper',
+    screensaver_mode: 'dim' as ScreensaverMode,
     screensaver_dim_opacity: 0.92,
     pomodoro_screensaver_mode: 'off' as 'off' | 'black' | 'dim',
+    pomodoro_screensaver_profile: null as ScreensaverProfileSlot | null,
     screensaver_idle_seconds: 15,
     overlay_during_screensaver: true,
     overlay_screensaver_show_clock: true,
@@ -57,7 +58,6 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_accent_color: 'muted_gray' as const,
     screensaver_show_day_of_week: true,
     screensaver_show_year: false,
-    screensaver_show_calendar_grid: false,
     screensaver_battery_show_bar: false,
     screensaver_battery_low_threshold: 20,
     screensaver_show_alerts_list: true,
@@ -72,7 +72,6 @@ const DEFAULT_SETTINGS: UserSettings = {
     screensaver_weather_show_condition: true,
     screensaver_weather_refresh_minutes: 30,
     screensaver_weather_location_source: null,
-    screensaver_show_forecast: false,
     screensaver_nasa_api_key: '',
     screensaver_wallpaper_show_attribution: true,
     screensaver_wallpaper_provider: 'picsum' as const,

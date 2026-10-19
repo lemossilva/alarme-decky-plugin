@@ -1,18 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { addEventListener, removeEventListener, callable } from '@decky/api';
-import type { Reminder, SoundFile } from '../types';
+import type { Reminder, ScreensaverProfileSlot, SoundFile } from '../types';
 
 // Backend callables
 const createReminderCall = callable<
     [label: string, frequency_minutes: number, start_time: string | null,
         recurrences: number, only_while_gaming: boolean, reset_on_game_start: boolean,
-        sound: string, volume: number, subtle_mode: boolean, prevent_sleep: boolean, screensaver_mode: string], Reminder
+        sound: string, volume: number, subtle_mode: boolean, prevent_sleep: boolean, screensaver_mode: string,
+        screensaver_profile: ScreensaverProfileSlot | null], Reminder
 >('create_reminder');
 
 const updateReminderCall = callable<
     [reminder_id: string, label: string, frequency_minutes: number,
         start_time: string | null, recurrences: number, only_while_gaming: boolean,
-        reset_on_game_start: boolean, sound: string, volume: number, subtle_mode: boolean, prevent_sleep: boolean, screensaver_mode: string], Reminder | null
+        reset_on_game_start: boolean, sound: string, volume: number, subtle_mode: boolean, prevent_sleep: boolean, screensaver_mode: string,
+        screensaver_profile: ScreensaverProfileSlot | null], Reminder | null
 >('update_reminder');
 
 const deleteReminderCall = callable<[reminder_id: string], boolean>('delete_reminder');
@@ -48,12 +50,13 @@ export function useReminders() {
         volume: number = 100,
         subtleMode: boolean = false,
         preventSleep: boolean = false,
-        screensaverMode: string = 'off'
+        screensaverMode: string = 'off',
+        screensaverProfile: ScreensaverProfileSlot | null = null
     ): Promise<Reminder | null> => {
         try {
             return await createReminderCall(
                 label, frequencyMinutes, startTime, recurrences,
-                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode
+                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode, screensaverProfile
             );
         } catch (e) {
             console.error('Failed to create reminder:', e);
@@ -74,12 +77,13 @@ export function useReminders() {
         volume: number = 100,
         subtleMode: boolean = false,
         preventSleep: boolean = false,
-        screensaverMode: string = 'off'
+        screensaverMode: string = 'off',
+        screensaverProfile: ScreensaverProfileSlot | null = null
     ): Promise<Reminder | null> => {
         try {
             return await updateReminderCall(
                 reminderId, label, frequencyMinutes, startTime, recurrences,
-                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode
+                onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode, screensaverProfile
             );
         } catch (e) {
             console.error('Failed to update reminder:', e);

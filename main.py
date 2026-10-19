@@ -508,15 +508,17 @@ SETTINGS_KEY_STOPWATCH = "stopwatch_state"
 SETTINGS_KEY_PROFILES = "screensaver_profiles"
 SETTINGS_KEY_SUGGESTME_DAILY = "suggestme_daily_card"
 
+SCREENSAVER_PROFILE_SLOTS = ("slot_1", "slot_2", "slot_3")
+SCREENSAVER_MODES = ("black", "dim", "wallpaper")
+
 SCREENSAVER_PROFILE_KEYS = [
     "screensaver_mode", "screensaver_dim_opacity", "screensaver_idle_seconds",
     "screensaver_standalone_enabled", "screensaver_standalone_idle_seconds",
     "screensaver_clock_style", "screensaver_clock_size", "screensaver_accent_color",
-    "screensaver_show_day_of_week", "screensaver_show_year", "screensaver_show_calendar_grid",
+    "screensaver_show_day_of_week", "screensaver_show_year",
     "screensaver_battery_show_bar", "screensaver_battery_low_threshold",
     "screensaver_show_alerts_list", "screensaver_show_system_stats", "screensaver_show_network_info",
     "screensaver_show_weather", "screensaver_weather_show_highlow", "screensaver_weather_show_condition",
-    "screensaver_show_forecast",
     "screensaver_wallpaper_provider", "screensaver_wallpaper_fit", "screensaver_wallpaper_blur",
     "screensaver_wallpaper_dim", "screensaver_wallpaper_interval", "screensaver_wallpaper_pool_size",
     "screensaver_wallpaper_auto_rotate", "screensaver_wallpaper_shift_local",
@@ -526,7 +528,7 @@ SCREENSAVER_PROFILE_KEYS = [
     "screensaver_center_show_clock", "screensaver_center_show_date", "screensaver_center_show_battery",
     "overlay_compact_screensaver_show_clock", "overlay_compact_screensaver_show_date",
     "overlay_compact_screensaver_show_battery",
-    "overlay_during_screensaver", "pomodoro_screensaver_mode",
+    "overlay_during_screensaver",
     "pixel_shift_enabled", "pixel_shift_range", "pixel_shift_interval_seconds",
     "screensaver_big_widgets", "screensaver_small_widgets",
     "screensaver_show_suggestme", "screensaver_suggestme_mode",
@@ -594,9 +596,10 @@ DEFAULT_SETTINGS = {
     # Tab Order
     "tab_order": ["timers", "alarms", "pomodoro", "reminders", "stopwatch"],
     # Screensaver settings
-        "screensaver_mode": "dim",           # "off" | "black" | "dim" | "wallpaper" — global default
+        "screensaver_mode": "dim",           # "black" | "dim" | "wallpaper" — global default
     "screensaver_dim_opacity": 0.92,     # opacity of the dim overlay (0.0–1.0)
     "pomodoro_screensaver_mode": "off",  # pomodoro screensaver mode
+    "pomodoro_screensaver_profile": None,  # profile slot applied when the pomodoro screensaver arms
     # Screensaver timer
     "screensaver_idle_seconds": 15,      # seconds idle before screensaver kicks in
     # Overlay during screensaver
@@ -620,7 +623,6 @@ DEFAULT_SETTINGS = {
     "screensaver_accent_color": "muted_gray",
     "screensaver_show_day_of_week": True,
     "screensaver_show_year": False,
-    "screensaver_show_calendar_grid": False,
     "screensaver_battery_show_bar": False,
     "screensaver_battery_low_threshold": 20,
     "screensaver_show_alerts_list": True,
@@ -644,7 +646,6 @@ DEFAULT_SETTINGS = {
     "screensaver_weather_show_condition": True,
     "screensaver_weather_refresh_minutes": 30,
     "screensaver_weather_location_source": None,
-    "screensaver_show_forecast": False,
     "screensaver_nasa_api_key": "",
     "screensaver_wallpaper_show_attribution": True,
     "screensaver_floating_drift_range": 40,
@@ -811,6 +812,7 @@ class Plugin:
     _sleep_inhibitor_active: bool = False
     _uinput_fd = -1
     _jiggler_task = None
+    _screensaver_profile_applied_keys: set = set()
 
     # ==================== MISSED ITEMS METHODS ====================
 
@@ -868,10 +870,6 @@ class Plugin:
 
     # ==================== SLEEP INHIBITOR METHODS ====================
 
-    def _compute_effective_screensaver_mode(self, user_settings: dict) -> str:
-        """Return the global screensaver mode. Per-alert modes are no longer used."""
-        return user_settings.get("screensaver_mode", "off")
-
     async def _update_sleep_inhibitor(self):
         """Update the sleep inhibitor based on per-item prevent_sleep flags.
         Per-alert screensaver_mode determines whether that alert contributes to the screensaver.
@@ -882,9 +880,10 @@ class Plugin:
         timer_count = 0
         alarm_count = 0
         reminder_count = 0
+        armed_profiles = []  # (item key, profile slot) for items whose screensaver is on
         
         user_settings = await self._get_user_settings()
-        global_mode = user_settings.get("screensaver_mode", "off")
+        global_mode = user_settings.get("screensaver_mode", "dim")
         
         # Check timers with prevent_sleep=True AND screensaver_mode != "off"
         timers = await self._get_timers()
@@ -896,6 +895,7 @@ class Plugin:
                 if mode != "off":
                     timer_count += 1
                     inhibiting_items.append({"type": "timer", "id": timer_id, "label": timer.get("label", "Timer"), "screensaver_mode": global_mode})
+                    armed_profiles.append((f"timer:{timer_id}", timer.get("screensaver_profile")))
         
         # Check pomodoro with prevent_sleep=True AND screensaver enabled
         pomodoro = await self._get_pomodoro_state()
@@ -905,6 +905,7 @@ class Plugin:
             if pomo_mode != "off":
                 reason_parts.append("Pomodoro")
                 inhibiting_items.append({"type": "pomodoro", "id": "pomodoro", "label": "Pomodoro", "screensaver_mode": global_mode})
+                armed_profiles.append(("pomodoro", user_settings.get("pomodoro_screensaver_profile")))
         
         # Check alarms with prevent_sleep=True AND screensaver enabled
         alarms = await self._get_alarms()
@@ -922,6 +923,7 @@ class Plugin:
                 should_inhibit = True
                 alarm_count += 1
                 inhibiting_items.append({"type": "alarm", "id": alarm_id, "label": alarm.get("label", "Alarm"), "screensaver_mode": global_mode})
+                armed_profiles.append((f"alarm:{alarm_id}", alarm.get("screensaver_profile")))
         
         # Check reminders with prevent_sleep=True AND screensaver enabled
         reminders = await self._get_reminders()
@@ -932,6 +934,7 @@ class Plugin:
                 if rem_mode != "off":
                     reminder_count += 1
                     inhibiting_items.append({"type": "reminder", "id": reminder_id, "label": reminder.get("label", "Reminder"), "screensaver_mode": global_mode})
+                    armed_profiles.append((f"reminder:{reminder_id}", reminder.get("screensaver_profile")))
         
         # Check stopwatch with prevent_sleep=True AND screensaver enabled
         stopwatch = await self._get_stopwatch_state()
@@ -940,11 +943,12 @@ class Plugin:
             sw_mode = stopwatch.get("screensaver_mode", "off")
             if sw_mode != "off":
                 reason_parts.append("Stopwatch")
+                armed_profiles.append(("stopwatch", stopwatch.get("screensaver_profile")))
             inhibiting_items.append({
                 "type": "stopwatch",
                 "id": "stopwatch",
                 "label": "Stopwatch",
-                "screensaver_mode": sw_mode if sw_mode != "off" else "off",
+                "screensaver_mode": global_mode if sw_mode != "off" else "off",
             })
         
         # Build reason string
@@ -954,6 +958,13 @@ class Plugin:
             reason_parts.append(f"{alarm_count} alarm(s)")
         if reminder_count > 0:
             reason_parts.append(f"{reminder_count} reminder(s)")
+
+        if await self._apply_new_item_profiles(armed_profiles):
+            user_settings = await self._get_user_settings()
+            global_mode = user_settings.get("screensaver_mode", "dim")
+            for item in inhibiting_items:
+                if item["screensaver_mode"] != "off":
+                    item["screensaver_mode"] = global_mode
         
         dim_opacity = user_settings.get("screensaver_dim_opacity", 0.92)
         idle_seconds = user_settings.get("screensaver_idle_seconds", 15)
@@ -974,6 +985,41 @@ class Plugin:
         else:
             await self._release_sleep_inhibitor()
             # Do NOT emit a second event — _release_sleep_inhibitor already emits one
+
+    async def _apply_new_item_profiles(self, armed_profiles: list) -> bool:
+        """Apply the screensaver profile of items that just armed the screensaver.
+
+        Each item applies its profile once per arming; the last newly armed item wins.
+        Returns True when settings changed.
+        """
+        new_slot = None
+        for key, slot in armed_profiles:
+            if key not in self._screensaver_profile_applied_keys and slot in SCREENSAVER_PROFILE_SLOTS:
+                new_slot = slot
+        self._screensaver_profile_applied_keys = {key for key, _ in armed_profiles}
+        if new_slot is None:
+            return False
+        return await self._apply_screensaver_profile(new_slot) is not None
+
+    async def _apply_screensaver_profile(self, slot: str) -> dict | None:
+        """Copy a profile's settings over the user settings. Returns the new settings, or None."""
+        profiles = await self.get_screensaver_profiles()
+        profile = profiles.get(slot)
+        if not profile or not profile.get("settings"):
+            decky.logger.debug(f"AlarMe: Profile {slot} is empty, nothing to apply")
+            return None
+
+        profile_settings = {k: v for k, v in profile["settings"].items() if k in SCREENSAVER_PROFILE_KEYS}
+        if profile_settings.get("screensaver_mode") not in SCREENSAVER_MODES:
+            profile_settings.pop("screensaver_mode", None)
+
+        current = await self._get_user_settings()
+        current.update(profile_settings)
+        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, current)
+        await self.settings_commit()
+        await decky.emit("alarme_settings_updated", current)
+        decky.logger.info(f"AlarMe: Applied screensaver profile '{profile.get('name')}' from {slot}")
+        return current
 
     async def _jiggler_loop(self):
         """Simulate activity periodically to prevent sleep using uinput keyboard events."""
@@ -1025,6 +1071,9 @@ class Plugin:
         """Acquire the sleep inhibitor using uinput virtual keyboard."""
         if self._sleep_inhibitor_active:
             return  # Already active
+        if not self.loop:
+            decky.logger.warning("AlarMe: Event loop not ready, sleep inhibitor not acquired")
+            return
         
         try:
             # Create uinput virtual keyboard device for Game Mode sleep prevention
@@ -1036,19 +1085,22 @@ class Plugin:
                 UI_DEV_CREATE = 0x5501
                 
                 fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
-                
-                # Enable EV_KEY (keyboard events) and KEY_UNKNOWN (240)
-                fcntl.ioctl(fd, UI_SET_EVBIT, 1)  # EV_KEY
-                fcntl.ioctl(fd, UI_SET_KEYBIT, 240)  # KEY_UNKNOWN - doesn't map to any real key
-                
-                # Build uinput_user_dev struct (size 1116 on Steam Deck)
-                name = b'AlarMe Sleep Inhibitor'.ljust(80, b'\x00')
-                input_id = struct.pack('HHHH', 3, 1, 1, 1)  # bustype, vendor, product, version
-                total_size = 1116  # Confirmed working size on Steam Deck
-                payload = name + input_id + (b'\x00' * (total_size - len(name) - len(input_id)))
-                
-                os.write(fd, payload)
-                fcntl.ioctl(fd, UI_DEV_CREATE)
+                try:
+                    # Enable EV_KEY (keyboard events) and KEY_UNKNOWN (240)
+                    fcntl.ioctl(fd, UI_SET_EVBIT, 1)  # EV_KEY
+                    fcntl.ioctl(fd, UI_SET_KEYBIT, 240)  # KEY_UNKNOWN - doesn't map to any real key
+                    
+                    # Build uinput_user_dev struct (size 1116 on Steam Deck)
+                    name = b'AlarMe Sleep Inhibitor'.ljust(80, b'\x00')
+                    input_id = struct.pack('HHHH', 3, 1, 1, 1)  # bustype, vendor, product, version
+                    total_size = 1116  # Confirmed working size on Steam Deck
+                    payload = name + input_id + (b'\x00' * (total_size - len(name) - len(input_id)))
+                    
+                    os.write(fd, payload)
+                    fcntl.ioctl(fd, UI_DEV_CREATE)
+                except Exception:
+                    os.close(fd)
+                    raise
                 
                 self._uinput_fd = fd
                 decky.logger.info("AlarMe: Created uinput keyboard device successfully")
@@ -1062,13 +1114,6 @@ class Plugin:
                 self._sleep_inhibitor_active = True
                 self._jiggler_task = self.loop.create_task(self._jiggler_loop())
                 decky.logger.info(f"AlarMe: Sleep inhibitor active - {reason}")
-                user_settings = await self._get_user_settings()
-                await decky.emit("alarme_sleep_inhibitor_updated", {
-                    "active": True,
-                    "reason": reason,
-                    "screensaver_mode": user_settings.get("screensaver_mode", "off"),
-                    "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92)
-                })
         except Exception as e:
             decky.logger.error(f"AlarMe: Failed to acquire sleep inhibitor: {e}")
 
@@ -1101,7 +1146,7 @@ class Plugin:
                 "active": False,
                 "reason": "",
                 "items": [],
-                "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+                "screensaver_mode": user_settings.get("screensaver_mode", "dim"),
                 "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92),
                 "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
                 "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True)
@@ -1123,7 +1168,7 @@ class Plugin:
         inhibiting_items = []
 
         user_settings = await self._get_user_settings()
-        global_mode = user_settings.get("screensaver_mode", "off")
+        global_mode = user_settings.get("screensaver_mode", "dim")
 
         timers = await self._get_timers()
         for timer_id, timer in timers.items():
@@ -1182,7 +1227,7 @@ class Plugin:
             "active": False,
             "reason": "",
             "items": [],
-            "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+            "screensaver_mode": user_settings.get("screensaver_mode", "dim"),
             "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92),
             "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
             "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True),
@@ -1245,7 +1290,7 @@ class Plugin:
 
     async def set_screensaver_mode(self, mode: str, dim_opacity: float = None) -> dict:
         """Update screensaver mode and optionally dim opacity. Emits update if inhibitor is active."""
-        if mode not in ("off", "black", "dim", "wallpaper"):
+        if mode not in SCREENSAVER_MODES:
             return {"success": False, "error": "Invalid mode"}
         
         user_settings = await self._get_user_settings()
@@ -1265,8 +1310,11 @@ class Plugin:
     async def get_screensaver_state(self) -> dict:
         """Get the current screensaver state for frontend initialization."""
         user_settings = await self._get_user_settings()
+        inhibitor = await self.get_sleep_inhibitor_status()
         return {
-            "screensaver_mode": user_settings.get("screensaver_mode", "off"),
+            "active": inhibitor.get("active", False),
+            "items": inhibitor.get("items", []),
+            "screensaver_mode": user_settings.get("screensaver_mode", "dim"),
             "screensaver_dim_opacity": user_settings.get("screensaver_dim_opacity", 0.92),
             "screensaver_idle_seconds": user_settings.get("screensaver_idle_seconds", 15),
             "overlay_during_screensaver": user_settings.get("overlay_during_screensaver", True)
@@ -2117,7 +2165,8 @@ class Plugin:
                           subtle_mode: bool = None,
                           auto_suspend: bool = None,
                           prevent_sleep: bool = None,
-                          screensaver_mode: str = None) -> str:
+                          screensaver_mode: str = None,
+                          screensaver_profile: str = None) -> str:
         """Create a new countdown timer."""
         # Check limit
         timers = await self._get_timers()
@@ -2136,7 +2185,9 @@ class Plugin:
         if prevent_sleep is None:
             prevent_sleep = False
         if screensaver_mode is None:
-            screensaver_mode = user_settings.get("screensaver_mode", "off")
+            screensaver_mode = "black"
+        if screensaver_profile not in SCREENSAVER_PROFILE_SLOTS:
+            screensaver_profile = None
         if auto_suspend:
             subtle_mode = True
         
@@ -2153,7 +2204,8 @@ class Plugin:
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
             "prevent_sleep": prevent_sleep,
-            "screensaver_mode": screensaver_mode
+            "screensaver_mode": screensaver_mode,
+            "screensaver_profile": screensaver_profile
         }
         
         # Save to settings
@@ -2162,7 +2214,7 @@ class Plugin:
         await self._save_timers(timers)
         
         # Save to recent timers (for quick access)
-        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend, prevent_sleep, screensaver_mode)
+        await self._add_to_recent_timers(seconds, label, subtle_mode, auto_suspend, prevent_sleep, screensaver_mode, screensaver_profile)
         
         # Start the timer task
         self.timer_tasks[timer_id] = self.loop.create_task(
@@ -2371,7 +2423,7 @@ class Plugin:
         await self.settings_commit()
         return True
 
-    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False, prevent_sleep: bool = False, screensaver_mode: str = "off"):
+    async def _add_to_recent_timers(self, seconds: int, label: str, subtle_mode: bool = False, auto_suspend: bool = False, prevent_sleep: bool = False, screensaver_mode: str = "off", screensaver_profile: str = None):
         """Add a timer to the recent timers list (max 5, dedup by seconds+label+modes)."""
         recent = await self.get_recent_timers()
         
@@ -2382,17 +2434,19 @@ class Plugin:
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
             "prevent_sleep": prevent_sleep,
-            "screensaver_mode": screensaver_mode
+            "screensaver_mode": screensaver_mode,
+            "screensaver_profile": screensaver_profile
         }
         
-        # Remove duplicates (same seconds, label, subtle_mode, auto_suspend, prevent_sleep, and screensaver_mode)
+        # Remove duplicates (same seconds, label, subtle_mode, auto_suspend, prevent_sleep, screensaver_mode, and profile)
         recent = [r for r in recent if not (
             r.get("seconds") == seconds and 
             r.get("label") == new_entry["label"] and
             r.get("subtle_mode", False) == subtle_mode and
             r.get("auto_suspend", False) == auto_suspend and
             r.get("prevent_sleep", False) == prevent_sleep and
-            r.get("screensaver_mode", "off") == screensaver_mode
+            r.get("screensaver_mode", "off") == screensaver_mode and
+            r.get("screensaver_profile") == screensaver_profile
         )]
         
         # Add to front
@@ -2412,7 +2466,8 @@ class Plugin:
                           auto_suspend: bool = False,
                           prevent_sleep: bool = False,
                           prevent_sleep_window: int = 60,
-                          screensaver_mode: str = "off") -> str:
+                          screensaver_mode: str = "off",
+                          screensaver_profile: str = None) -> str:
         """
         Create a new alarm.
         recurring: 'once', 'daily', 'weekdays', 'weekends', or comma-separated days (0-6, 0=Monday)
@@ -2456,7 +2511,8 @@ class Plugin:
             "auto_suspend": auto_suspend,
             "prevent_sleep": prevent_sleep,
             "prevent_sleep_window": prevent_sleep_window,
-            "screensaver_mode": screensaver_mode
+            "screensaver_mode": screensaver_mode,
+            "screensaver_profile": screensaver_profile if screensaver_profile in SCREENSAVER_PROFILE_SLOTS else None
         }
         
         alarms = await self._get_alarms()
@@ -2506,7 +2562,8 @@ class Plugin:
                           auto_suspend: bool = False,
                           prevent_sleep: bool = False,
                           prevent_sleep_window: int = 60,
-                          screensaver_mode: str = "off") -> bool:
+                          screensaver_mode: str = "off",
+                          screensaver_profile: str = None) -> bool:
         """Update an existing alarm's settings."""
         alarms = await self._get_alarms()
         if alarm_id in alarms:
@@ -2532,6 +2589,7 @@ class Plugin:
             alarm["prevent_sleep"] = prevent_sleep
             alarm["prevent_sleep_window"] = prevent_sleep_window
             alarm["screensaver_mode"] = screensaver_mode
+            alarm["screensaver_profile"] = screensaver_profile if screensaver_profile in SCREENSAVER_PROFILE_SLOTS else None
             # Re-enable alarm when edited (user expects it to be active)
             alarm["enabled"] = True
             # Clear snooze and last_triggered when alarm time changes
@@ -3701,11 +3759,13 @@ class Plugin:
         result["lap_limit_reached"] = lap_limit_reached
         return result
 
-    async def stopwatch_set_prevent_sleep(self, prevent_sleep: bool, screensaver_mode: str = "off") -> dict:
-        """Set prevent_sleep and screensaver_mode options for stopwatch."""
+    async def stopwatch_set_prevent_sleep(self, prevent_sleep: bool, screensaver_mode: str = "off",
+                                          screensaver_profile: str = None) -> dict:
+        """Set prevent_sleep, screensaver_mode and screensaver_profile options for stopwatch."""
         state = await self._get_stopwatch_state()
         state["prevent_sleep"] = prevent_sleep
         state["screensaver_mode"] = screensaver_mode
+        state["screensaver_profile"] = screensaver_profile if screensaver_profile in SCREENSAVER_PROFILE_SLOTS else None
         await self._save_stopwatch_state(state)
         await self._update_sleep_inhibitor()
         
@@ -3766,7 +3826,8 @@ class Plugin:
     async def save_preset(self, seconds: int, label: str, 
                           subtle_mode: bool = False, auto_suspend: bool = False,
                           prevent_sleep: bool = False,
-                          screensaver_mode: str = "off") -> dict:
+                          screensaver_mode: str = "off",
+                          screensaver_profile: str = None) -> dict:
         """Save a new timer preset with all options. Overwrites oldest if max is reached.
         Moves existing identical presets to the top instead of duplicating."""
         user_settings = await self._get_user_settings()
@@ -3774,6 +3835,8 @@ class Plugin:
         if not enabled:
             decky.logger.warning("AlarMe: Presets are disabled. Cannot save preset.")
             return None
+        if screensaver_profile not in SCREENSAVER_PROFILE_SLOTS:
+            screensaver_profile = None
             
         presets = await self.get_presets()
         max_visible = user_settings.get("presets_max_visible", 5)
@@ -3788,7 +3851,8 @@ class Plugin:
                 bool(p.get("subtle_mode", False)) == bool(subtle_mode) and 
                 bool(p.get("auto_suspend", False)) == bool(auto_suspend) and
                 bool(p.get("prevent_sleep", False)) == bool(prevent_sleep) and
-                p.get("screensaver_mode", "off") == screensaver_mode):
+                p.get("screensaver_mode", "off") == screensaver_mode and
+                p.get("screensaver_profile") == screensaver_profile):
                 existing_idx = i
                 preset_id = p.get("id")
                 break
@@ -3803,7 +3867,8 @@ class Plugin:
             "subtle_mode": subtle_mode,
             "auto_suspend": auto_suspend,
             "prevent_sleep": prevent_sleep,
-            "screensaver_mode": screensaver_mode
+            "screensaver_mode": screensaver_mode,
+            "screensaver_profile": screensaver_profile
         }
         
         # Insert at the beginning (index 0) so the newest is always visible
@@ -3835,7 +3900,8 @@ class Plugin:
             subtle_mode=timer.get("subtle_mode", False),
             auto_suspend=timer.get("auto_suspend", False),
             prevent_sleep=timer.get("prevent_sleep", False),
-            screensaver_mode=timer.get("screensaver_mode", "off")
+            screensaver_mode=timer.get("screensaver_mode", "off"),
+            screensaver_profile=timer.get("screensaver_profile")
         )
 
     async def remove_preset(self, preset_id: str) -> bool:
@@ -3883,7 +3949,7 @@ class Plugin:
                 await decky.emit("alarme_presets_updated", presets)
         
         # Update sleep inhibitor if prevent_sleep or screensaver settings changed
-        if any(k in new_settings for k in ("pomodoro_prevent_sleep", "timer_prevent_sleep", "screensaver_mode", "screensaver_dim_opacity", "pomodoro_screensaver_mode")):
+        if any(k in new_settings for k in ("pomodoro_prevent_sleep", "timer_prevent_sleep", "screensaver_mode", "screensaver_dim_opacity", "pomodoro_screensaver_mode", "pomodoro_screensaver_profile")):
             await self._update_sleep_inhibitor()
                 
         await self.settings_commit()
@@ -3932,19 +3998,16 @@ class Plugin:
 
     async def load_screensaver_profile(self, slot: str) -> dict:
         """Load a screensaver profile and apply its settings."""
-        if slot not in ("slot_1", "slot_2", "slot_3"):
+        if slot not in SCREENSAVER_PROFILE_SLOTS:
             decky.logger.warning(f"AlarMe: Invalid profile slot: {slot}")
             return await self._get_user_settings()
         
-        profiles = await self.get_screensaver_profiles()
-        profile = profiles.get(slot)
-        
-        if not profile or not profile.get("settings"):
+        updated = await self._apply_screensaver_profile(slot)
+        if updated is None:
             decky.logger.warning(f"AlarMe: Profile {slot} is empty or invalid")
             return await self._get_user_settings()
         
-        updated = await self.update_settings(profile["settings"])
-        decky.logger.info(f"AlarMe: Loaded screensaver profile '{profile.get('name')}' from {slot}")
+        await self._update_sleep_inhibitor()
         return updated
 
     async def delete_screensaver_profile(self, slot: str) -> bool:
@@ -4152,6 +4215,7 @@ class Plugin:
             "temp_max": None,
             "temp_min": None,
             "aqi_us": None,
+            "humidity": None,
             "forecast": [],
             "fetched_at": None,
             "error": None,
@@ -4179,6 +4243,8 @@ class Plugin:
                     isinstance(ts, (int, float))
                     and isinstance(payload, dict)
                     and (now_ts - ts) < refresh_min * 60
+                    and "humidity" in payload
+                    and payload.get("temperature_unit") == unit
                 ):
                     out = dict(empty)
                     out.update(payload)
@@ -4211,11 +4277,11 @@ class Plugin:
             {
                 "latitude": la,
                 "longitude": lo,
-                "current_weather": "true",
+                "current": "temperature_2m,relative_humidity_2m,weather_code,is_day",
                 "daily": (
                     "temperature_2m_max,temperature_2m_min,weathercode,"
                     "precipitation_probability_max,precipitation_sum,"
-                    "wind_speed_10m_max,uv_index_max"
+                    "wind_speed_10m_max,uv_index_max,relative_humidity_2m_mean"
                 ),
                 "timezone": "auto",
                 "forecast_days": 7,
@@ -4252,7 +4318,7 @@ class Plugin:
         except Exception as e:
             decky.logger.debug(f"AlarMe: Open-Meteo air quality skipped: {e}")
 
-        cur = data.get("current_weather") or {}
+        cur = data.get("current") or {}
         daily = data.get("daily") or {}
         tmax_list = daily.get("temperature_2m_max") or []
         tmin_list = daily.get("temperature_2m_min") or []
@@ -4261,10 +4327,17 @@ class Plugin:
         precip_sum_list = daily.get("precipitation_sum") or []
         wind_max_list = daily.get("wind_speed_10m_max") or []
         uv_max_list = daily.get("uv_index_max") or []
+        humidity_list = daily.get("relative_humidity_2m_mean") or []
         date_list = daily.get("time") or []
 
         try:
-            temp = float(cur["temperature"]) if cur.get("temperature") is not None else None
+            humidity_raw = cur.get("relative_humidity_2m")
+            humidity = int(round(float(humidity_raw))) if humidity_raw is not None else None
+        except (TypeError, ValueError):
+            humidity = None
+
+        try:
+            temp = float(cur["temperature_2m"]) if cur.get("temperature_2m") is not None else None
         except (TypeError, ValueError, KeyError):
             temp = None
         try:
@@ -4276,7 +4349,7 @@ class Plugin:
         except (TypeError, ValueError, IndexError):
             tmin = None
 
-        wc = cur.get("weathercode")
+        wc = cur.get("weather_code")
         try:
             wc_int = int(wc) if wc is not None else None
         except (TypeError, ValueError):
@@ -4330,6 +4403,14 @@ class Plugin:
                 )
             except (TypeError, ValueError):
                 day_data["uv_index_max"] = None
+            try:
+                day_data["humidity_mean"] = (
+                    float(humidity_list[i])
+                    if i < len(humidity_list) and humidity_list[i] is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                day_data["humidity_mean"] = None
             forecast.append(day_data)
 
         fetched_iso = datetime.now().isoformat(timespec="seconds")
@@ -4342,6 +4423,7 @@ class Plugin:
             "temp_max": tmax,
             "temp_min": tmin,
             "aqi_us": aqi_us,
+            "humidity": humidity,
             "forecast": forecast,
             "fetched_at": fetched_iso,
             "error": None,
@@ -4958,11 +5040,17 @@ class Plugin:
                 settings_to_save = {**DEFAULT_SETTINGS, **data["user_settings"]}
                 await self.settings_setSetting(SETTINGS_KEY_SETTINGS, settings_to_save)
                 await self.settings_commit()
-                await decky.emit("alarme_settings_updated", settings_to_save)
             
             if "reminders" in data:
                 await self._save_reminders(data["reminders"])
+
+            await self._migrate_screensaver_off_mode()
+            if "alarms" in data:
+                await self._emit_all_alarms()
+            if "reminders" in data:
                 await self._emit_all_reminders()
+            if "user_settings" in data:
+                await decky.emit("alarme_settings_updated", await self._get_user_settings())
             
             # Emit general event so frontend can trigger full refresh
             await decky.emit("alarme_data_imported", True)
@@ -5010,6 +5098,10 @@ class Plugin:
             merged["overlay_position"] = position_map[current_position]
         elif current_position not in {"default", "custom"}:
             merged["overlay_position"] = "default"
+
+        # Per-item toggles turn the screensaver off; the global mode only picks its look.
+        if merged.get("screensaver_mode") not in SCREENSAVER_MODES:
+            merged["screensaver_mode"] = DEFAULT_SETTINGS["screensaver_mode"]
 
         # Remove legacy floating layout mode in favor of large + pixel shift drift.
         if merged.get("overlay_screensaver_layout") == "floating":
@@ -5068,6 +5160,48 @@ class Plugin:
             await self._save_timers(timers)
             decky.logger.info("AlarMe: Migrated timers to per-timer subtle/auto suspend settings")
 
+    async def _migrate_screensaver_off_mode(self):
+        """Map the removed global "off" screensaver mode onto per-item toggles.
+
+        Users who had the screensaver globally off get every saved item's screensaver
+        toggle turned off, so switching the global mode to dim shows nothing new.
+        """
+        saved = await self.settings_getSetting(SETTINGS_KEY_SETTINGS, {})
+        if saved.get("screensaver_mode") != "off":
+            return
+
+        saved["screensaver_mode"] = DEFAULT_SETTINGS["screensaver_mode"]
+        saved["pomodoro_screensaver_mode"] = "off"
+        await self.settings_setSetting(SETTINGS_KEY_SETTINGS, saved)
+
+        def turn_off(items) -> bool:
+            changed = False
+            for item in items:
+                if isinstance(item, dict) and item.get("screensaver_mode", "off") != "off":
+                    item["screensaver_mode"] = "off"
+                    changed = True
+            return changed
+
+        timers = await self._get_timers()
+        if turn_off(timers.values()):
+            await self._save_timers(timers)
+        alarms = await self._get_alarms()
+        if turn_off(alarms.values()):
+            await self._save_alarms(alarms)
+        reminders = await self._get_reminders()
+        if turn_off(reminders.values()):
+            await self._save_reminders(reminders)
+        stopwatch = await self._get_stopwatch_state()
+        if turn_off([stopwatch]):
+            await self._save_stopwatch_state(stopwatch)
+        for key in (SETTINGS_KEY_PRESETS, SETTINGS_KEY_RECENT_TIMERS):
+            entries = await self.settings_getSetting(key, [])
+            if turn_off(entries):
+                await self.settings_setSetting(key, entries)
+
+        await self.settings_commit()
+        decky.logger.info("AlarMe: Migrated global screensaver 'off' mode to per-item toggles")
+
     # ==================== CORE SETTINGS METHODS ====================
 
     async def settings_read(self):
@@ -5092,7 +5226,8 @@ class Plugin:
                              sound: str = "alarm.mp3", volume: int = 100,
                              subtle_mode: bool = False,
                              prevent_sleep: bool = False,
-                             screensaver_mode: str = "off") -> dict:
+                             screensaver_mode: str = "off",
+                             screensaver_profile: str = None) -> dict:
         """
         Create a new periodic reminder.
         frequency_minutes: interval between reminders (15-180)
@@ -5140,6 +5275,7 @@ class Plugin:
             "subtle_mode": subtle_mode,
             "prevent_sleep": prevent_sleep,
             "screensaver_mode": screensaver_mode,
+            "screensaver_profile": screensaver_profile if screensaver_profile in SCREENSAVER_PROFILE_SLOTS else None,
             "enabled": True,
             "created_at": time.time(),
             "next_trigger": next_trigger,
@@ -5165,7 +5301,8 @@ class Plugin:
                              sound: str = "alarm.mp3", volume: int = 100,
                              subtle_mode: bool = False,
                              prevent_sleep: bool = False,
-                             screensaver_mode: str = "off") -> dict:
+                             screensaver_mode: str = "off",
+                             screensaver_profile: str = None) -> dict:
         """Update an existing reminder's settings."""
         reminders = await self._get_reminders()
         if reminder_id not in reminders:
@@ -5183,6 +5320,7 @@ class Plugin:
         reminder["subtle_mode"] = subtle_mode
         reminder["prevent_sleep"] = prevent_sleep
         reminder["screensaver_mode"] = screensaver_mode
+        reminder["screensaver_profile"] = screensaver_profile if screensaver_profile in SCREENSAVER_PROFILE_SLOTS else None
         
         #Force disable prevent_sleep if only_while_gaming is active
         if only_while_gaming:
@@ -5681,6 +5819,7 @@ class Plugin:
         
         await self.settings_read()
         await self._migrate_timer_settings()
+        await self._migrate_screensaver_off_mode()
         await self._emit_screensaver_reset_state()
 
         # Resume any active timers
@@ -5979,6 +6118,9 @@ class Plugin:
         # Cancel suspend monitor
         if self.suspend_monitor_task:
             self.suspend_monitor_task.cancel()
+
+        # Destroy the uinput device and stop the jiggler
+        await self._release_sleep_inhibitor()
         
         decky.logger.info("AlarMe: Plugin unloaded")
 

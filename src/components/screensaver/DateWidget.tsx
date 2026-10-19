@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useScreensaverClock } from "../../hooks/useScreensaverClock";
 import { useSettings } from "../../hooks/useSettings";
 
@@ -6,6 +6,8 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export type ScreensaverWidgetDensity = "normal" | "tight";
+
+const MAX_CALENDAR_GROWTH = 2.4;
 
 function calendarScale(density: ScreensaverWidgetDensity): number {
     return density === "tight" ? 0.89 : 1;
@@ -26,10 +28,6 @@ export function screensaverCalendarGridContentHeightPx(
     const cellH = fontSize * 1.1 * scale;
     const gap = 1;
     return weekdayRowH + gap + dayRows * cellH + Math.max(0, dayRows - 1) * gap;
-}
-
-interface DateWidgetProps {
-    fontSize: number;
 }
 
 function useDateHeadingParts(): { dateStr: string; visible: boolean } {
@@ -53,29 +51,39 @@ function useDateHeadingParts(): { dateStr: string; visible: boolean } {
     return { dateStr, visible };
 }
 
-/** Single-line date (used above the large-widgets row or standalone). */
+/** Single-line date (above the large-widgets row, or alone when there are no big widgets). */
 export function ScreensaverDateHeading({ fontSize }: { fontSize: number }) {
     const { dateStr, visible } = useDateHeadingParts();
     if (!visible) return null;
     return <span style={{ fontSize, opacity: 0.85, lineHeight: 1.2 }}>{dateStr}</span>;
 }
 
-/** Mini monthly calendar grid only (large / fullscreen row). */
+/** Mini monthly calendar grid for the large / fullscreen widget row; spreads over its card. */
 export function ScreensaverCalendarGrid({
     fontSize,
-    stretchToContainer = false,
     density = "normal",
 }: {
     fontSize: number;
-    stretchToContainer?: boolean;
     density?: ScreensaverWidgetDensity;
 }) {
-    const { settings } = useSettings();
     const clock = useScreensaverClock();
+    const gridRef = useRef<HTMLDivElement>(null);
+    const [box, setBox] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
-    if (!(settings.screensaver_show_calendar_grid ?? false)) {
-        return null;
-    }
+    useLayoutEffect(() => {
+        const el = gridRef.current;
+        if (!el) return;
+        const update = () => {
+            const width = el.clientWidth;
+            const height = el.clientHeight;
+            if (width <= 0 || height <= 0) return;
+            setBox((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
 
     const firstDay = new Date(clock.year, clock.month, 1).getDay();
     const daysInMonth = new Date(clock.year, clock.month + 1, 0).getDate();
@@ -85,138 +93,79 @@ export function ScreensaverCalendarGrid({
     const cellMinH = fontSize * 1.1 * scale;
     const cellW = fontSize * 1.1 * scale;
     const gridMinWidthPx = 7 * cellW + 6;
+    const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month, density);
+
+    // Grow digits with the space the card gives the rows, capped by column width.
+    const rowH = box.height > 0 ? Math.max(cellMinH, (box.height - weekdayRowH * 1.5 - numDayRows) / numDayRows) : cellMinH;
+    const colW = box.width > 0 ? Math.max(cellW, (box.width - 6) / 7) : cellW;
+    const growth = Math.max(1, Math.min(rowH / cellMinH, colW / cellW, MAX_CALENDAR_GROWTH));
+    const dayFontSize = fontSize * 0.55 * growth;
+    const weekdayFontSize = fontSize * 0.45 * Math.min(growth, 1.5);
+    const todayMark = Math.min(rowH, colW) * 0.92;
 
     const cells: JSX.Element[] = [];
     for (let i = 0; i < firstDay; i++) {
-        const emptyStyle: CSSProperties = stretchToContainer
-            ? { minHeight: cellMinH, width: cellW, minWidth: cellW, boxSizing: "border-box" }
-            : { width: cellW, height: cellMinH };
-        cells.push(<div key={"e" + i} style={emptyStyle} />);
+        cells.push(<div key={"e" + i} />);
     }
     for (let d = 1; d <= daysInMonth; d++) {
         const isToday = d === clock.day;
-        const dayStyle: CSSProperties = stretchToContainer
-            ? {
-                  minHeight: cellMinH,
-                  width: cellW,
-                  minWidth: cellW,
-                  height: "100%",
-                  boxSizing: "border-box",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: fontSize * 0.55,
-                  fontWeight: isToday ? 700 : 400,
-                  backgroundColor: isToday ? "rgba(255,255,255,0.12)" : "transparent",
-                  borderRadius: 3,
-              }
-            : {
-                  width: cellW,
-                  height: cellMinH,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: fontSize * 0.55,
-                  fontWeight: isToday ? 700 : 400,
-                  backgroundColor: isToday ? "rgba(255,255,255,0.12)" : "transparent",
-                  borderRadius: 3,
-              };
         cells.push(
-            <div key={d} style={dayStyle}>
-                {d}
-            </div>
-        );
-    }
-
-    const weekdayCells = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => {
-        const wkStyle: CSSProperties = stretchToContainer
-            ? {
-                  minHeight: weekdayRowH,
-                  width: cellW,
-                  minWidth: cellW,
-                  boxSizing: "border-box",
-                  textAlign: "center",
-                  fontSize: fontSize * 0.45,
-                  opacity: 0.4,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-              }
-            : {
-                  width: cellW,
-                  height: weekdayRowH,
-                  textAlign: "center",
-                  fontSize: fontSize * 0.45,
-                  opacity: 0.4,
-              };
-        return (
-            <div key={d} style={wkStyle}>
-                {d}
-            </div>
-        );
-    });
-
-    if (stretchToContainer) {
-        const gridMinH = screensaverCalendarGridContentHeightPx(fontSize, clock.year, clock.month, density);
-        return (
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    flex: "1 1 auto",
-                    height: "100%",
-                    width: "fit-content",
-                    maxWidth: "100%",
-                    minWidth: gridMinWidthPx,
-                    minHeight: gridMinH,
-                    boxSizing: "border-box",
-                }}
-            >
-                <div
+            <div key={d} style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
+                <span
                     style={{
-                        flex: 1,
-                        minHeight: 0,
-                        width: "fit-content",
-                        minWidth: gridMinWidthPx,
-                        display: "grid",
-                        gridTemplateColumns: `repeat(7, ${cellW}px)`,
-                        gridTemplateRows: `${weekdayRowH}px repeat(${numDayRows}, minmax(${cellMinH}px, 1fr))`,
-                        gap: 1,
+                        position: "absolute",
+                        inset: 0,
+                        margin: "auto",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: todayMark,
+                        height: todayMark,
+                        fontSize: dayFontSize,
+                        fontWeight: isToday ? 700 : 400,
+                        backgroundColor: isToday ? "rgba(255,255,255,0.12)" : "transparent",
+                        borderRadius: Math.max(3, todayMark * 0.18),
                     }}
                 >
-                    {weekdayCells}
-                    {cells}
-                </div>
+                    {d}
+                </span>
             </div>
         );
     }
 
+    const weekdayCells = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+        <div
+            key={d}
+            style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: weekdayFontSize,
+                opacity: 0.4,
+            }}
+        >
+            {d}
+        </div>
+    ));
+
     return (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(7, ${cellW}px)`, gap: 1, width: "fit-content" }}>
+        <div
+            ref={gridRef}
+            style={{
+                flex: "1 1 auto",
+                alignSelf: "stretch",
+                width: "100%",
+                minWidth: gridMinWidthPx,
+                minHeight: gridMinH,
+                boxSizing: "border-box",
+                display: "grid",
+                gridTemplateColumns: `repeat(7, minmax(${cellW}px, 1fr))`,
+                gridTemplateRows: `${weekdayRowH * Math.min(growth, 1.5)}px repeat(${numDayRows}, minmax(${cellMinH}px, 1fr))`,
+                gap: 1,
+            }}
+        >
             {weekdayCells}
             {cells}
         </div>
     );
-}
-
-export function DateWidget({ fontSize }: DateWidgetProps) {
-    const { settings } = useSettings();
-    const { visible } = useDateHeadingParts();
-
-    if (!visible) {
-        return null;
-    }
-
-    const showCalendar = settings.screensaver_show_calendar_grid ?? false;
-
-    if (showCalendar) {
-        return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                <ScreensaverDateHeading fontSize={fontSize} />
-                <ScreensaverCalendarGrid fontSize={fontSize} />
-            </div>
-        );
-    }
-
-    return <ScreensaverDateHeading fontSize={fontSize} />;
 }

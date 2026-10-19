@@ -1015,7 +1015,7 @@ const WidgetOrchestratorSection = ({
 const ScreensaverSettingsPage = () => {
     const { settings, updateSetting, updateSettings } = useSettings();
     const { profiles, saveProfile, loadProfile, deleteProfile } = useScreensaverProfiles();
-    const mode = settings.screensaver_mode ?? 'off';
+    const mode = settings.screensaver_mode ?? 'dim';
 
     const [wallpaperStatus, setWallpaperStatus] = useState<{ reachable: boolean | null; message?: string }>({ reachable: null });
     const [wallpaperPaths, setWallpaperPaths] = useState<{
@@ -1086,7 +1086,6 @@ const ScreensaverSettingsPage = () => {
     }, [settings.screensaver_wallpaper_provider]);
 
     const modeOptions = [
-        { data: 'off' as const, label: 'Off' },
         { data: 'black' as const, label: 'Black' },
         { data: 'dim' as const, label: 'Dim' },
         { data: 'wallpaper' as const, label: 'Wallpaper' },
@@ -1153,6 +1152,9 @@ const ScreensaverSettingsPage = () => {
     const provider = settings.screensaver_wallpaper_provider || 'none';
     const rawLayoutMode = (settings.overlay_screensaver_layout as unknown as string | undefined) || 'compact';
     const layoutMode = rawLayoutMode === 'floating' ? 'large' : rawLayoutMode;
+    const weatherInUse = layoutMode === 'compact'
+        ? (settings.screensaver_show_weather ?? false)
+        : (settings.screensaver_small_widgets ?? []).includes('weather') || (settings.screensaver_big_widgets ?? []).includes('forecast');
     const layoutIsCompact = layoutMode === 'compact';
     const poolSz = clampWallpaperPoolSize(settings.screensaver_wallpaper_pool_size);
     const autoRotateWallpaper = settings.screensaver_wallpaper_auto_rotate ?? true;
@@ -1332,7 +1334,7 @@ const ScreensaverSettingsPage = () => {
             <PanelSection title="Screensaver Mode">
                 <PanelSectionRow>
                     <div style={{ fontSize: 12, color: '#aaaaaa', padding: '4px 0', lineHeight: 1.5 }}>
-                        Choose the background behavior when the screensaver activates.
+                        Choose the background behavior when the screensaver activates. To turn the screensaver off, disable the Screensaver toggle on each timer, alarm, reminder, stopwatch, or Pomodoro, and leave Standalone Mode off.
                     </div>
                 </PanelSectionRow>
                 <PanelSectionRow>
@@ -1351,7 +1353,6 @@ const ScreensaverSettingsPage = () => {
                 </PanelSectionRow>
                 <PanelSectionRow>
                     <div style={{ fontSize: 11, color: '#666', padding: '0 0 4px 0' }}>
-                        {mode === 'off' && 'Screensaver is disabled.'}
                         {mode === 'black' && 'Screen turns completely black.'}
                         {mode === 'dim' && 'Screen dims to a configurable opacity.'}
                         {mode === 'wallpaper' && 'A wallpaper image is shown behind the clock and widgets.'}
@@ -1607,7 +1608,6 @@ const ScreensaverSettingsPage = () => {
                 </PanelSection>
             )}
 
-            {mode !== 'off' && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
                     {/* === Activation === */}
                     <PanelSection title="Activation">
@@ -1837,7 +1837,21 @@ const ScreensaverSettingsPage = () => {
                             </div>
                         </PanelSectionRow>
 
-                        {(settings.screensaver_show_weather ?? false) && (
+                        {layoutMode === 'compact' && (
+                            <PanelSectionRow>
+                                <div style={{ paddingLeft: 40 }}>
+                                <ToggleField
+                                    icon={<FaCloud size={16} />}
+                                    label="Show weather in compact overlay"
+                                    description="Adds a short temperature, humidity, and AQI readout to the overlay bar while the screensaver is active."
+                                    checked={settings.screensaver_show_weather ?? false}
+                                    onChange={(value) => updateSetting('screensaver_show_weather', value)}
+                                />
+                                </div>
+                            </PanelSectionRow>
+                        )}
+
+                        {weatherInUse && (
                             <>
                                 <PanelSectionRow>
                                     <div style={{ paddingLeft: 40 }}>
@@ -1878,7 +1892,7 @@ const ScreensaverSettingsPage = () => {
                                     />
                                     </div>
                                 </PanelSectionRow>
-                                {((settings.screensaver_show_weather ?? false) || (settings.screensaver_show_forecast ?? false)) && (
+                                {weatherInUse && (
                                     <PanelSectionRow>
                                         <div style={{ paddingLeft: 40 }}>
                                         <SliderField
@@ -2089,7 +2103,6 @@ const ScreensaverSettingsPage = () => {
                         </PanelSectionRow>
                     </PanelSection>
                 </div>
-            )}
         </ScrollableContent>
     );
 };

@@ -14,8 +14,9 @@ import { useRef, useEffect, useState } from "react";
 import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
 import { useSettings } from "../hooks/useSettings";
+import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
 
-import type { Reminder, SoundFile } from "../types";
+import type { Reminder, ScreensaverProfileSlot, SoundFile } from "../types";
 
 // Frequency options (in minutes)
 const FREQUENCY_OPTIONS: DropdownOption[] = [
@@ -64,7 +65,8 @@ interface ReminderEditorModalProps {
         volume: number,
         subtleMode: boolean,
         preventSleep: boolean,
-        screensaverMode: string
+        screensaverMode: string,
+        screensaverProfile: ScreensaverProfileSlot | null
     ) => Promise<void>;
     onDelete?: () => Promise<void>;
     getSounds: () => Promise<SoundFile[]>;
@@ -102,6 +104,7 @@ function ReminderEditorModalContent({
     const [subtleMode, setSubtleMode] = useState(reminder?.subtle_mode ?? false);
     const [preventSleep, setPreventSleep] = useState(reminder?.prevent_sleep ?? false);
     const [screensaverMode, setScreensaverMode] = useState<'off' | 'black' | 'dim'>(reminder?.screensaver_mode ?? 'off');
+    const [screensaverProfile, setScreensaverProfile] = useState<ScreensaverProfileSlot | null>(reminder?.screensaver_profile ?? null);
 
 
     // Force disable Prevent Sleep if Only While Gaming is active
@@ -243,7 +246,8 @@ function ReminderEditorModalContent({
             volume,
             subtleMode,
             preventSleep,
-            screensaverMode
+            screensaverMode,
+            screensaverProfile
         );
         closeModal?.();
     };
@@ -694,10 +698,17 @@ function ReminderEditorModalContent({
                     <div style={{ paddingLeft: '60px' }}>
                         <ToggleField
                             label="Screensaver"
-                            description={`Currently set to ${(globalSettings.screensaver_mode || 'off') === 'off' ? 'Off' : globalSettings.screensaver_mode === 'wallpaper' ? 'Wallpaper' : globalSettings.screensaver_mode === 'black' ? 'Black' : 'Dim'} · Change in Settings → Screensaver`}
+                            description={screensaverToggleDescription(globalSettings)}
                             checked={screensaverMode !== 'off'}
                             onChange={(val) => setScreensaverMode(val ? 'black' : 'off')}
                         />
+                        {screensaverMode !== 'off' && (
+                            <ScreensaverProfileDropdown
+                                value={screensaverProfile}
+                                onChange={setScreensaverProfile}
+                                indent={0}
+                            />
+                        )}
                     </div>
                 )}
 

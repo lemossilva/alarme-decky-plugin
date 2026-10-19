@@ -11,7 +11,7 @@ import { useReminders } from "../hooks/useReminders";
 import { useSettings } from "../hooks/useSettings";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { showReminderEditorModal } from "./ReminderEditorModal";
-import type { Reminder } from "../types";
+import type { Reminder, ScreensaverProfileSlot } from "../types";
 
 interface ReminderItemProps {
     reminder: Reminder;
@@ -169,9 +169,10 @@ export function ReminderPanel() {
                 volume: number,
                 subtleMode: boolean,
                 preventSleep: boolean,
-                screensaverMode: string
+                screensaverMode: string,
+                screensaverProfile: ScreensaverProfileSlot | null
             ) => {
-                await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode);
+                await createReminder(label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode, screensaverProfile);
             },
             getSounds,
             use24h,
@@ -193,9 +194,10 @@ export function ReminderPanel() {
                 volume: number,
                 subtleMode: boolean,
                 preventSleep: boolean,
-                screensaverMode: string
+                screensaverMode: string,
+                screensaverProfile: ScreensaverProfileSlot | null
             ) => {
-                await updateReminder(reminder.id, label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode);
+                await updateReminder(reminder.id, label, frequencyMinutes, startTime, recurrences, onlyWhileGaming, resetOnGameStart, sound, volume, subtleMode, preventSleep, screensaverMode, screensaverProfile);
             },
             onDelete: async () => {
                 await deleteReminder(reminder.id);
