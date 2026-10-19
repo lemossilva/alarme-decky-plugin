@@ -5,12 +5,13 @@ import {
     PanelSectionRow,
     ToggleField
 } from "@decky/ui";
-import { FaBell, FaBellSlash, FaPlus, FaChevronRight } from "react-icons/fa";
+import { FaBell, FaBellSlash, FaPlus, FaChevronRight, FaMusic, FaPause } from "react-icons/fa";
 import { useState, useCallback } from "react";
 
 import { useAlarms } from "../hooks/useAlarms";
 import { useSettings } from "../hooks/useSettings";
 import { showAlarmEditorModal } from "./AlarmEditorModal";
+import { ItemBadges } from "./ItemBadges";
 import { formatTime, getRelativeTime, getRecurringText } from "../utils/time";
 import type { Alarm } from "../types";
 
@@ -87,12 +88,12 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
             >
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflow: 'hidden' }}>
                     {/* Row 1: Time + Recurrency */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {isActive ? <FaBell size={11} color={cardFocused ? '#88dd88' : '#44aa44'} /> : <FaBellSlash size={11} color={cardFocused ? '#cccccc' : '#888888'} />}
-                        <span style={{ fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace', color: isActive ? '#ffffff' : cardFocused ? '#ffffff' : '#aaaaaa' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
+                        {isActive ? <FaBell size={11} color={cardFocused ? '#88dd88' : '#44aa44'} style={{ flexShrink: 0 }} /> : <FaBellSlash size={11} color={cardFocused ? '#cccccc' : '#888888'} style={{ flexShrink: 0 }} />}
+                        <span style={{ fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace', flexShrink: 0, color: isActive ? '#ffffff' : cardFocused ? '#ffffff' : '#aaaaaa' }}>
                             {formatTime(alarm.hour, alarm.minute, use24h)}
                         </span>
-                        <span style={{ fontSize: 10, color: cardFocused ? '#dddddd' : '#888888' }}>{getRecurringText(alarm.recurring)}</span>
+                        <span style={{ fontSize: 10, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', color: cardFocused ? '#dddddd' : '#888888' }}>{getRecurringText(alarm.recurring)}</span>
                     </div>
 
                     {/* Row 2: Label - truncated */}
@@ -101,19 +102,24 @@ const AlarmItem = ({ alarm, use24h, onToggle, onEdit }: AlarmItemProps) => {
                     </div>
 
                     {/* Row 3: Badges - fixed height slot */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: cardFocused ? '#dddddd' : '#888888', overflow: 'hidden' }}>
-                        {alarm.sound && alarm.sound !== 'alarm.mp3' && (
-                            <span style={{ color: cardFocused ? '#aaccee' : '#6688aa' }}>🔊 {alarm.sound.replace('custom:', '').replace('.mp3', '').replace('.wav', '').replace('.ogg', '')}</span>
-                        )}
-                        {alarm.subtle_mode && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>📵</span>}
-                        {alarm.auto_suspend && <span style={{ color: cardFocused ? '#ddaadd' : '#aa88aa' }}>💤</span>}
-                        {alarm.prevent_sleep && <span style={{ color: cardFocused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
-                        {alarm.screensaver_mode && alarm.screensaver_mode !== 'off' && <span style={{ color: cardFocused ? '#bbbbdd' : '#8888aa' }}>🌙</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 12, fontSize: 10, lineHeight: 1, whiteSpace: 'nowrap', color: cardFocused ? '#dddddd' : '#888888', minWidth: 0, overflow: 'hidden' }}>
+                        <ItemBadges item={alarm} focused={cardFocused} />
                         {isSnoozed && alarm.snoozed_until && (
-                            <span style={{ color: cardFocused ? '#ffdd66' : '#ffaa00' }}>⏸️ {formatTime(new Date(alarm.snoozed_until * 1000).getHours(), new Date(alarm.snoozed_until * 1000).getMinutes(), use24h)}</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, color: cardFocused ? '#ffdd66' : '#ffaa00' }}>
+                                <FaPause size={8} />
+                                {formatTime(new Date(alarm.snoozed_until * 1000).getHours(), new Date(alarm.snoozed_until * 1000).getMinutes(), use24h)}
+                            </span>
                         )}
                         {alarm.next_trigger && isActive && !isSnoozed && (
-                            <span style={{ color: cardFocused ? '#bbbbbb' : '#666666' }}>{getRelativeTime(alarm.next_trigger, use24h)}</span>
+                            <span style={{ flexShrink: 0, color: cardFocused ? '#bbbbbb' : '#666666' }}>{getRelativeTime(alarm.next_trigger, use24h)}</span>
+                        )}
+                        {alarm.sound && alarm.sound !== 'alarm.mp3' && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, color: cardFocused ? '#aaccee' : '#6688aa' }}>
+                                <FaMusic size={8} style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {alarm.sound.replace('custom:', '').replace('.mp3', '').replace('.wav', '').replace('.ogg', '')}
+                                </span>
+                            </span>
                         )}
                     </div>
                 </div>

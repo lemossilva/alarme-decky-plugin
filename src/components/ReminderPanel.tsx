@@ -11,6 +11,7 @@ import { useReminders } from "../hooks/useReminders";
 import { useSettings } from "../hooks/useSettings";
 import { useGameStatus } from "../hooks/useGameStatus";
 import { showReminderEditorModal } from "./ReminderEditorModal";
+import { ItemBadges } from "./ItemBadges";
 import type { Reminder, ScreensaverProfileSlot } from "../types";
 
 interface ReminderItemProps {
@@ -124,20 +125,17 @@ const ReminderItem = ({ reminder, onToggle, onEdit, gameRunning }: ReminderItemP
                     </div>
 
                     {/* Row 2: Badges */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: cardFocused ? '#dddddd' : '#888888', overflow: 'hidden' }}>
-                        <span style={{ color: cardFocused ? '#aaccee' : '#6688aa', display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 12, fontSize: 10, lineHeight: 1, whiteSpace: 'nowrap', color: cardFocused ? '#dddddd' : '#888888', minWidth: 0, overflow: 'hidden' }}>
+                        <span style={{ color: cardFocused ? '#aaccee' : '#6688aa', display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                             <FaSync size={8} />
                             {formatFrequency(reminder.frequency_minutes)}
                         </span>
-                        {!isInfinite && <span style={{ color: cardFocused ? '#ddaadd' : '#aa88aa' }}>{triggersRemaining}/{reminder.recurrences}</span>}
-                        {reminder.only_while_gaming && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>🎮</span>}
-                        {reminder.subtle_mode && <span style={{ color: cardFocused ? '#aaddaa' : '#88aa88' }}>📵</span>}
-                        {reminder.prevent_sleep && <span style={{ color: cardFocused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
-                        {reminder.screensaver_mode && reminder.screensaver_mode !== 'off' && <span style={{ color: cardFocused ? '#bbbbdd' : '#8888aa' }}>🌙</span>}
+                        {!isInfinite && <span style={{ flexShrink: 0, color: cardFocused ? '#ddaadd' : '#aa88aa' }}>{triggersRemaining}/{reminder.recurrences}</span>}
+                        <ItemBadges item={reminder} focused={cardFocused} />
                     </div>
 
                     {/* Row 3: Next trigger */}
-                    <div style={{ fontSize: 10, color: cardFocused ? '#bbbbbb' : '#666666' }}>
+                    <div style={{ fontSize: 10, color: cardFocused ? '#bbbbbb' : '#666666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {reminder.next_trigger && isActive && triggersRemaining !== 0 
                             ? `Next: ${formatNextTrigger(reminder.next_trigger, reminder.only_while_gaming, gameRunning)}${(!gameRunning && reminder.only_while_gaming) ? ' (Paused)' : ''}`
                             : ''}

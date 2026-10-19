@@ -11,6 +11,7 @@ import { usePomodoro } from "../hooks/usePomodoro";
 import { useSettings } from "../hooks/useSettings";
 import { formatDuration } from "../utils/time";
 import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
+import { ItemBadgeIcon } from "./ItemBadges";
 import { PomodoroStatsPanel } from "./PomodoroStatsPanel";
 
 
@@ -158,7 +159,7 @@ export function PomodoroPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<span style={{ fontSize: 14 }}>📵</span>}
+                        icon={<ItemBadgeIcon kind="subtle" />}
                         label="Subtle Mode"
                         description="Show a small toast instead of fullscreen popup"
                         checked={settings.pomodoro_subtle_mode ?? false}
@@ -168,7 +169,7 @@ export function PomodoroPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                        icon={<ItemBadgeIcon kind="prevent_sleep" />}
                         label="Prevent Sleep"
                         description="Keep device awake during sessions. Use with caution - may drain battery."
                         checked={settings.pomodoro_prevent_sleep ?? false}
@@ -179,7 +180,7 @@ export function PomodoroPanel() {
                 {settings.pomodoro_prevent_sleep && (
                     <PanelSectionRow>
                         <ToggleField
-                            icon={<span style={{ fontSize: 14 }}>🖥️</span>}
+                            icon={<ItemBadgeIcon kind="screensaver" />}
                             label="Screensaver"
                             description={screensaverToggleDescription(settings)}
                             checked={(settings.pomodoro_screensaver_mode ?? 'off') !== 'off'}

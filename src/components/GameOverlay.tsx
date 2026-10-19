@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaMoon, FaVolumeMute, FaHourglassHalf, FaBellSlash, FaBatteryFull } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaShieldAlt, FaHourglassHalf, FaBellSlash, FaBatteryFull } from "react-icons/fa";
 import { useSettings } from "../hooks/useSettings";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useGameStatus } from "../hooks/useGameStatus";
@@ -12,6 +12,7 @@ import type { OverlayAlert } from "../types";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
 import { displayAlertLabel } from "../utils/overlayAlertDisplay";
+import { ItemBadges } from "./ItemBadges";
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, JSX.Element> = {
@@ -81,9 +82,6 @@ const OverlayAlertItem = ({
     showPreventSleepBadge?: boolean;
 }) => {
     const iconSize = Math.max(8, textSize - 1);
-    const showShield = showPreventSleepBadge && alert.prevent_sleep;
-
-    const hasAnyIcon = alert.subtle_mode || alert.auto_suspend || showShield;
 
     return (
         <div style={{
@@ -119,23 +117,12 @@ const OverlayAlertItem = ({
                     {displayAlertLabel(alert)}
                 </span>
             )}
-            {hasAnyIcon && (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    opacity: 0.8
-                }}>
-                    {showShield && (
-                        <FaShieldAlt size={Math.max(8, textSize - 2)} color="#e69900" />
-                    )}
-                    {alert.auto_suspend ? (
-                        <FaMoon size={Math.max(8, textSize - 2)} />
-                    ) : (
-                        alert.subtle_mode && <FaVolumeMute size={Math.max(8, textSize - 2)} />
-                    )}
-                </div>
-            )}
+            <ItemBadges
+                item={alert}
+                size={Math.max(8, textSize - 2)}
+                monochrome
+                exclude={showPreventSleepBadge ? undefined : ['prevent_sleep']}
+            />
             <span style={{
                 fontSize: textSize,
                 fontFamily: 'monospace',

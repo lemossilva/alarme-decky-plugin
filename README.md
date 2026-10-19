@@ -93,7 +93,7 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **News headlines** - Optional RSS/Atom widget on the screensaver info row; curated sources plus custom feeds (tested before save); header newspaper button opens a grouped headline list with publish times; tap **Open** to read in the Steam browser
 - **Screensaver profiles** - Save your screensaver configuration to one of 3 profile slots; quickly switch between setups for bedtime, gaming, or minimal modes
 - **Quick preview** - **Screen** in the header closes the QAM and runs the screensaver immediately for a clean test
-- **Badge indicators** - 🌙 badge shows which items have screensaver enabled
+- **Badge indicators** - Timers, presets, alarms, reminders, the overlay, and the screensaver alert list share one set of compact option icons: shield for Prevent Sleep, moon for Screensaver, power for Auto Suspend, muted speaker for Subtle Mode, and gamepad for reminders that only run while gaming
 
 > **Note**: The overlay appears when you open the Quick Access Menu (•••) or Steam Menu. It uses the empty black bar space reserved by SteamOS to display your upcoming alarms and timers without obstructing any interface elements.
 

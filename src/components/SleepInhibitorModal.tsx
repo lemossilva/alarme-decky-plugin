@@ -69,10 +69,6 @@ function SleepInhibitorModalContent({ items, closeModal }: SleepInhibitorModalPr
         }
     };
 
-    const getScreensaverLabel = (mode?: string) => {
-        if (!mode || mode === 'off') return null;
-        return mode === 'black' ? 'Full Black' : 'Dim Screen';
-    };
 
     return (
         <ConfirmModal
@@ -116,9 +112,7 @@ function SleepInhibitorModalContent({ items, closeModal }: SleepInhibitorModalPr
                                 <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{item.label}</div>
                                 <div style={{ fontSize: 12, color: '#aaaaaa' }}>
                                     {getTypeLabel(item.type)}
-                                    {getScreensaverLabel(item.screensaver_mode) && (
-                                        <span> · {getScreensaverLabel(item.screensaver_mode)}</span>
-                                    )}
+                                    {item.screensaver_mode && item.screensaver_mode !== 'off' && <span> · Screensaver</span>}
                                 </div>
                             </div>
                         </Focusable>

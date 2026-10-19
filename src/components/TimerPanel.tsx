@@ -16,6 +16,7 @@ import { useSettings } from "../hooks/useSettings";
 import { formatDuration, formatDurationLong } from "../utils/time";
 import { showTimerLabelModal } from "./TimerLabelModal";
 import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
+import { ItemBadgeIcon, ItemBadges } from "./ItemBadges";
 
 import type { Timer, Preset, ScreensaverProfileSlot } from "../types";
 
@@ -108,18 +109,21 @@ const TimerItem = ({ timer, onCancel, onPause, onResume, onSaveAsPreset, showSav
             borderRadius: 8,
             marginBottom: 8
         }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <div style={{ fontWeight: 'bold', fontSize: 16 }}>
-                        {timer.label}
-                        {isPaused && <span style={{ color: '#4488aa', marginLeft: 8, fontSize: 12 }}>PAUSED</span>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 'bold', fontSize: 16, whiteSpace: 'nowrap' }}>
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{timer.label}</span>
+                        {isPaused && <span style={{ color: '#4488aa', fontSize: 12, flexShrink: 0 }}>PAUSED</span>}
                     </div>
-                    <div style={{
-                        fontSize: 24,
-                        fontFamily: 'monospace',
-                        color: isPaused ? '#4488aa' : (isUrgent ? '#ff6666' : '#ffffff')
-                    }}>
-                        {formatDuration(remaining)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                        <span style={{
+                            fontSize: 24,
+                            fontFamily: 'monospace',
+                            color: isPaused ? '#4488aa' : (isUrgent ? '#ff6666' : '#ffffff')
+                        }}>
+                            {formatDuration(remaining)}
+                        </span>
+                        <ItemBadges item={timer} size={11} />
                     </div>
                 </div>
                 <Focusable style={{ display: 'flex', gap: 8 }} flow-children="horizontal">
@@ -175,22 +179,7 @@ const TimerItem = ({ timer, onCancel, onPause, onResume, onSaveAsPreset, showSav
                     </Focusable>
                 </Focusable>
             </div>
-            
-            {(timer.subtle_mode || timer.auto_suspend || timer.prevent_sleep || (timer.screensaver_mode && timer.screensaver_mode !== 'off')) && (
-                <div style={{
-                    fontSize: 11,
-                    color: '#bbbbbb',
-                    marginTop: 4,
-                    display: 'flex',
-                    gap: 8,
-                    width: '100%'
-                }}>
-                    {timer.prevent_sleep && <span style={{ color: '#e69900' }}>🛡️ Prev. Sleep</span>}
-                    {timer.auto_suspend && <span>💤 Auto-Suspend</span>}
-                    {timer.subtle_mode && !timer.auto_suspend && <span>📵 Subtle</span>}
-                    {timer.screensaver_mode && timer.screensaver_mode !== 'off' && <span style={{ color: '#8888aa' }}>🌙 Screensaver</span>}
-                </div>
-            )}
+
         </div>
     );
 };
@@ -269,10 +258,7 @@ const PresetButton = ({ preset, onClick, onDelete, disabled }: PresetButtonProps
                     gap: 6, 
                     flexShrink: 0
                 }}>
-                    {preset.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#ddaadd' : '#aa88aa' }}>💤</span>}
-                    {preset.subtle_mode && !preset.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#aaddaa' : '#88aa88' }}>📵</span>}
-                    {preset.prevent_sleep && <span style={{ fontSize: 12, color: focused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
-                    {preset.screensaver_mode && preset.screensaver_mode !== 'off' && <span style={{ fontSize: 12, color: focused ? '#bbbbdd' : '#8888aa' }}>🌙</span>}
+                    <ItemBadges item={preset} focused={focused} />
                     <span style={{ color: focused ? '#ffffff' : '#888888', fontSize: 12, marginLeft: 2, minWidth: 35, textAlign: 'right' }}>
                         {minutes}m
                     </span>
@@ -332,11 +318,8 @@ const RecentTimerButton = ({ recent, onClick, isFirst }: { recent: RecentTimer; 
             <FaPlay size={10} style={{ color: focused ? '#ffffff' : undefined }} />
             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: focused ? '#ffffff' : undefined }}>{displayLabel}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                {recent.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#ddaadd' : '#aa88aa' }}>💤</span>}
-                {recent.subtle_mode && !recent.auto_suspend && <span style={{ fontSize: 12, color: focused ? '#aaddaa' : '#88aa88' }}>📵</span>}
-                {recent.prevent_sleep && <span style={{ fontSize: 12, color: focused ? '#ffcc66' : '#e69900' }}>🛡️</span>}
-                {recent.screensaver_mode && recent.screensaver_mode !== 'off' && <span style={{ fontSize: 12, color: focused ? '#bbbbdd' : '#8888aa' }}>🌙</span>}
-                <span style={{ color: focused ? '#ffffff' : '#888888', fontSize: 12, marginLeft: 2 }}>{minutes}m</span>
+                <ItemBadges item={recent} focused={focused} />
+                <span style={{ color: focused ? '#ffffff' : '#888888', fontSize: 12, marginLeft: 2, minWidth: 35, textAlign: 'right' }}>{minutes}m</span>
             </div>
         </Focusable>
     );
@@ -518,7 +501,7 @@ export function TimerPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<span style={{ fontSize: 14 }}>📵</span>}
+                        icon={<ItemBadgeIcon kind="subtle" />}
                         label="Subtle Mode"
                         description={timerAutoSuspend
                             ? "Required when Auto-Suspend is enabled"
@@ -531,7 +514,7 @@ export function TimerPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<span style={{ fontSize: 14 }}>💤</span>}
+                        icon={<ItemBadgeIcon kind="auto_suspend" />}
                         label="Auto-Suspend"
                         description="Suspend device when timer finishes (enables Subtle Mode)"
                         checked={timerAutoSuspend}
@@ -546,7 +529,7 @@ export function TimerPanel() {
 
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                        icon={<ItemBadgeIcon kind="prevent_sleep" />}
                         label="Prevent Sleep"
                         description="Keep device awake while timer runs. Use with caution - may drain battery."
                         checked={settings.timer_prevent_sleep ?? false}
@@ -557,7 +540,7 @@ export function TimerPanel() {
                 {settings.timer_prevent_sleep && (
                     <PanelSectionRow>
                         <ToggleField
-                            icon={<span style={{ fontSize: 14 }}>🖥️</span>}
+                            icon={<ItemBadgeIcon kind="screensaver" />}
                             label="Screensaver"
                             description={screensaverToggleDescription(settings)}
                             checked={timerScreensaver}

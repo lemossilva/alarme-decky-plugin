@@ -6,6 +6,7 @@ import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
 import { useSettings } from "../hooks/useSettings";
 import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
+import { ItemBadgeIcon } from "./ItemBadges";
 
 // Days of the week - 0=Monday per backend convention
 const DAYS_OF_WEEK = [
@@ -664,7 +665,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                             }}
                         >
                             <div>
-                                <div style={{ fontSize: 13 }}>📵 Subtle Mode</div>
+                                <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><ItemBadgeIcon kind="subtle" size={13} /> Subtle Mode</div>
                                 <div style={{ fontSize: 11, color: '#888888' }}>
                                     {autoSuspend ? 'Required when Auto-Suspend is enabled' : 'Show only a toast notification'}
                                 </div>
@@ -708,7 +709,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                             }}
                         >
                             <div>
-                                <div style={{ fontSize: 13 }}>💤 Auto Suspend</div>
+                                <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><ItemBadgeIcon kind="auto_suspend" size={13} /> Auto Suspend</div>
                                 <div style={{ fontSize: 11, color: '#888888' }}>
                                     Put device to sleep after alarm
                                 </div>
@@ -745,7 +746,7 @@ function AlarmEditorModalContent({ alarm, onSave, onDelete, getSounds, closeModa
                             }}
                         >
                             <div>
-                                <div style={{ fontSize: 13 }}>🛡️ Prevent Sleep</div>
+                                <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><ItemBadgeIcon kind="prevent_sleep" size={13} /> Prevent Sleep</div>
                                 <div style={{ fontSize: 11, color: '#888888' }}>
                                     Keep device awake before alarm. Use with caution - may drain battery.
                                 </div>

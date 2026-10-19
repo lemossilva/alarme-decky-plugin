@@ -1,11 +1,12 @@
 import { Fragment } from "react";
 import type { CSSProperties } from "react";
-import { FaStopwatch, FaBell, FaBrain, FaRedo, FaHourglassHalf, FaShieldAlt, FaVolumeMute, FaMoon } from "react-icons/fa";
+import { FaStopwatch, FaBell, FaBrain, FaRedo, FaHourglassHalf } from "react-icons/fa";
 import { useOverlayData } from "../../hooks/useOverlayData";
 import { useSettings } from "../../hooks/useSettings";
 import { formatDuration, formatTime } from "../../utils/time";
 import { displayAlertLabel } from "../../utils/overlayAlertDisplay";
 import type { OverlayAlert } from "../../types";
+import { ItemBadges } from "../ItemBadges";
 
 const ICONS: Record<string, JSX.Element> = {
     timer: <FaHourglassHalf />,
@@ -105,14 +106,7 @@ export function AlertsListRow({
                         <span style={{ opacity: 0.88, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis" }}>
                             {displayAlertLabel(alert)}
                         </span>
-                        {alert.prevent_sleep && (
-                            <FaShieldAlt size={Math.max(8, textSize - 2)} color="#e69900" style={{ flexShrink: 0 }} />
-                        )}
-                        {alert.auto_suspend ? (
-                            <FaMoon size={Math.max(8, textSize - 2)} opacity={0.65} style={{ flexShrink: 0 }} />
-                        ) : (
-                            alert.subtle_mode && <FaVolumeMute size={Math.max(8, textSize - 2)} opacity={0.65} style={{ flexShrink: 0 }} />
-                        )}
+                        <ItemBadges item={alert} size={Math.max(8, textSize - 2)} monochrome />
                         <span style={{ fontFamily: "monospace", fontWeight: 600, flexShrink: 0, opacity: 1 }}>
                             {formatAlertStr(alert, use24h)}
                         </span>

@@ -11,6 +11,7 @@ import { useStopwatch } from "../hooks/useStopwatch";
 import { useSettings } from "../hooks/useSettings";
 import { formatStopwatch, formatLapSplit } from "../utils/time";
 import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
+import { ItemBadgeIcon } from "./ItemBadges";
 import type { StopwatchLap } from "../types";
 import { useEffect, useRef, useState } from "react";
 
@@ -247,7 +248,7 @@ export function StopwatchPanel() {
                 {/* Prevent Sleep Toggle */}
                 <PanelSectionRow>
                     <ToggleField
-                        icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                        icon={<ItemBadgeIcon kind="prevent_sleep" />}
                         label="Prevent Sleep"
                         description="Keep device awake while stopwatch is running"
                         checked={preventSleep}
@@ -258,7 +259,7 @@ export function StopwatchPanel() {
                 {preventSleep && (
                     <PanelSectionRow>
                         <ToggleField
-                            icon={<span style={{ fontSize: 14 }}>🖥️</span>}
+                            icon={<ItemBadgeIcon kind="screensaver" />}
                             label="Screensaver"
                             description={screensaverToggleDescription(settings)}
                             checked={screensaverMode !== 'off'}

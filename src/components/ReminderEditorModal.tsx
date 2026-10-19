@@ -15,6 +15,7 @@ import { playAlarmSound, stopSound } from "../utils/sounds";
 import { formatTime } from "../utils/time";
 import { useSettings } from "../hooks/useSettings";
 import { ScreensaverProfileDropdown, screensaverToggleDescription } from "./ScreensaverProfileDropdown";
+import { ItemBadgeIcon } from "./ItemBadges";
 
 import type { Reminder, ScreensaverProfileSlot, SoundFile } from "../types";
 
@@ -676,7 +677,7 @@ function ReminderEditorModalContent({
 
                 {/* Subtle Mode Toggle */}
                 <ToggleField
-                    icon={<span style={{ fontSize: 14 }}>📵</span>}
+                    icon={<ItemBadgeIcon kind="subtle" />}
                     label="Subtle mode"
                     description="Show only a toast notification, no sound"
                     checked={subtleMode}
@@ -685,7 +686,7 @@ function ReminderEditorModalContent({
 
                 {/* Prevent Sleep Toggle */}
                 <ToggleField
-                    icon={<span style={{ fontSize: 14 }}>🛡️</span>}
+                    icon={<ItemBadgeIcon kind="prevent_sleep" />}
                     label="Prevent sleep"
                     description={onlyWhileGaming ? "Disabled because 'Only while gaming' is active" : "Keep device awake while reminder is active. Use with caution - may drain battery."}
                     checked={preventSleep}

@@ -1,6 +1,7 @@
 import { Focusable, PanelSection, PanelSectionRow } from "@decky/ui";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { ITEM_BADGES, ItemBadgeIcon, type ItemBadgeKind } from "./ItemBadges";
 
 const ManualRow = ({ title, description }: { title: string; description: ReactNode }) => {
     return (
@@ -101,6 +102,19 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                     title="Settings sidebar"
                     description="Each page groups defaults for one area. This About page is a quick reference; overlay and screensaver have full detail on their own tabs."
                 />
+                <ManualRow
+                    title="Option badges"
+                    description={
+                        <span style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                            {(Object.keys(ITEM_BADGES) as ItemBadgeKind[]).map((kind) => (
+                                <span key={kind} style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
+                                    <ItemBadgeIcon kind={kind} size={11} />
+                                    {ITEM_BADGES[kind].title}
+                                </span>
+                            ))}
+                        </span>
+                    }
+                />
             </PanelSection>
 
             <PanelSection title="Timers">
@@ -118,7 +132,7 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                 />
                 <ManualRow
                     title="Per-timer options"
-                    description="While creating or editing a timer you can enable Prevent Sleep, optional auto-suspend when it fires, subtle alerts, and the screensaver (moon badge). Those options mirror what you see on alarms."
+                    description="While creating or editing a timer you can enable Prevent Sleep, optional auto-suspend when it fires, subtle alerts, and the screensaver. Cards show the same option badges everywhere (see At a glance)."
                 />
             </PanelSection>
 
