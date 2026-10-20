@@ -30,13 +30,11 @@ export const Z_INDEX = {
 } as const;
 
 /**
- * CSS injected once at plugin startup so that Steam / Decky modal portals always
- * sit above our screensaver overlay. This addresses cases where the modal is
- * rendered into a portal container with a default z-index lower than ours.
+ * CSS that lifts Steam / Decky modal portals above the screensaver overlay, for cases
+ * where the modal portal has a default z-index lower than ours.
  *
- * The selectors cover the common modal containers used by @decky/ui and Steam UI.
- * Using attribute and class hooks instead of broad `*` rules avoids interfering
- * with native popovers (focus rings, tooltips) elsewhere in the Steam UI.
+ * It overrides Steam's own modal layering, so it is only present while the screensaver
+ * is visible (see `setModalLayering`).
  */
 export const MODAL_ZINDEX_CSS = `
 .ModalPosition,
@@ -49,3 +47,18 @@ export const MODAL_ZINDEX_CSS = `
     z-index: ${Z_INDEX.MODAL_PORTAL} !important;
 }
 `;
+
+const MODAL_STYLE_ID = 'alarme-modal-zindex-fix';
+
+export function setModalLayering(active: boolean) {
+    const existing = document.getElementById(MODAL_STYLE_ID);
+    if (!active) {
+        existing?.remove();
+        return;
+    }
+    if (existing) return;
+    const style = document.createElement('style');
+    style.id = MODAL_STYLE_ID;
+    style.textContent = MODAL_ZINDEX_CSS;
+    document.head.appendChild(style);
+}

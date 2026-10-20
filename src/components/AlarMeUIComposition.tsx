@@ -2,8 +2,18 @@ import { useUIComposition, UIComposition } from "../utils/uiComposition";
 import { useSettings } from "../hooks/useSettings";
 import { useScreensaver } from "../hooks/useScreensaver";
 import { useGameStatus } from "../hooks/useGameStatus";
+import { useOnGameRoute } from "../hooks/useGameRoute";
 import { useOverlayData } from "../hooks/useOverlayData";
 import { useMissedAlerts } from "../hooks/useMissedAlerts";
+
+/**
+ * Steam falls back to an opaque page for routes without an explicit state only while no
+ * composition request is held, so a request exists only for as long as it is needed.
+ */
+function CompositionRequest({ level }: { level: UIComposition }) {
+    useUIComposition(level);
+    return null;
+}
 
 export function AlarMeUIComposition() {
     const { settings } = useSettings();
@@ -30,19 +40,15 @@ export function AlarMeUIComposition() {
         (displayMode === "gaming_only" && !isGameRunning) ||
         (displayMode === "steam_only" && isGameRunning);
 
-    const needsNotificationHud =
+    const wantsHud =
         (settings.overlay_enabled ?? false) &&
         hasContent &&
         !hideHudForNonCompactSaver &&
-        !hudHiddenByDisplayMode;
+        !hudHiddenByDisplayMode &&
+        isGameRunning;
+    const onGameRoute = useOnGameRoute(wantsHud && !screensaverDimVisible);
 
-    const level = screensaverDimVisible
-        ? UIComposition.Overlay
-        : needsNotificationHud
-          ? UIComposition.Notification
-          : UIComposition.Hidden;
-
-    useUIComposition(level);
-
+    if (screensaverDimVisible) return <CompositionRequest level={UIComposition.Overlay} />;
+    if (wantsHud && onGameRoute) return <CompositionRequest level={UIComposition.Notification} />;
     return null;
 }

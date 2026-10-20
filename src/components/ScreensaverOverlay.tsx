@@ -9,7 +9,7 @@ import { usePixelShift } from "../hooks/usePixelShift";
 import { useWeatherPrefetch } from "../hooks/useWeather";
 import { useNewsPrefetch } from "../hooks/useNews";
 import type { ScreensaverBigWidgetId, ScreensaverSmallWidgetId } from "../types";
-import { Z_INDEX } from "../utils/zIndex";
+import { Z_INDEX, setModalLayering } from "../utils/zIndex";
 import { FaBell, FaMoon, FaDesktop } from "react-icons/fa";
 
 export const ScreensaverOverlay = () => {
@@ -69,6 +69,11 @@ export const ScreensaverOverlay = () => {
             release();
         };
     }, [shouldListen, subscribe, release]);
+
+    useEffect(() => {
+        setModalLayering(overlayVisible);
+        return () => setModalLayering(false);
+    }, [overlayVisible]);
 
     const prevVisibleRef = useRef(false);
     useEffect(() => {
