@@ -83,11 +83,18 @@ function applyShift(el: HTMLElement, x: number, y: number, driftRange: number, o
 
 /**
  * Stepped OLED-style shift with crossfade: holds at each pixel offset for `pixel_shift_interval_seconds`,
- * then fades out, moves to a new offset, and fades back in. Updates CSS custom properties on `rootRef` only.
+ * then fades out, moves to a new offset, and fades back in. With `fade: false` the element never loses
+ * opacity: it only steps to a new offset every interval (the caller animates the move).
+ * Updates CSS custom properties on `rootRef` only.
  * For the screensaver, pass the full overlay root so children (e.g. wallpaper attribution, mode pill) inherit
  * `--alarme-drift-*`, `--alarme-shift-opacity`, and clamped corner nudges `--alarme-br-nudge-*` / `--alarme-bl-nudge-*`.
  */
-export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement | null>) {
+export function usePixelShift(
+    visible: boolean,
+    rootRef: RefObject<HTMLElement | null>,
+    options: { fade?: boolean } = {},
+) {
+    const fade = options.fade ?? true;
     const { settings } = useSettings();
     const enabled = settings.pixel_shift_enabled ?? true;
     const range = settings.pixel_shift_range ?? 3;
@@ -123,6 +130,27 @@ export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement |
 
         const clampedRange = Math.max(1, Math.min(10, range));
         const holdMs = Math.max(800, intervalSec * 1000);
+
+        if (!fade) {
+            let current = { x: 0, y: 0 };
+            const step = () => {
+                const el = rootRef.current;
+                current = pickTarget(clampedRange, current.x, current.y);
+                if (el) {
+                    const effDrift = driftPixelsForLayout(
+                        driftRange,
+                        settingsRef.current.overlay_screensaver_layout as string | undefined,
+                    );
+                    applyShift(el, current.x, current.y, effDrift, 1);
+                }
+            };
+            step();
+            const timer = window.setInterval(step, holdMs);
+            return () => {
+                window.clearInterval(timer);
+                stop();
+            };
+        }
         const fadeMs = Math.min(12000, Math.max(4000, Math.round(intervalSec * 400)));
 
         type Phase =
@@ -206,5 +234,5 @@ export function usePixelShift(visible: boolean, rootRef: RefObject<HTMLElement |
 
         rafRef.current = requestAnimationFrame(loop);
         return stop;
-    }, [visible, enabled, range, intervalSec, driftRange, rootRef]);
+    }, [visible, enabled, fade, range, intervalSec, driftRange, rootRef]);
 }

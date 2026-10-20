@@ -75,7 +75,8 @@ An advanced alarm and timer plugin for Steam Deck with persistent alarms, snooze
 - **Easy check** - Quickly see your alarms and timers
 - **Native Integration** - Fits seamlessly into SteamOS UI and renders above game content only when the HUD or active screensaver needs it, so QAM and plugin pages stay interactive while a game runs
 - **Non-Intrusive** - Horizontal micro-alerts that won't block game UI
-- **Pixel shift** - OLED burn-in protection that slowly orbits the overlay position
+- **Pixel shift** - OLED burn-in protection that slowly moves the overlay a few pixels; the in-game overlay shifts in place and never fades out
+- **Anchor and color** - Place the overlay from any top or bottom corner or the center with pixel offsets, and pick its text color
 
 ### 🌙 Screensaver Mode
 - **Per-alert control** - Enable screensaver individually on any timer, alarm, reminder, stopwatch, or Pomodoro alongside Prevent Sleep; these toggles (plus Standalone mode) are the on/off switches, so turning one off keeps that item's screensaver off

@@ -199,7 +199,7 @@ export const AboutInstructionsPage = ({ getVersionCall }: AboutInstructionsPageP
                 />
                 <ManualRow
                     title="Full detail"
-                    description="Position, opacity, categories, and time window are under Settings → Overlay (About Overlay at the top of that tab)."
+                    description="Position (anchor and offsets), text color, opacity, categories, and time window are under Settings → Overlay (About Overlay at the top of that tab)."
                 />
             </PanelSection>
 

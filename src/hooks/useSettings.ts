@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { addEventListener, removeEventListener, callable } from '@decky/api';
-import type { UserSettings, Preset, PomodoroAutoStart, ScreensaverMode, ScreensaverProfileSlot } from '../types';
+import type { UserSettings, Preset, OverlayAnchor, PomodoroAutoStart, ScreensaverMode, ScreensaverProfileSlot } from '../types';
 
 // Backend callables
 const getSettingsCall = callable<[], UserSettings>('get_settings');
@@ -118,6 +118,8 @@ const DEFAULT_SETTINGS: UserSettings = {
     overlay_position: 'default' as const,
     overlay_custom_x: 10,
     overlay_custom_y: 12,
+    overlay_custom_anchor: 'top_left' as OverlayAnchor,
+    overlay_text_color: '',
     overlay_text_size: 13,
     overlay_opacity: 0.4,
     overlay_max_alerts: 2,

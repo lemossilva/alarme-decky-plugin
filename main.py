@@ -511,6 +511,10 @@ SETTINGS_KEY_LAST_BOOT_ID = "last_boot_id"
 
 SCREENSAVER_PROFILE_SLOTS = ("slot_1", "slot_2", "slot_3")
 SCREENSAVER_MODES = ("black", "dim", "wallpaper")
+OVERLAY_ANCHORS = (
+    "top_left", "top_center", "top_right",
+    "bottom_left", "bottom_center", "bottom_right",
+)
 
 SCREENSAVER_PROFILE_KEYS = [
     "screensaver_mode", "screensaver_dim_opacity", "screensaver_idle_seconds",
@@ -580,6 +584,8 @@ DEFAULT_SETTINGS = {
     "overlay_position": "default",
     "overlay_custom_x": 10,
     "overlay_custom_y": 12,
+    "overlay_custom_anchor": "top_left",  # top|bottom + left|center|right
+    "overlay_text_color": "",  # "" = default grey, otherwise an hsla() string
     "overlay_text_size": 13,
     "overlay_opacity": 0.4,
     "overlay_max_alerts": 2,
@@ -5117,6 +5123,9 @@ class Plugin:
             merged["overlay_position"] = position_map[current_position]
         elif current_position not in {"default", "custom"}:
             merged["overlay_position"] = "default"
+
+        if merged.get("overlay_custom_anchor") not in OVERLAY_ANCHORS:
+            merged["overlay_custom_anchor"] = DEFAULT_SETTINGS["overlay_custom_anchor"]
 
         # Per-item toggles turn the screensaver off; the global mode only picks its look.
         if merged.get("screensaver_mode") not in SCREENSAVER_MODES:

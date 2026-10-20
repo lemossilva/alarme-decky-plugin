@@ -11,6 +11,8 @@ import { Z_INDEX } from "../utils/zIndex";
 import type { OverlayAlert } from "../types";
 import { WeatherWidget } from "./screensaver/WeatherWidget";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
+import { overlayAnchorLayout } from "../utils/overlayAnchor";
+import { resolveOverlayTextColor } from "../utils/overlayColor";
 import { displayAlertLabel } from "../utils/overlayAlertDisplay";
 import { ItemBadges } from "./ItemBadges";
 
@@ -23,10 +25,8 @@ const CATEGORY_ICONS: Record<string, JSX.Element> = {
     stopwatch: <FaStopwatch />
 };
 
-// Default position style (upper corner; customizable under Overlay → Position)
+// Layout shared by every anchor; the offsets come from overlayAnchorLayout
 const DEFAULT_POSITION_STYLE: React.CSSProperties = {
-    top: 12,
-    left: 12,
     justifyContent: 'flex-start',
     display: 'flex',
     alignItems: 'center'
@@ -148,7 +148,7 @@ export const GameOverlay = () => {
     const hasContent = alerts.length > 0 || inhibitorActive || hasNewMissedAlerts || screensaverVisible;
     const overlayActive = settings.overlay_enabled && hasContent;
     const gameOverlayRef = useRef<HTMLDivElement>(null);
-    usePixelShift(overlayActive, gameOverlayRef);
+    usePixelShift(overlayActive, gameOverlayRef, { fade: false });
     const [batteryPct, setBatteryPct] = useState<number | null>(null);
 
     const showBattery = settings.overlay_compact_screensaver_show_battery ?? true;
@@ -170,17 +170,16 @@ export const GameOverlay = () => {
         return () => { cancelled = true; clearInterval(interval); };
     }, [batteryActive]);
 
-    const positionStyle = useMemo(() => {
-        const isCustom = settings.overlay_position === 'custom';
-        if (isCustom) {
-            return {
-                ...DEFAULT_POSITION_STYLE,
-                left: settings.overlay_custom_x ?? 12,
-                top: settings.overlay_custom_y ?? 12
-            };
+    const anchorLayout = useMemo(() => {
+        if (settings.overlay_position !== 'custom') {
+            return overlayAnchorLayout('top_left', 12, 12);
         }
-        return DEFAULT_POSITION_STYLE;
-    }, [settings.overlay_position, settings.overlay_custom_x, settings.overlay_custom_y]);
+        return overlayAnchorLayout(
+            settings.overlay_custom_anchor,
+            settings.overlay_custom_x ?? 12,
+            settings.overlay_custom_y ?? 12,
+        );
+    }, [settings.overlay_position, settings.overlay_custom_anchor, settings.overlay_custom_x, settings.overlay_custom_y]);
 
     if (!settings.overlay_enabled || !hasContent) {
         return null;
@@ -216,14 +215,15 @@ export const GameOverlay = () => {
     const baseOpacity = settings.overlay_opacity ?? 0.85;
     const overlayTextColor = compactScreensaverBypass
         ? resolveScreensaverAccentColor(settings)
-        : "#8b8b8b";
+        : resolveOverlayTextColor(settings.overlay_text_color);
 
     return (
         <div
             ref={gameOverlayRef}
             style={{
             position: 'fixed',
-            ...positionStyle,
+            ...DEFAULT_POSITION_STYLE,
+            ...anchorLayout.position,
             zIndex: overlayDuring ? Z_INDEX.GAME_OVERLAY_ABOVE_SCREENSAVER : Z_INDEX.GAME_OVERLAY_BASE,
             pointerEvents: 'none',
             opacity: `calc(${baseOpacity} * var(--alarme-shift-opacity, 1))`,
@@ -232,9 +232,10 @@ export const GameOverlay = () => {
             userSelect: 'none',
             display: 'flex',
             flexDirection: showExtra ? 'column' : 'row',
-            alignItems: showExtra ? 'flex-start' : 'center',
+            alignItems: showExtra ? anchorLayout.align : 'center',
             gap: showExtra ? 2 : 12,
-            transform: 'translate(var(--alarme-shift-x, 0px), var(--alarme-shift-y, 0px))',
+            transform: `translate(calc(${anchorLayout.translateX} + var(--alarme-shift-x, 0px)), var(--alarme-shift-y, 0px))`,
+            transition: 'transform 1.5s ease-in-out',
         }}
         >
             {/* Main line */}

@@ -1,5 +1,6 @@
 import {
     ButtonItem,
+    ColorPickerModal,
     ConfirmModal,
     Dropdown,
     Focusable,
@@ -25,7 +26,9 @@ import { playAlarmSound } from "../utils/sounds";
 import { showExportModal, showImportModal } from "./BackupModals";
 import { BinarySelector } from "./BinarySelector";
 import { DropdownRow, SettingsNote, SETTINGS_INDENT } from "./SettingsRows";
-import type { SoundFile, PomodoroAutoStart, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile, UserSettings } from "../types";
+import { OVERLAY_ANCHORS, OVERLAY_CENTER_OFFSET_MAX, splitOverlayAnchor } from "../utils/overlayAnchor";
+import { DEFAULT_OVERLAY_TEXT_COLOR, parseHsla, resolveOverlayTextColor } from "../utils/overlayColor";
+import type { SoundFile, OverlayAnchor, PomodoroAutoStart, ScreensaverLayout, ClockStyle, AccentColorPreset, WallpaperProvider, WallpaperFit, WallpaperBlur, ScreensaverProfile, UserSettings } from "../types";
 import { WIDGET_CAPS } from "../types";
 import { WALLPAPER_POOL_MAX, clampWallpaperPoolSize } from "../hooks/useWallpaper";
 import { WeatherLocationPicker } from "./screensaver/WeatherLocationPicker";
@@ -1960,7 +1963,7 @@ const ScreensaverSettingsPage = () => {
                             <ToggleField
                                 icon={<FaShieldAlt size={16} />}
                                 label="Pixel Shift"
-                                description="Slowly move overlay content to prevent OLED burn-in"
+                                description="Slowly move overlay content to prevent OLED burn-in. The in-game overlay shifts in place; the screensaver fades between positions."
                                 checked={settings.pixel_shift_enabled ?? true}
                                 onChange={(value) => updateSetting('pixel_shift_enabled', value)}
                             />
@@ -2101,8 +2104,27 @@ const BackupSettingsPage = () => {
 
 // Overlay Settings Page
 const OverlaySettingsPage = () => {
-    const { settings, updateSetting } = useSettings();
+    const { settings, updateSetting, updateSettings } = useSettings();
     const isCustomPosition = settings.overlay_position === 'custom';
+    const anchor = settings.overlay_custom_anchor ?? 'top_left';
+    const { vertical: anchorVertical, horizontal: anchorHorizontal } = splitOverlayAnchor(anchor);
+    const customX = settings.overlay_custom_x ?? 12;
+    const textColor = resolveOverlayTextColor(settings.overlay_text_color);
+    const hasCustomTextColor = parseHsla(settings.overlay_text_color) !== null;
+    const openTextColorPicker = () => {
+        const current = parseHsla(settings.overlay_text_color) ?? parseHsla(DEFAULT_OVERLAY_TEXT_COLOR) ?? { h: 0, s: 0, l: 55, a: 1 };
+        showModal(
+            <ColorPickerModal
+                closeModal={() => undefined}
+                title="Overlay text color"
+                defaultH={current.h}
+                defaultS={current.s}
+                defaultL={current.l}
+                defaultA={current.a}
+                onConfirm={(hsla) => { void updateSetting('overlay_text_color', hsla); }}
+            />
+        );
+    };
 
     // Time window options: 15m, 30m, 45m, 1h, 2h, 3h, 4h, 6h, 8h, 12h, 24h
     const timeWindowOptions = [
@@ -2193,15 +2215,15 @@ const OverlaySettingsPage = () => {
                 <>
                     <PanelSection title="Position">
                         <SettingsNote tone="hint">
-                            The compact overlay stack is positioned with <strong>X</strong> and <strong>Y</strong> (pixels from the display origin; 1280×800 reference).
-                            The same offsets move the full stack: upcoming alerts and, when the screensaver runs in <strong>Compact</strong> layout,
+                            The compact overlay stack is placed with an <strong>Anchor</strong> (any top or bottom corner, or the center) plus <strong>X</strong> and <strong>Y</strong> pixel offsets
+                            from that edge (1280×800 reference). The offsets move the full stack: upcoming alerts and, when the screensaver runs in <strong>Compact</strong> layout,
                             the optional second line (clock, date, weather, battery) from the Screensaver tab.
                         </SettingsNote>
                         <PanelSectionRow>
                             <ToggleField
                                 icon={<FaCog />}
                                 label="Custom Position"
-                                description="Set pixel offsets from the display origin (1280×800 reference). Turn off to reset to the default corner."
+                                description="Choose an anchor and pixel offsets (1280×800 reference). Turn off to reset to the default top left corner."
                                 checked={isCustomPosition}
                                 onChange={(value) => updateSetting('overlay_position', value ? 'custom' : 'default')}
                             />
@@ -2213,13 +2235,29 @@ const OverlaySettingsPage = () => {
                                     <OverlayPositionPreview settings={settings} />
                                 </PanelSectionRow>
 
+                                <DropdownRow
+                                    icon={FaCog}
+                                    label="Anchor"
+                                    rgOptions={OVERLAY_ANCHORS}
+                                    selectedOption={anchor}
+                                    onChange={(option) => {
+                                        const next = splitOverlayAnchor(option.data as OverlayAnchor).horizontal;
+                                        const x = settings.overlay_custom_x ?? 12;
+                                        const keepX = next === 'center' ? 0 : Math.max(0, x);
+                                        void updateSettings({ overlay_custom_anchor: option.data as OverlayAnchor, overlay_custom_x: keepX });
+                                    }}
+                                    strDefaultLabel="Top left"
+                                />
+
                                 <PanelSectionRow>
                                     <SliderField
                                         label="X Position"
-                                        description={`${settings.overlay_custom_x ?? 12}px from left`}
-                                        value={settings.overlay_custom_x ?? 12}
-                                        min={0}
-                                        max={1200}
+                                        description={anchorHorizontal === 'center'
+                                            ? `${customX >= 0 ? '+' : ''}${customX}px from center`
+                                            : `${customX}px from ${anchorHorizontal}`}
+                                        value={customX}
+                                        min={anchorHorizontal === 'center' ? -OVERLAY_CENTER_OFFSET_MAX : 0}
+                                        max={anchorHorizontal === 'center' ? OVERLAY_CENTER_OFFSET_MAX : 1200}
                                         step={1}
                                         onChange={(value) => updateSetting('overlay_custom_x', value)}
                                         icon={<FaCog />}
@@ -2229,7 +2267,7 @@ const OverlaySettingsPage = () => {
                                 <PanelSectionRow>
                                     <SliderField
                                         label="Y Position"
-                                        description={`${settings.overlay_custom_y ?? 12}px from top`}
+                                        description={`${settings.overlay_custom_y ?? 12}px from ${anchorVertical}`}
                                         value={settings.overlay_custom_y ?? 12}
                                         min={0}
                                         max={720}
@@ -2252,6 +2290,26 @@ const OverlaySettingsPage = () => {
                                 onChange={(value) => updateSetting('overlay_compact_mode', value)}
                             />
                         </PanelSectionRow>
+
+                        <PanelSectionRow>
+                            <ButtonItem
+                                label="Text color"
+                                description={hasCustomTextColor ? 'Custom color. Opacity below is applied on top.' : 'Default grey. Opacity below is applied on top.'}
+                                onClick={openTextColorPicker}
+                            >
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ width: 14, height: 14, borderRadius: 3, background: textColor, border: '1px solid #ffffff66' }} />
+                                    Change
+                                </span>
+                            </ButtonItem>
+                        </PanelSectionRow>
+                        {hasCustomTextColor && (
+                            <PanelSectionRow>
+                                <ButtonItem layout="below" onClick={() => { void updateSetting('overlay_text_color', ''); }}>
+                                    Reset text color
+                                </ButtonItem>
+                            </PanelSectionRow>
+                        )}
 
                         <PanelSectionRow>
                             <SliderField

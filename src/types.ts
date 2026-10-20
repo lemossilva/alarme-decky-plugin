@@ -170,6 +170,8 @@ export interface UserSettings {
     overlay_position: OverlayPosition;
     overlay_custom_x: number;
     overlay_custom_y: number;
+    overlay_custom_anchor?: OverlayAnchor;
+    overlay_text_color?: string;
     overlay_text_size: number;
     overlay_opacity: number;
     overlay_max_alerts: number;
@@ -344,6 +346,8 @@ export interface SnoozeEvent {
 
 // Overlay types
 export type OverlayPosition = 'default' | 'custom';
+
+export type OverlayAnchor = 'top_left' | 'top_center' | 'top_right' | 'bottom_left' | 'bottom_center' | 'bottom_right';
 
 export type OverlayDisplayMode = 'both' | 'steam_only' | 'gaming_only' | 'always';
 

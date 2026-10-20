@@ -3,6 +3,8 @@ import { FaStopwatch, FaBell, FaVolumeMute, FaBatteryFull, FaCloudSun, FaTint } 
 import type { UserSettings } from "../types";
 import { formatTime } from "../utils/time";
 import { resolveScreensaverAccentColor } from "../utils/screensaverAccent";
+import { overlayAnchorLayout, splitOverlayAnchor } from "../utils/overlayAnchor";
+import { resolveOverlayTextColor } from "../utils/overlayColor";
 
 const REF_W = 1280;
 const REF_H = 800;
@@ -33,6 +35,15 @@ export function OverlayPositionPreview({ settings }: { settings: UserSettings })
 
     const x = settings.overlay_custom_x ?? 12;
     const y = settings.overlay_custom_y ?? 12;
+    const anchor = settings.overlay_custom_anchor ?? "top_left";
+    const anchorLayout = overlayAnchorLayout(
+        anchor,
+        x,
+        y,
+        (px) => `${(px / REF_W) * 100}%`,
+        (px) => `${(px / REF_H) * 100}%`,
+    );
+    const { vertical, horizontal } = splitOverlayAnchor(anchor);
     const textSize = settings.overlay_text_size ?? 11;
     const opacity = settings.overlay_opacity ?? 0.85;
     const compact = settings.overlay_compact_mode ?? false;
@@ -71,7 +82,7 @@ export function OverlayPositionPreview({ settings }: { settings: UserSettings })
                 }}
             >
                 Reference frame is <strong>1280×800</strong> (Steam Deck class).{" "}
-                <strong>X</strong> and <strong>Y</strong> are pixel offsets from the display origin, matching the live overlay.
+                <strong>X</strong> and <strong>Y</strong> are pixel offsets from the {vertical} {horizontal === "center" ? "edge and the horizontal center" : `${horizontal} edge`}, matching the live overlay.
             </div>
 
             <div
@@ -97,7 +108,7 @@ export function OverlayPositionPreview({ settings }: { settings: UserSettings })
                 >
                     <span>Position preview</span>
                     <span style={{ fontFamily: "monospace", letterSpacing: 0 }}>
-                        X {x}px · Y {y}px
+                        {horizontal === "center" ? `X ${x >= 0 ? "+" : ""}${x}px` : `X ${x}px`} · Y {y}px
                     </span>
                 </div>
 
@@ -141,14 +152,14 @@ export function OverlayPositionPreview({ settings }: { settings: UserSettings })
                     <div
                         style={{
                             position: "absolute",
-                            left: `${(x / REF_W) * 100}%`,
-                            top: `${(y / REF_H) * 100}%`,
+                            ...anchorLayout.position,
+                            transform: `translateX(${anchorLayout.translateX})`,
                             display: "flex",
                             flexDirection: showSecondRow ? "column" : "row",
-                            alignItems: "flex-start",
+                            alignItems: showSecondRow ? anchorLayout.align : "flex-start",
                             gap: showSecondRow ? 2 : 0,
                             opacity,
-                            color: "#8b8b8b",
+                            color: resolveOverlayTextColor(settings.overlay_text_color),
                             fontFamily: "system-ui, -apple-system, sans-serif",
                             userSelect: "none",
                             pointerEvents: "none",
